@@ -1,4 +1,5 @@
 use actix_web::{get, post, App, HttpResponse, HttpServer, Responder};
+use rppal::gpio::{Gpio, InputPin, Level, Trigger};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio_tungstenite::tungstenite::protocol::Message;
 
@@ -53,7 +54,14 @@ async fn main() -> std::io::Result<()> {
 
     let _message_listener_thread = tokio::spawn(async { message::listen(rx) });
 
-    let _sump = sump::Sump::new(14, 5, tx).expect("Could not create sump object");
+    let high_pin = 14;
+    //let low_pin = 5;
+
+    let gpio = Gpio::new().expect("Could not create gpio device");
+    let mut high_sensor = gpio.get(high_pin)?.into_input();
+    //let mut low_sensor = gpio.get(low_pin)?.into_input();
+
+    let _sump = sump::Sump::new(14, tx).expect("Could not create sump object");
 
     HttpServer::new(|| App::new().service(on).service(off).service(echo))
         .bind(("127.0.0.1", 8080))?
