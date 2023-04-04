@@ -53,9 +53,7 @@ async fn main() -> std::io::Result<()> {
 
     let _message_listener_thread = tokio::spawn(async { message::listen(rx) });
 
-    let _sump_thread = tokio::spawn(async {
-        sump::Sump::new(23, 99, tx).expect("Could not create sump object");
-    });
+    let _sump = sump::Sump::new(14, 5, tx).expect("Could not create sump object");
 
     HttpServer::new(|| App::new().service(on).service(off).service(echo))
         .bind(("127.0.0.1", 8080))?
