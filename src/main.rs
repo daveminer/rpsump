@@ -50,18 +50,28 @@ async fn echo(req_body: String) -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let (tx, rx): (Sender<Message>, Receiver<Message>) = channel(32);
+    //let (tx, rx): (Sender<Message>, Receiver<Message>) = channel(32);
 
-    let _message_listener_thread = tokio::spawn(async { message::listen(rx) });
+    //let _message_listener_thread = tokio::spawn(async { message::listen(rx) });
 
     let high_pin = 14;
     //let low_pin = 5;
 
     let gpio = Gpio::new().expect("Could not create gpio device");
-    let mut high_sensor = gpio.get(high_pin)?.into_input();
+    let mut high_sensor = gpio
+        .get(high_pin)
+        .expect("Could not get high pin")
+        .into_input();
     //let mut low_sensor = gpio.get(low_pin)?.into_input();
 
-    let _sump = sump::Sump::new(14, tx).expect("Could not create sump object");
+    high_sensor
+        .set_async_interrupt(Trigger::Both, move |level| {
+            println!("LEVEL: {}", level);
+            //Self::sump_signal_received(level, sensor_name.clone(), tx.clone());
+        })
+        .expect("Could not not listen on sump pin");
+
+    //let _sump = sump::Sump::new(14, tx).expect("Could not create sump object");
 
     HttpServer::new(|| App::new().service(on).service(off).service(echo))
         .bind(("127.0.0.1", 8080))?
