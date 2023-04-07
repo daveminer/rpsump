@@ -1,5 +1,5 @@
 use actix_web::{get, post, App, HttpResponse, HttpServer, Responder};
-use rppal::gpio::{Gpio, InputPin, Level, Trigger};
+use std::sync::Mutex;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio_tungstenite::tungstenite::protocol::Message;
 
@@ -8,8 +8,11 @@ mod sump;
 
 const CHANNEL_BUFFER_SIZE: usize = 32;
 
-// Gpio uses BCM pin numbering. BCM GPIO 23 is tied to physical pin 16.
-const GPIO_LED: u8 = 23;
+static RPSUMP: Mutex<Option<sump::Sump>> = Mutex::new(None);
+
+pub struct RpSump {
+    sump_high_sensor: bool,
+}
 
 // #[get("/")]
 // async fn index() -> impl Responder {
@@ -53,26 +56,17 @@ async fn echo(req_body: String) -> impl Responder {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let (tx, rx): (Sender<Message>, Receiver<Message>) = channel(CHANNEL_BUFFER_SIZE);
-    //    let high_pin = 14; // GPIO #14 == Pin #8
-    //let low_pin = 5;
 
     let _message_listener_thread = tokio::spawn(async { message::listen(rx).await });
 
-    //    let gpio = Gpio::new().expect("Could not create gpio device");
-    // let mut high_sensor = gpio
-    //     .get(high_pin)
-    //     .expect("Could not get high pin")
-    //     .into_input_pullup();
-    //let mut low_sensor = gpio.get(low_pin)?.into_input();
+    let sump = sump::Sump::new(tx).expect("Could not create sump object");
 
-    // high_sensor
-    //     .set_async_interrupt(Trigger::Both, move |level| {
-    //         println!("LEVEL: {}", level);
-    //         //Self::sump_signal_received(level, sensor_name.clone(), tx.clone());
-    //     })
-    //     .expect("Could not not listen on sump pin");
+    println!("{}", sump.high_sensor.read());
 
-    let _sump = sump::Sump::new(tx).expect("Could not create sump object");
+    //let high_sensor_on = if sump.high_sensor.read() == Level::HIGH { true } else {false};
+
+    //let mut rpsump = RPSUMP.lock().unwrap();
+    //*rpsump = RpSump{ sump_high_sensor: sump.high_}
 
     HttpServer::new(|| App::new().service(on).service(off).service(echo))
         .bind(("127.0.0.1", 8080))?

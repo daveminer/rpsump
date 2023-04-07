@@ -9,9 +9,9 @@ const HIGH_SENSOR_PIN: u8 = 14; // GPIO #14 == Pin #8
 
 #[derive(Debug)]
 pub struct Sump {
-    high_sensor: InputPin,
+    pub high_sensor: InputPin,
     //low_sensor: InputPin,
-    tx: Sender<Message>,
+    pub tx: Sender<Message>,
 }
 
 impl Sump {
