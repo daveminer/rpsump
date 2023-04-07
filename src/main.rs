@@ -6,6 +6,8 @@ use tokio_tungstenite::tungstenite::protocol::Message;
 mod message;
 mod sump;
 
+const CHANNEL_BUFFER_SIZE: usize = 32;
+
 // Gpio uses BCM pin numbering. BCM GPIO 23 is tied to physical pin 16.
 const GPIO_LED: u8 = 23;
 
@@ -50,18 +52,17 @@ async fn echo(req_body: String) -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    //let (tx, rx): (Sender<Message>, Receiver<Message>) = channel(32);
+    let (tx, rx): (Sender<Message>, Receiver<Message>) = channel(CHANNEL_BUFFER_SIZE);
+    let high_pin = 14; // GPIO #14 == Pin #8
+                       //let low_pin = 5;
 
-    //let _message_listener_thread = tokio::spawn(async { message::listen(rx) });
-
-    let high_pin = 14;
-    //let low_pin = 5;
+    let _message_listener_thread = tokio::spawn(async { message::listen(rx) });
 
     let gpio = Gpio::new().expect("Could not create gpio device");
     let mut high_sensor = gpio
         .get(high_pin)
         .expect("Could not get high pin")
-        .into_input();
+        .into_input_pullup();
     //let mut low_sensor = gpio.get(low_pin)?.into_input();
 
     high_sensor

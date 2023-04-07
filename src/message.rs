@@ -6,7 +6,7 @@ pub async fn listen(mut rx: Receiver<Message>) -> Result<(), Error> {
     loop {
         match rx.recv().await {
             Some(msg) => println!("MSG: {:?}", msg),
-            None => return Err(anyhow!("Empty message in channel")),
+            None => println!("Empty message"), //return Err(anyhow!("Empty message in channel")),
         }
     }
 }

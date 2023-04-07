@@ -6,7 +6,7 @@ use tokio_tungstenite::tungstenite::protocol::Message;
 
 // Gpio uses BCM pin numbering. BCM GPIO 23 is tied to physical pin 16.
 //const GPIO_LOW_SENSOR: u8 = 99;
-//const GPIO_HIGH_SENSOR: u8 = 23;
+const HIGH_SENSOR_PIN: u8 = 14;
 
 #[derive(Debug)]
 pub struct Sump {
