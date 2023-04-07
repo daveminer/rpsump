@@ -53,26 +53,26 @@ async fn echo(req_body: String) -> impl Responder {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let (tx, rx): (Sender<Message>, Receiver<Message>) = channel(CHANNEL_BUFFER_SIZE);
-    let high_pin = 14; // GPIO #14 == Pin #8
-                       //let low_pin = 5;
+    //    let high_pin = 14; // GPIO #14 == Pin #8
+    //let low_pin = 5;
 
-    let _message_listener_thread = tokio::spawn(async { message::listen(rx) });
+    let _message_listener_thread = tokio::spawn(async { message::listen(rx).await });
 
-    let gpio = Gpio::new().expect("Could not create gpio device");
-    let mut high_sensor = gpio
-        .get(high_pin)
-        .expect("Could not get high pin")
-        .into_input_pullup();
+    //    let gpio = Gpio::new().expect("Could not create gpio device");
+    // let mut high_sensor = gpio
+    //     .get(high_pin)
+    //     .expect("Could not get high pin")
+    //     .into_input_pullup();
     //let mut low_sensor = gpio.get(low_pin)?.into_input();
 
-    high_sensor
-        .set_async_interrupt(Trigger::Both, move |level| {
-            println!("LEVEL: {}", level);
-            //Self::sump_signal_received(level, sensor_name.clone(), tx.clone());
-        })
-        .expect("Could not not listen on sump pin");
+    // high_sensor
+    //     .set_async_interrupt(Trigger::Both, move |level| {
+    //         println!("LEVEL: {}", level);
+    //         //Self::sump_signal_received(level, sensor_name.clone(), tx.clone());
+    //     })
+    //     .expect("Could not not listen on sump pin");
 
-    //let _sump = sump::Sump::new(14, tx).expect("Could not create sump object");
+    let _sump = sump::Sump::new(tx).expect("Could not create sump object");
 
     HttpServer::new(|| App::new().service(on).service(off).service(echo))
         .bind(("127.0.0.1", 8080))?
