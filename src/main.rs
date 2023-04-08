@@ -1,5 +1,6 @@
 use actix_web::{get, post, App, HttpResponse, HttpServer, Responder};
 use rppal::gpio::Level;
+use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
@@ -45,11 +46,11 @@ async fn echo(req_body: String) -> impl Responder {
 async fn main() -> std::io::Result<()> {
     let (tx, rx): (Sender<Message>, Receiver<Message>) = channel(CHANNEL_BUFFER_SIZE);
 
-    let _message_listener_thread = tokio::spawn(async { message::listen(rx).await });
-
-    //let controls = Arc::new(Mutex::new(None));
-
     let board = board::Board::start(tx);
+    let sensor_state_clone = Arc::clone(&board.sump.sensor_state);
+
+    let _message_listener_thread =
+        tokio::spawn(async { message::listen(sensor_state_clone, rx).await });
 
     //let sump = sump::Sump::new(tx).expect("Could not create sump object");
 
@@ -64,7 +65,7 @@ async fn main() -> std::io::Result<()> {
     let _sync_reporter_thread = thread::spawn(move || {
         let mut start_time = Instant::now();
         loop {
-            board.report();
+            println!("{}", board.report());
 
             // Wait for 5 seconds
             let elapsed_time = start_time.elapsed();

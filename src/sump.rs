@@ -1,6 +1,6 @@
 use anyhow::Error;
 use rppal::gpio::{Gpio, InputPin, Level, Trigger};
-
+use serde_json::json;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc::Sender;
 use tokio_tungstenite::tungstenite::protocol::Message;
@@ -55,8 +55,16 @@ impl Sump {
         self.high_sensor
             .set_async_interrupt(Trigger::Both, move |level| {
                 println!("INTERRUPT");
-                let msg = Message::Text(format!("High sensor to {}", level));
-                match tx.blocking_send(msg) {
+                let level_str = if level == Level::High { "high" } else { "low" };
+
+                // Todo: make a struct
+                let msg_body = json!({
+                    "component" : "sump pump",
+                    "signal": "high water sensor",
+                    "level": level_str
+                });
+
+                match tx.blocking_send(Message::Text(msg_body.to_string())) {
                     Ok(_) => (), //self.update_high_sump_sensor(level),
                     Err(e) => println!("Error on message tx: {:?}", e),
                 };
@@ -65,15 +73,15 @@ impl Sump {
             .expect("Could not not listen on sump pin")
     }
 
-    fn sump_signal_received(self, level: Level) {
-        println!("CALLBACK");
+    // fn sump_signal_received(self, level: Level) {
+    //     println!("CALLBACK");
 
-        let msg = Message::Text(format!("{:?} to {}", self.high_sensor, level));
-        match self.tx.blocking_send(msg) {
-            Ok(_) => self.update_high_sump_sensor(level),
-            Err(e) => println!("Error on message tx: {:?}", e),
-        };
-    }
+    //     let msg = Message::Text(format!("{:?} to {}", self.high_sensor, level));
+    //     match self.tx.blocking_send(msg) {
+    //         Ok(_) => self.update_high_sump_sensor(level),
+    //         Err(e) => println!("Error on message tx: {:?}", e),
+    //     };
+    // }
 
     // fn listen_on_input_pin(pin: &mut InputPin, sensor: InputPin, tx: Sender<Message>) {
     //     pin.set_async_interrupt(Trigger::Both, move |level| {
@@ -90,7 +98,7 @@ impl Sump {
         sensor_reading
     }
 
-    pub fn update_high_sump_sensor(self, state: Level) {
+    pub fn update_high_sensor(self, state: Level) {
         let mut sensor_state = self.sensor_state.lock().unwrap();
 
         sensor_state.high_sensor_state = state;
