@@ -1,9 +1,11 @@
 use actix_web::{get, post, App, HttpResponse, HttpServer, Responder};
 use rppal::gpio::Level;
-use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 use tokio_tungstenite::tungstenite::protocol::Message;
 
+mod board;
 mod message;
 mod sump;
 
@@ -45,16 +47,32 @@ async fn main() -> std::io::Result<()> {
 
     let _message_listener_thread = tokio::spawn(async { message::listen(rx).await });
 
-    let controls = Arc::new(Mutex::new(None));
+    //let controls = Arc::new(Mutex::new(None));
 
-    let sump = sump::Sump::new(tx).expect("Could not create sump object");
+    let board = board::Board::start(tx);
 
-    println!("{}", sump.high_sensor.read());
+    //let sump = sump::Sump::new(tx).expect("Could not create sump object");
 
-    let rpsump = Arc::clone(&controls);
-    let mut rpsump_state = rpsump.lock().unwrap();
-    *rpsump_state = Some(RpSump {
-        sump_high_sensor: sump.high_sensor.read(),
+    //println!("{}", sump.high_sensor.read());
+
+    // let rpsump = Arc::clone(&controls);
+    // let mut rpsump_state = rpsump.lock().unwrap();
+    // *rpsump_state = Some(RpSump {
+    //     sump_high_sensor: sump.high_sensor.read(),
+    // });
+
+    let _sync_reporter_thread = thread::spawn(move || {
+        let mut start_time = Instant::now();
+        loop {
+            board.report();
+
+            // Wait for 5 seconds
+            let elapsed_time = start_time.elapsed();
+            if elapsed_time < Duration::from_secs(5) {
+                thread::sleep(Duration::from_secs(5) - elapsed_time);
+            }
+            start_time = Instant::now();
+        }
     });
 
     HttpServer::new(|| App::new().service(on).service(off).service(echo))
