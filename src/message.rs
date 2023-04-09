@@ -72,7 +72,7 @@ mod tests {
             listen(sensor_state_clone, rx).await.unwrap();
         });
         tx.send(websocket_message).await.unwrap();
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(50)).await;
         listen_handle.abort();
 
         // Verify

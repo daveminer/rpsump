@@ -1,5 +1,4 @@
 use actix_web::{get, post, App, HttpResponse, HttpServer, Responder};
-use rppal::gpio::Level;
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};

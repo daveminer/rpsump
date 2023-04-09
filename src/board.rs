@@ -15,14 +15,6 @@ impl Board {
         Board { sump }
     }
 
-    // pub fn update_high_sump_sensor(self, state: Level) {
-    //     let mut sump_state = self.sump.lock().unwrap();
-
-    //     sump_state.high_sensor_state = state;
-    //     // Check new sump general state
-    //     drop(sump_state);
-    // }
-
     pub fn report(&self) -> String {
         let sump = &self.sump;
 
