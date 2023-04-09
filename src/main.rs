@@ -12,10 +12,6 @@ mod sump;
 
 const CHANNEL_BUFFER_SIZE: usize = 32;
 
-pub struct RpSump {
-    sump_high_sensor: Level,
-}
-
 // #[get("/")]
 // async fn index() -> impl Responder {
 //     //let gpio = Gpio::new()?;
@@ -51,16 +47,6 @@ async fn main() -> std::io::Result<()> {
 
     let _message_listener_thread =
         tokio::spawn(async { message::listen(sensor_state_clone, rx).await });
-
-    //let sump = sump::Sump::new(tx).expect("Could not create sump object");
-
-    //println!("{}", sump.high_sensor.read());
-
-    // let rpsump = Arc::clone(&controls);
-    // let mut rpsump_state = rpsump.lock().unwrap();
-    // *rpsump_state = Some(RpSump {
-    //     sump_high_sensor: sump.high_sensor.read(),
-    // });
 
     let _sync_reporter_thread = thread::spawn(move || {
         let mut start_time = Instant::now();
