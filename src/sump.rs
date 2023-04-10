@@ -40,8 +40,8 @@ impl Sump {
             Arc::from(Mutex::new(gpio.get(PUMP_CONTROL_PIN)?.into_output_low()));
 
         let sensor_state = Arc::from(Mutex::new(PinState {
-            high_sensor: tokio::task::block_in_place(|| high_sensor_pin.read()),
-            low_sensor: tokio::task::block_in_place(|| low_sensor_pin.read()),
+            high_sensor: high_sensor_pin.read(),
+            low_sensor: low_sensor_pin.read(),
         }));
 
         Ok(Sump {

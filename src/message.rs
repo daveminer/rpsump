@@ -21,6 +21,7 @@ pub async fn listen(
     loop {
         match rx.recv().await {
             Some(msg) => {
+                println!("Message received: {}", msg);
                 let deserialized: SumpSensorMessage = serde_json::from_str(&msg.to_string())?;
 
                 let level = if deserialized.level == "high" {
