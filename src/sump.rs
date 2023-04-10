@@ -1,49 +1,131 @@
 use anyhow::Error;
-
-use rppal::gpio::{Gpio, InputPin, Level, Trigger};
+use rppal::gpio::{Gpio, InputPin, Level, OutputPin, Trigger};
+use serde_json::json;
+use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc::Sender;
-use tokio::task;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
 // Gpio uses BCM pin numbering. BCM GPIO 23 is tied to physical pin 16.
-//const GPIO_LOW_SENSOR: u8 = 99;
-//const GPIO_HIGH_SENSOR: u8 = 23;
+const HIGH_SENSOR_PIN: u8 = 14; // GPIO #14 == Pin #8
+const LOW_SENSOR_PIN: u8 = 15; // GPIO #15 == Pin #10
+const PUMP_CONTROL_PIN: u8 = 18; // GPIO #18 == Pin #12
 
+// Manages the physical I/O devices
 #[derive(Debug)]
 pub struct Sump {
-    high_sensor: InputPin,
-    low_sensor: InputPin,
-    tx: Sender<Message>,
+    pub high_sensor_pin: InputPin,
+    pub low_sensor_pin: InputPin,
+    pub pump_control_pin: Arc<Mutex<OutputPin>>,
+    pub sensor_state: Arc<Mutex<PinState>>,
+    pub tx: Sender<Message>,
+}
+
+// Tracks the level of the sensor pins. It's intended for the fields of this
+// struct to be read as an atomic unit to determine what the state of the pump
+// should be.
+#[derive(Clone, Copy, Debug)]
+pub struct PinState {
+    pub high_sensor: Level,
+    pub low_sensor: Level,
 }
 
 impl Sump {
-    pub fn new(high_pin: u8, low_pin: u8, tx: Sender<Message>) -> Result<Sump, Error> {
+    // Creates a new sump struct with sensors and their state.
+    pub fn new(tx: Sender<Message>) -> Result<Sump, Error> {
         let gpio = Gpio::new()?;
 
-        let mut high_sensor = gpio.get(high_pin)?.into_input();
-        let mut low_sensor = gpio.get(low_pin)?.into_input();
+        let high_sensor_pin = gpio.get(HIGH_SENSOR_PIN)?.into_input_pullup();
+        let low_sensor_pin = gpio.get(LOW_SENSOR_PIN)?.into_input_pullup();
+        let pump_control_pin: Arc<Mutex<OutputPin>> =
+            Arc::from(Mutex::new(gpio.get(PUMP_CONTROL_PIN)?.into_output_low()));
 
-        Self::listen_on_input_pin(&mut high_sensor, "high sensor".to_string(), tx.clone());
-        Self::listen_on_input_pin(&mut low_sensor, "low sensor".to_string(), tx.clone());
+        let sensor_state = Arc::from(Mutex::new(PinState {
+            high_sensor: high_sensor_pin.read(),
+            low_sensor: low_sensor_pin.read(),
+        }));
 
         Ok(Sump {
-            high_sensor,
-            low_sensor,
+            high_sensor_pin,
+            low_sensor_pin,
+            pump_control_pin,
+            sensor_state,
             tx,
         })
     }
 
-    fn sump_signal_received(level: Level, sensor_name: String, tx: Sender<Message>) {
-        println!("CALLBACK");
+    // Starts a listener that will produce a channel message for each sensor event
+    pub fn listen(&mut self) {
+        let tx_high = self.tx.clone();
+        let pump_control_pin_high = Arc::clone(&self.pump_control_pin);
 
-        let msg = Message::Text(format!("{sensor_name} to {level}"));
-        task::spawn(async move { tx.send(msg).await });
+        self.high_sensor_pin
+            .set_async_interrupt(Trigger::Both, move |level| {
+                Self::water_sensor_state_change_callback(
+                    "high",
+                    level,
+                    &pump_control_pin_high,
+                    &tx_high,
+                )
+            })
+            .expect("Could not not listen on high water level sump pin");
+
+        let tx_low = self.tx.clone();
+        let pump_control_pin_low = Arc::clone(&self.pump_control_pin);
+        self.low_sensor_pin
+            .set_async_interrupt(Trigger::Both, move |level| {
+                Self::water_sensor_state_change_callback(
+                    "low",
+                    level,
+                    &pump_control_pin_low,
+                    &tx_low,
+                )
+            })
+            .expect("Could not not listen on low water level sump pin")
     }
 
-    fn listen_on_input_pin(pin: &mut InputPin, sensor_name: String, tx: Sender<Message>) {
-        pin.set_async_interrupt(Trigger::Both, move |level| {
-            Self::sump_signal_received(level, sensor_name.clone(), tx.clone());
-        })
-        .expect("Could not not listen on sump pin");
+    // Read the current state of the sensors
+    pub fn sensors(&self) -> PinState {
+        let sensor_state = self.sensor_state.lock().unwrap();
+        let sensor_reading = *sensor_state;
+
+        sensor_reading
+    }
+
+    // Call this when a sensor change event happens
+    fn water_sensor_state_change_callback(
+        sensor_name: &str,
+        level: Level,
+        pump_control_pin: &Arc<Mutex<OutputPin>>,
+        tx: &Sender<Message>,
+    ) {
+        let msg = Self::water_level_change_message(sensor_name, level);
+
+        let mut control = pump_control_pin.lock().unwrap();
+
+        match level {
+            Level::High => control.set_high(),
+            Level::Low => control.set_low(),
+        }
+
+        match tx.blocking_send(msg) {
+            Ok(_) => (),
+            Err(e) => println!("Error on message tx: {:?}", e),
+        };
+    }
+
+    // Build the channel message for a sensor change event
+    fn water_level_change_message(sensor_name: &str, level: Level) -> Message {
+        let level_str = match level {
+            Level::High => "high",
+            Level::Low => "low",
+        };
+
+        let msg_body = json!({
+            "component" : "sump pump",
+            "signal": format!("Sump pump {} water sensor", sensor_name),
+            "level": level_str
+        });
+
+        Message::Text(msg_body.to_string())
     }
 }
