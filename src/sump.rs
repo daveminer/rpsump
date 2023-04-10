@@ -55,47 +55,48 @@ impl Sump {
 
     // Starts a listener that will produce a channel message for each sensor event
     pub fn listen(&mut self) {
-        let tx_high = self.tx.clone();
-        let pump_control_pin_high = Arc::clone(&self.pump_control_pin);
+        Self::water_sensor_interrupt(
+            &mut self.high_sensor_pin,
+            Arc::clone(&self.pump_control_pin),
+            "high".to_string(),
+            self.tx.clone(),
+        );
 
-        self.high_sensor_pin
-            .set_async_interrupt(Trigger::Both, move |level| {
-                Self::water_sensor_state_change_callback(
-                    "high",
-                    level,
-                    &pump_control_pin_high,
-                    &tx_high,
-                )
-            })
-            .expect("Could not not listen on high water level sump pin");
-
-        let tx_low = self.tx.clone();
-        let pump_control_pin_low = Arc::clone(&self.pump_control_pin);
-        self.low_sensor_pin
-            .set_async_interrupt(Trigger::Both, move |level| {
-                Self::water_sensor_state_change_callback(
-                    "low",
-                    level,
-                    &pump_control_pin_low,
-                    &tx_low,
-                )
-            })
-            .expect("Could not not listen on low water level sump pin")
+        Self::water_sensor_interrupt(
+            &mut self.low_sensor_pin,
+            Arc::clone(&self.pump_control_pin),
+            "low".to_string(),
+            self.tx.clone(),
+        );
     }
 
     // Read the current state of the sensors
     pub fn sensors(&self) -> PinState {
-        let sensor_state = self.sensor_state.lock().unwrap();
-        let sensor_reading = *sensor_state;
+        *self.sensor_state.lock().unwrap()
+    }
 
-        sensor_reading
+    fn water_sensor_interrupt(
+        pin: &mut InputPin,
+        pump_control_pin: Arc<Mutex<OutputPin>>,
+        sensor_name: String,
+        tx: Sender<Message>,
+    ) {
+        pin.set_async_interrupt(Trigger::Both, move |level| {
+            Self::water_sensor_state_change_callback(
+                sensor_name.clone(),
+                level,
+                Arc::clone(&pump_control_pin),
+                &tx,
+            )
+        })
+        .expect("Could not not listen on high water level sump pin");
     }
 
     // Call this when a sensor change event happens
     fn water_sensor_state_change_callback(
-        sensor_name: &str,
+        sensor_name: String,
         level: Level,
-        pump_control_pin: &Arc<Mutex<OutputPin>>,
+        pump_control_pin: Arc<Mutex<OutputPin>>,
         tx: &Sender<Message>,
     ) {
         let msg = Self::water_level_change_message(sensor_name, level);
@@ -114,7 +115,7 @@ impl Sump {
     }
 
     // Build the channel message for a sensor change event
-    fn water_level_change_message(sensor_name: &str, level: Level) -> Message {
+    fn water_level_change_message(sensor_name: String, level: Level) -> Message {
         let level_str = match level {
             Level::High => "high",
             Level::Low => "low",
