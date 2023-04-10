@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc::Receiver;
 use tokio_tungstenite::tungstenite::protocol::Message;
 
-use crate::sump::SensorState;
+use crate::sump::PinState;
 
 #[derive(Serialize, Deserialize, Debug)]
 struct SumpSensorMessage {
@@ -15,7 +15,7 @@ struct SumpSensorMessage {
 }
 
 pub async fn listen(
-    sensor_state: Arc<Mutex<SensorState>>,
+    sensor_state: Arc<Mutex<PinState>>,
     mut rx: Receiver<Message>,
 ) -> Result<(), Error> {
     loop {
@@ -31,8 +31,8 @@ pub async fn listen(
 
                 let mut sensor = sensor_state.lock().unwrap();
 
-                if sensor.high_sensor_state != level {
-                    sensor.high_sensor_state = level;
+                if sensor.high_sensor != level {
+                    sensor.high_sensor = level;
                 }
             }
             None => return Err(anyhow!("Channel has been closed.")),
@@ -56,10 +56,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_listen() {
-        // Setup
+        // setup
         let (tx, rx) = channel(10);
-        let sensor_state = Arc::new(Mutex::new(SensorState {
-            high_sensor_state: Level::Low,
+        let sensor_state = Arc::new(Mutex::new(PinState {
+            high_sensor: Level::Low,
+            low_sensor: Level::Low,
         }));
 
         let json_message = serde_json::to_string(&new_sump_sensor_message()).unwrap();
@@ -67,7 +68,7 @@ mod tests {
 
         let sensor_state_clone = Arc::clone(&sensor_state);
 
-        // Test
+        // test
         let listen_handle = tokio::spawn(async move {
             listen(sensor_state_clone, rx).await.unwrap();
         });
@@ -75,9 +76,9 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(50)).await;
         listen_handle.abort();
 
-        // Verify
+        // verify
         let sensor = sensor_state.lock().unwrap();
-        assert_eq!(sensor.high_sensor_state, Level::High);
+        assert_eq!(sensor.high_sensor, Level::High);
     }
 
     #[test]
