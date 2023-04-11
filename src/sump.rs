@@ -2,7 +2,7 @@ use anyhow::Error;
 use rppal::gpio::{Gpio, InputPin, Level, OutputPin, Trigger};
 use serde_json::json;
 use std::sync::{Arc, Mutex};
-use tokio::sync::mpsc::Sender;
+use tokio::sync::mpsc::{error::SendError, Sender};
 use tokio_tungstenite::tungstenite::protocol::Message;
 
 // Gpio uses BCM pin numbering. BCM GPIO 23 is tied to physical pin 16.
@@ -27,6 +27,12 @@ pub struct Sump {
 pub struct PinState {
     pub high_sensor: Level,
     pub low_sensor: Level,
+}
+
+#[derive(Clone, Copy, Debug)]
+enum Sensor {
+    Low = 0,
+    High = 1,
 }
 
 impl Sump {
@@ -58,14 +64,14 @@ impl Sump {
         Self::water_sensor_interrupt(
             &mut self.high_sensor_pin,
             Arc::clone(&self.pump_control_pin),
-            "high".to_string(),
+            Sensor::High,
             self.tx.clone(),
         );
 
         Self::water_sensor_interrupt(
             &mut self.low_sensor_pin,
             Arc::clone(&self.pump_control_pin),
-            "low".to_string(),
+            Sensor::Low,
             self.tx.clone(),
         );
     }
@@ -78,7 +84,7 @@ impl Sump {
     fn water_sensor_interrupt(
         pin: &mut InputPin,
         pump_control_pin: Arc<Mutex<OutputPin>>,
-        sensor_name: String,
+        sensor_name: Sensor,
         tx: Sender<Message>,
     ) {
         pin.set_async_interrupt(Trigger::Both, move |level| {
@@ -94,28 +100,41 @@ impl Sump {
 
     // Call this when a sensor change event happens
     fn water_sensor_state_change_callback(
-        sensor_name: String,
+        sensor: Sensor,
         level: Level,
         pump_control_pin: Arc<Mutex<OutputPin>>,
         tx: &Sender<Message>,
     ) {
-        let msg = Self::water_level_change_message(sensor_name, level);
-
         let mut control = pump_control_pin.lock().unwrap();
 
-        match level {
-            Level::High => control.set_high(),
-            Level::Low => control.set_low(),
+        match sensor {
+            Sensor::High => {
+                if level == Level::High {
+                    control.set_high()
+                }
+            }
+            Sensor::Low => {
+                if level == Level::High {
+                    // Start a timer (5 min) to clear a non-full container in a
+                    // timely way.
+                } else {
+                    control.set_low()
+                }
+            }
         }
 
-        match tx.blocking_send(msg) {
+        match Self::water_level_change_message(sensor, level, tx) {
             Ok(_) => (),
             Err(e) => println!("Error on message tx: {:?}", e),
-        };
+        }
     }
 
     // Build the channel message for a sensor change event
-    fn water_level_change_message(sensor_name: String, level: Level) -> Message {
+    fn water_level_change_message(
+        sensor: Sensor,
+        level: Level,
+        tx: &Sender<Message>,
+    ) -> Result<(), SendError<Message>> {
         let level_str = match level {
             Level::High => "high",
             Level::Low => "low",
@@ -123,10 +142,10 @@ impl Sump {
 
         let msg_body = json!({
             "component" : "sump pump",
-            "signal": format!("Sump pump {} water sensor", sensor_name),
+            "signal": format!("Sump pump {:?} water sensor", sensor),
             "level": level_str
         });
 
-        Message::Text(msg_body.to_string())
+        tx.blocking_send(Message::Text(msg_body.to_string()))
     }
 }
