@@ -21,24 +21,33 @@ pub async fn listen(
     loop {
         match rx.recv().await {
             Some(msg) => {
-                println!("Message received: {}", msg);
-                let deserialized: SumpSensorMessage = serde_json::from_str(&msg.to_string())?;
-
-                let level = if deserialized.level == "high" {
-                    Level::High
-                } else {
-                    Level::Low
+                match handle_sump_message(msg, &sensor_state) {
+                    Ok(_) => (),
+                    Err(e) => println!("Error in receiver: {:?}", e),
                 };
-
-                let mut sensor = sensor_state.lock().unwrap();
-
-                if sensor.high_sensor != level {
-                    sensor.high_sensor = level;
-                }
             }
             None => return Err(anyhow!("Channel has been closed.")),
         }
     }
+}
+
+fn handle_sump_message(msg: Message, sensor_state: &Arc<Mutex<PinState>>) -> Result<(), Error> {
+    println!("Message received: {}", msg);
+    let deserialized: SumpSensorMessage = serde_json::from_str(&msg.to_string())?;
+
+    let level = if deserialized.level == "high" {
+        Level::High
+    } else {
+        Level::Low
+    };
+
+    let mut sensor = sensor_state.lock().unwrap();
+
+    if sensor.high_sensor != level {
+        sensor.high_sensor = level;
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
