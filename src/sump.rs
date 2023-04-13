@@ -81,6 +81,7 @@ impl Sump {
         *self.sensor_state.lock().unwrap()
     }
 
+    //
     fn water_sensor_interrupt(
         pin: &mut InputPin,
         pump_control_pin: Arc<Mutex<OutputPin>>,
