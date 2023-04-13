@@ -11,27 +11,6 @@ mod sump;
 
 const CHANNEL_BUFFER_SIZE: usize = 32;
 
-// #[get("/")]
-// async fn index() -> impl Responder {
-//     //let gpio = Gpio::new()?;
-// }
-
-#[get("/on")]
-async fn on() -> impl Responder {
-    //let gpio = Gpio::new()?;
-
-    //let mut pin = Gpio::new()?.get(GPIO_LED)?.into_output();
-
-    //pin.set_high();
-
-    HttpResponse::Ok().body("On!")
-}
-
-#[get("/off")]
-async fn off() -> impl Responder {
-    HttpResponse::Ok().body("Off!")
-}
-
 #[post("/")]
 async fn echo(req_body: String) -> impl Responder {
     HttpResponse::Ok().body(req_body)
@@ -39,11 +18,15 @@ async fn echo(req_body: String) -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    // Aggregates messages from GPIO events
     let (tx, rx): (Sender<Message>, Receiver<Message>) = channel(CHANNEL_BUFFER_SIZE);
 
+    // Singleton reference to the GPIO interface; this is expected to live
+    // for the lifetime of the process.
     let board = board::Board::start(tx);
-    let sensor_state_clone = Arc::clone(&board.sump.sensor_state);
 
+    //
+    let sensor_state_clone = Arc::clone(&board.sump.sensor_state);
     let _message_listener_thread =
         tokio::spawn(async { message::listen(sensor_state_clone, rx).await });
 
@@ -61,7 +44,7 @@ async fn main() -> std::io::Result<()> {
         }
     });
 
-    HttpServer::new(|| App::new().service(on).service(off).service(echo))
+    HttpServer::new(|| App::new().service(echo))
         .bind(("127.0.0.1", 8080))?
         .run()
         .await
