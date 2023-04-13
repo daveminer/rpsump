@@ -40,11 +40,13 @@ impl Sump {
     pub fn new(tx: Sender<Message>) -> Result<Sump, Error> {
         let gpio = Gpio::new()?;
 
+        // create the GPIO pins
         let high_sensor_pin = gpio.get(HIGH_SENSOR_PIN)?.into_input_pullup();
         let low_sensor_pin = gpio.get(LOW_SENSOR_PIN)?.into_input_pullup();
         let pump_control_pin: Arc<Mutex<OutputPin>> =
             Arc::from(Mutex::new(gpio.get(PUMP_CONTROL_PIN)?.into_output_low()));
 
+        // Read initial state of inputs
         let sensor_state = Arc::from(Mutex::new(PinState {
             high_sensor: high_sensor_pin.read(),
             low_sensor: low_sensor_pin.read(),
@@ -98,7 +100,7 @@ impl Sump {
         .expect("Could not not listen on high water level sump pin");
     }
 
-    // Call this when a sensor change event happens
+    // Call this when a sensor change event happens. Read the sen
     fn water_sensor_state_change_callback(
         sensor: Sensor,
         level: Level,
@@ -107,6 +109,7 @@ impl Sump {
     ) {
         let mut control = pump_control_pin.lock().unwrap();
 
+        // Turn the sump pump motor on or off
         match sensor {
             Sensor::High => {
                 if level == Level::High {
@@ -123,6 +126,7 @@ impl Sump {
             }
         }
 
+        // Send a message about the state change in the sump pump to the board
         match Self::water_level_change_message(sensor, level, tx) {
             Ok(_) => (),
             Err(e) => println!("Error on message tx: {:?}", e),
