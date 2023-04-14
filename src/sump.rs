@@ -7,8 +7,8 @@ use tokio_tungstenite::tungstenite::protocol::Message;
 
 // Gpio uses BCM pin numbering. BCM GPIO 23 is tied to physical pin 16.
 const HIGH_SENSOR_PIN: u8 = 14; // GPIO #14 == Pin #8
-const LOW_SENSOR_PIN: u8 = 15; // GPIO #15 == Pin #10
-const PUMP_CONTROL_PIN: u8 = 18; // GPIO #18 == Pin #12
+const LOW_SENSOR_PIN: u8 = 18; // GPIO #18 == Pin #12
+const PUMP_CONTROL_PIN: u8 = 24; // GPIO #24 == Pin #18
 
 // Manages the physical I/O devices
 #[derive(Debug)]
