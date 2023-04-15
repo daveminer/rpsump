@@ -1,39 +1,38 @@
-use actix_web::{get, post, App, HttpResponse, HttpServer, Responder};
-use std::sync::Arc;
+use actix_web::{get, web::Data, App, HttpResponse, HttpServer, Responder};
 use std::thread;
 use std::time::{Duration, Instant};
-use tokio::sync::mpsc::{channel, Receiver, Sender};
-use tokio_tungstenite::tungstenite::protocol::Message;
 
-mod board;
-mod message;
+use crate::sump::Sump;
+
 mod sump;
 
-const CHANNEL_BUFFER_SIZE: usize = 32;
+struct AppState {
+    sump: Sump,
+}
 
-#[post("/")]
-async fn echo(req_body: String) -> impl Responder {
-    HttpResponse::Ok().body(req_body)
+#[get("/info")]
+async fn info(_req_body: String, data: Data<AppState>) -> impl Responder {
+    let pin_state = &data.sump.sensors();
+
+    let body = serde_json::to_string(&pin_state).expect("Could not serialize the pin state");
+
+    HttpResponse::Ok().body(body)
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // Aggregates messages from GPIO events
-    let (tx, rx): (Sender<Message>, Receiver<Message>) = channel(CHANNEL_BUFFER_SIZE);
+    env_logger::init();
 
-    // Singleton reference to the GPIO interface; this is expected to live
-    // for the lifetime of the process.
-    let board = board::Board::start(tx);
-
-    //
-    let sensor_state_clone = Arc::clone(&board.sump.sensor_state);
-    let _message_listener_thread =
-        tokio::spawn(async { message::listen(sensor_state_clone, rx).await });
+    let app_state = Data::new(AppState {
+        sump: Sump::new().expect("Could not create sump object"),
+    });
+    let app_state_clone = app_state.clone();
 
     let _sync_reporter_thread = thread::spawn(move || {
         let mut start_time = Instant::now();
+
         loop {
-            println!("{}", board.report());
+            println!("{:?}", app_state_clone.sump.sensors());
 
             // Wait for 5 seconds
             let elapsed_time = start_time.elapsed();
@@ -44,7 +43,7 @@ async fn main() -> std::io::Result<()> {
         }
     });
 
-    HttpServer::new(|| App::new().service(echo))
+    HttpServer::new(move || App::new().app_data(app_state.clone()).service(info))
         .bind(("127.0.0.1", 8080))?
         .run()
         .await
