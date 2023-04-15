@@ -3,10 +3,13 @@ use database::Database;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::config::Settings;
+use crate::config::config::Settings;
 use crate::sump::Sump;
 
-mod config;
+mod config {
+    pub mod config;
+}
+
 mod database;
 mod sump;
 

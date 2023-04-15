@@ -1,0 +1,6 @@
+[console]
+report_freq_secs=5
+
+[database]
+path = "./"
+filename = "rpsump.db"

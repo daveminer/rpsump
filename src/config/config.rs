@@ -18,15 +18,15 @@ impl Settings {
     pub fn new() -> Result<Self, Error> {
         let s = Config::builder()
             // Start off by merging in the "default" configuration file
-            .add_source(File::with_name(".env.dist"))
+            .add_source(File::with_name("config/default.toml"))
             // Add in a local configuration file
             // This file shouldn't be checked in to git
-            .add_source(File::with_name(".env").required(false))
+            .add_source(File::with_name("config/dev.toml").required(false))
             .build()?;
 
         // Now that we're done, let's access our configuration
-        println!("debug: {:?}", s.get_string("db_name"));
-        println!("database: {:?}", s.get::<String>("database.directory"));
+        println!("debug: {:?}", s.get_string("console_report_freq_secs"));
+        println!("database: {:?}", s.get::<String>("db.path"));
 
         match s.try_deserialize() {
             Ok(settings) => Ok(settings),
