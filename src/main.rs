@@ -3,8 +3,10 @@ use database::Database;
 use std::thread;
 use std::time::{Duration, Instant};
 
+use crate::config::Settings;
 use crate::sump::Sump;
 
+mod config;
 mod database;
 mod sump;
 
@@ -23,23 +25,29 @@ async fn info(_req_body: String, data: Data<AppState>) -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let db = Database::new()?;
+    let settings = Settings::new().expect("Environment configuration error.");
+
+    let db = Database::new(settings.clone().database())?;
 
     let app_state = Data::new(AppState {
         sump: Sump::new(db).expect("Could not create sump object"),
     });
-    let app_state_clone = app_state.clone();
 
+    let app_state_clone = app_state.clone();
+    let settings_clone = settings.clone();
     let _sync_reporter_thread = thread::spawn(move || {
         let mut start_time = Instant::now();
 
         loop {
+            // Report to console
             println!("{:?}", app_state_clone.sump.sensors());
 
-            // Wait for 5 seconds
+            // Wait for N seconds
             let elapsed_time = start_time.elapsed();
-            if elapsed_time < Duration::from_secs(5) {
-                thread::sleep(Duration::from_secs(5) - elapsed_time);
+            if elapsed_time < Duration::from_secs(settings_clone.console_report_freq_secs) {
+                thread::sleep(
+                    Duration::from_secs(settings_clone.console_report_freq_secs) - elapsed_time,
+                );
             }
             start_time = Instant::now();
         }

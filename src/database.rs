@@ -8,8 +8,8 @@ pub struct Database {
 }
 
 impl Database {
-    pub fn new() -> Result<Database, Error> {
-        match Connection::open("rpsump.db") {
+    pub fn new(path: String) -> Result<Database, Error> {
+        match Connection::open(path) {
             Ok(conn) => Ok(Database {
                 conn: Arc::from(Mutex::new(conn)),
             }),
