@@ -65,7 +65,7 @@ enum Sensor {
 
 impl Sump {
     // Creates a new sump struct with sensors and their state.
-    pub fn new(db: Database) -> Result<Sump, Error> {
+    pub fn new(db: Database) -> Result<Self, Error> {
         // create the GPIO pins
         let gpio = Gpio::new()?;
         let mut high_sensor_pin = gpio.get(HIGH_SENSOR_PIN)?.into_input_pullup();
