@@ -1,7 +1,10 @@
 use anyhow::Error;
 use rppal::gpio::{Gpio, InputPin, Level, OutputPin, Trigger};
+
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::sync::{Arc, Mutex};
+
+use crate::database::Database;
 
 // GPIO uses BCM pin numbering.
 const HIGH_SENSOR_PIN: u8 = 18; // GPIO #18 == Pin #12
@@ -11,6 +14,7 @@ const PUMP_CONTROL_PIN: u8 = 14; // GPIO #14 == Pin #8
 // Manages the physical I/O devices
 #[derive(Debug)]
 pub struct Sump {
+    pub db: Database,
     pub high_sensor_pin: InputPin,
     pub low_sensor_pin: InputPin,
     pub pump_control_pin: Arc<Mutex<OutputPin>>,
@@ -61,7 +65,7 @@ enum Sensor {
 
 impl Sump {
     // Creates a new sump struct with sensors and their state.
-    pub fn new() -> Result<Sump, Error> {
+    pub fn new(db: Database) -> Result<Sump, Error> {
         // create the GPIO pins
         let gpio = Gpio::new()?;
         let mut high_sensor_pin = gpio.get(HIGH_SENSOR_PIN)?.into_input_pullup();
@@ -91,6 +95,7 @@ impl Sump {
         );
 
         Ok(Sump {
+            db,
             high_sensor_pin,
             low_sensor_pin,
             pump_control_pin,
@@ -135,8 +140,9 @@ impl Sump {
             Sensor::High => {
                 if level == Level::High {
                     control.set_high();
-                    sensors.high_sensor = level;
                 }
+
+                sensors.high_sensor = level;
             }
             Sensor::Low => {
                 if level == Level::High {
@@ -144,8 +150,9 @@ impl Sump {
                     // timely way.
                 } else {
                     control.set_low();
-                    sensors.low_sensor = level;
                 }
+
+                sensors.low_sensor = level;
             }
         }
     }

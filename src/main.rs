@@ -1,9 +1,11 @@
 use actix_web::{get, web::Data, App, HttpResponse, HttpServer, Responder};
+use database::Database;
 use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::sump::Sump;
 
+mod database;
 mod sump;
 
 struct AppState {
@@ -21,10 +23,10 @@ async fn info(_req_body: String, data: Data<AppState>) -> impl Responder {
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::init();
+    let db = Database::new()?;
 
     let app_state = Data::new(AppState {
-        sump: Sump::new().expect("Could not create sump object"),
+        sump: Sump::new(db).expect("Could not create sump object"),
     });
     let app_state_clone = app_state.clone();
 
