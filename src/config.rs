@@ -4,8 +4,13 @@ use serde::Deserialize;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Settings {
-    pub console_report_freq_secs: u64,
-    db: DatabaseConfig,
+    pub console: ConsoleConfig,
+    database: DatabaseConfig,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct ConsoleConfig {
+    pub report_freq_secs: u64,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -18,15 +23,15 @@ impl Settings {
     pub fn new() -> Result<Self, Error> {
         let s = Config::builder()
             // Start off by merging in the "default" configuration file
-            .add_source(File::with_name("config/default.toml"))
+            .add_source(File::with_name("./config/default.toml"))
             // Add in a local configuration file
             // This file shouldn't be checked in to git
-            .add_source(File::with_name("config/dev.toml").required(false))
+            .add_source(File::with_name("./config/dev.secret.toml").required(false))
             .build()?;
 
         // Now that we're done, let's access our configuration
-        println!("debug: {:?}", s.get_string("console_report_freq_secs"));
-        println!("database: {:?}", s.get::<String>("db.path"));
+        println!("debug: {:?}", s.get_string("console.report_freq_secs"));
+        println!("database: {:?}", s.get::<String>("database.path"));
 
         match s.try_deserialize() {
             Ok(settings) => Ok(settings),
@@ -35,8 +40,8 @@ impl Settings {
     }
 
     pub fn database(self) -> String {
-        let file = self.db.filename;
-        let mut path = self.db.path;
+        let file = self.database.filename;
+        let mut path = self.database.path;
 
         if !file.starts_with("/") && !path.ends_with("/") {
             path = format!("{}/", path);

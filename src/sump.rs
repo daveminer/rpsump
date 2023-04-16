@@ -81,6 +81,7 @@ impl Sump {
 
         // Set up interrupts
         Self::water_sensor_interrupt(
+            db.clone(),
             &mut high_sensor_pin,
             Arc::clone(&pump_control_pin),
             Arc::clone(&sensor_state),
@@ -88,6 +89,7 @@ impl Sump {
         );
 
         Self::water_sensor_interrupt(
+            db.clone(),
             &mut low_sensor_pin,
             Arc::clone(&pump_control_pin),
             Arc::clone(&sensor_state),
@@ -109,6 +111,7 @@ impl Sump {
     }
 
     fn water_sensor_interrupt(
+        db: Database,
         pin: &mut InputPin,
         pump_control_pin: Arc<Mutex<OutputPin>>,
         sensor_state: Arc<Mutex<PinState>>,
@@ -117,6 +120,7 @@ impl Sump {
         pin.set_async_interrupt(Trigger::Both, move |level| {
             Self::water_sensor_state_change_callback(
                 sensor_name.clone(),
+                db.clone(),
                 level,
                 Arc::clone(&pump_control_pin),
                 Arc::clone(&sensor_state),
@@ -128,6 +132,7 @@ impl Sump {
     // Call this when a sensor change event happens.
     fn water_sensor_state_change_callback(
         triggered_sensor: Sensor,
+        db: Database,
         level: Level,
         pump_control_pin: Arc<Mutex<OutputPin>>,
         sensor_state: Arc<Mutex<PinState>>,
@@ -140,16 +145,24 @@ impl Sump {
             Sensor::High => {
                 if level == Level::High {
                     control.set_high();
+                    db.create_sump_event(
+                        "sump motor on via sensor",
+                        "high water sensor - signal high",
+                    );
                 }
 
                 sensors.high_sensor = level;
             }
             Sensor::Low => {
                 if level == Level::High {
-                    // Start a timer (5 min) to clear a non-full container in a
+                    // TODO: Start a timer (5 min) to clear a non-full container in a
                     // timely way.
                 } else {
                     control.set_low();
+                    db.create_sump_event(
+                        "sump motor off via sensor",
+                        "low water sensor - signal low",
+                    );
                 }
 
                 sensors.low_sensor = level;

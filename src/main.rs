@@ -3,17 +3,17 @@ use database::Database;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::config::config::Settings;
+use crate::config::Settings;
 use crate::sump::Sump;
 
-mod config {
-    pub mod config;
-}
-
+mod config;
 mod database;
+pub mod models;
+pub mod schema;
 mod sump;
 
 struct AppState {
+    db: Database,
     sump: Sump,
 }
 
@@ -26,14 +26,21 @@ async fn info(_req_body: String, data: Data<AppState>) -> impl Responder {
     HttpResponse::Ok().body(body)
 }
 
+#[get("/sump_events")]
+async fn sump_events(_req_body: String, data: Data<AppState>) -> impl Responder {
+    let events = data.db.clone().get_sump_events();
+
+    HttpResponse::Ok().body(format!("{:?}", events))
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let settings = Settings::new().expect("Environment configuration error.");
-
-    let db = Database::new(settings.clone().database())?;
+    let db = Database::new(settings.clone().database()).expect("Could not initialize database.");
 
     let app_state = Data::new(AppState {
-        sump: Sump::new(db).expect("Could not create sump object"),
+        db: Database::new(settings.clone().database()).expect("Could not initialize database."),
+        sump: Sump::new(db.clone()).expect("Could not create sump object"),
     });
 
     let app_state_clone = app_state.clone();
@@ -47,17 +54,22 @@ async fn main() -> std::io::Result<()> {
 
             // Wait for N seconds
             let elapsed_time = start_time.elapsed();
-            if elapsed_time < Duration::from_secs(settings_clone.console_report_freq_secs) {
+            if elapsed_time < Duration::from_secs(settings_clone.console.report_freq_secs) {
                 thread::sleep(
-                    Duration::from_secs(settings_clone.console_report_freq_secs) - elapsed_time,
+                    Duration::from_secs(settings_clone.console.report_freq_secs) - elapsed_time,
                 );
             }
             start_time = Instant::now();
         }
     });
 
-    HttpServer::new(move || App::new().app_data(app_state.clone()).service(info))
-        .bind(("127.0.0.1", 8080))?
-        .run()
-        .await
+    HttpServer::new(move || {
+        App::new()
+            .app_data(app_state.clone())
+            .service(info)
+            .service(sump_events)
+    })
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
 }
