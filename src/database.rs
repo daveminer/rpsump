@@ -2,14 +2,13 @@ use anyhow::Error;
 use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use diesel::sqlite::SqliteConnection;
-use std::sync::{Arc, Mutex};
 
 use crate::models::*;
 use crate::schema::{sump_events, sump_events::dsl::*};
 
 #[derive(Clone)]
 pub struct Database {
-    pub pool: Arc<Mutex<Pool<ConnectionManager<SqliteConnection>>>>,
+    pub pool: Pool<ConnectionManager<SqliteConnection>>,
 }
 
 impl Database {
@@ -17,9 +16,7 @@ impl Database {
         let manager = ConnectionManager::<SqliteConnection>::new(&path);
         let pool = Pool::builder().build(manager)?;
 
-        Ok(Database {
-            pool: Arc::new(Mutex::new(pool)),
-        })
+        Ok(Database { pool })
     }
 
     pub fn create_sump_event(self, event_kind: &str, event_info: &str) -> usize {
@@ -42,7 +39,7 @@ impl Database {
     }
 
     fn conn(self) -> PooledConnection<ConnectionManager<SqliteConnection>> {
-        self.pool.lock().unwrap().get().unwrap()
+        self.pool.get().unwrap()
     }
 }
 
