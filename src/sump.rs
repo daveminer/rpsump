@@ -3,6 +3,8 @@ use rppal::gpio::{Gpio, InputPin, Level, OutputPin, Trigger};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::sync::{Arc, Mutex};
+use std::thread;
+use tokio::time::Duration;
 
 use crate::database::Database;
 
@@ -138,7 +140,9 @@ impl Sump {
         sensor_state: Arc<Mutex<PinState>>,
     ) {
         let mut control = pump_control_pin.lock().unwrap();
+        let sensor_state_clone = sensor_state.clone();
         let mut sensors = sensor_state.lock().unwrap();
+        let mut sensors_clone = sensor_state_clone.lock().unwrap();
 
         // Turn the sump pump motor on or off
         match triggered_sensor {
@@ -155,8 +159,18 @@ impl Sump {
             }
             Sensor::Low => {
                 if level == Level::High {
-                    // TODO: Start a timer (5 min) to clear a non-full container in a
-                    // timely way.
+                    drop(control);
+                    drop(sensors);
+                    let _sync_reporter_thread = thread::spawn(move || {
+                        thread::sleep(Duration::from_millis(60000));
+
+                        let sensors = sensor_state.lock().unwrap();
+                        if sensors.low_sensor == Level::High {
+                            let mut control = pump_control_pin.lock().unwrap();
+                            // TODO: test for
+                            control.set_high();
+                        }
+                    });
                 } else {
                     control.set_low();
                     db.create_sump_event(
@@ -164,8 +178,7 @@ impl Sump {
                         "low water sensor - signal low",
                     );
                 }
-
-                sensors.low_sensor = level;
+                sensors_clone.low_sensor = level;
             }
         }
     }
