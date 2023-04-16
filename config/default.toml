@@ -1,5 +1,0 @@
-[console]
-report_freq_secs=5
-
-[database]
-url = "./rpsump.db"

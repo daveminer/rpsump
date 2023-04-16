@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Error};
-use config::{Config, File};
+use dotenv::dotenv;
 use serde::Deserialize;
+use std::env;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Settings {
@@ -21,22 +22,25 @@ pub struct DatabaseConfig {
 
 impl Settings {
     pub fn new() -> Result<Self, Error> {
-        let s = Config::builder()
-            // Start off by merging in the "default" configuration file
-            .add_source(File::with_name("./config/default.toml"))
-            // Add in a local configuration file
-            // This file shouldn't be checked in to git
-            .add_source(File::with_name("./config/dev.secret.toml").required(false))
-            .build()?;
+        dotenv().ok();
 
-        // Now that we're done, let's access our configuration
-        println!("debug: {:?}", s.get_string("console.report_freq_secs"));
-        println!("database: {:?}", s.get::<String>("database.path"));
+        let database_path = env::var("DATABASE_PATH")
+            .map_err(|_| anyhow!("DATABASE_PATH environment variable not found"))?;
+        let database_file = env::var("DATABASE_FILE")
+            .map_err(|_| anyhow!("DATABASE_FILE environment variable not found"))?;
 
-        match s.try_deserialize() {
-            Ok(settings) => Ok(settings),
-            Err(e) => Err(anyhow!(e)),
-        }
+        Ok(Settings {
+            console: ConsoleConfig {
+                report_freq_secs: env::var("REPORT_FREQ_SECS")
+                    .unwrap_or_else(|_| "60".to_string())
+                    .parse()
+                    .map_err(|_| anyhow!("failed to parse report frequency"))?,
+            },
+            database: DatabaseConfig {
+                path: database_path,
+                filename: database_file,
+            },
+        })
     }
 
     pub fn database(self) -> String {
