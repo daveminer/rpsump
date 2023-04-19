@@ -1,4 +1,4 @@
-CREATE TABLE sump_events
+CREATE TABLE sump_event
 (
   id INTEGER PRIMARY KEY NOT NULL,
   kind TEXT NOT NULL,
@@ -7,5 +7,5 @@ CREATE TABLE sump_events
   updated_at TEXT NOT NULL
 );
 
-CREATE INDEX idx_sump_events_on_created_at ON sump_events (created_at);
-CREATE INDEX idx_sump_events_on_kind_created_at ON sump_events (kind, created_at);
+CREATE INDEX idx_sump_event_on_created_at ON sump_event (created_at);
+CREATE INDEX idx_sump_event_on_kind_created_at ON sump_event (kind, created_at);

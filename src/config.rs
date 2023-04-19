@@ -1,11 +1,13 @@
 use anyhow::{anyhow, Error};
-use config::{Config, File};
+use dotenv::dotenv;
 use serde::Deserialize;
+use std::env;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Settings {
     pub console: ConsoleConfig,
-    database: DatabaseConfig,
+    pub database_url: String,
+    pub sump: SumpConfig,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -14,39 +16,44 @@ pub struct ConsoleConfig {
 }
 
 #[derive(Clone, Debug, Deserialize)]
-pub struct DatabaseConfig {
-    path: String,
-    filename: String,
+pub struct SumpConfig {
+    pub high_sensor_pin: u8,
+    pub low_sensor_pin: u8,
+    pub pump_control_pin: u8,
 }
 
 impl Settings {
     pub fn new() -> Result<Self, Error> {
-        let s = Config::builder()
-            // Start off by merging in the "default" configuration file
-            .add_source(File::with_name("./config/default.toml"))
-            // Add in a local configuration file
-            // This file shouldn't be checked in to git
-            .add_source(File::with_name("./config/dev.secret.toml").required(false))
-            .build()?;
+        dotenv().ok();
 
-        // Now that we're done, let's access our configuration
-        println!("debug: {:?}", s.get_string("console.report_freq_secs"));
-        println!("database: {:?}", s.get::<String>("database.path"));
+        let database_url = env::var("DATABASE_URL")
+            .map_err(|_| anyhow!("DATABASE_URL environment variable not found"))?;
 
-        match s.try_deserialize() {
-            Ok(settings) => Ok(settings),
-            Err(e) => Err(anyhow!(e)),
-        }
-    }
+        let high_sensor_pin = env::var("DATABASE_URL")
+            .map_err(|_| anyhow!("DATABASE_URL environment variable not found"))?
+            .parse::<u8>()?;
 
-    pub fn database(self) -> String {
-        let file = self.database.filename;
-        let mut path = self.database.path;
+        let low_sensor_pin = env::var("DATABASE_URL")
+            .map_err(|_| anyhow!("DATABASE_URL environment variable not found"))?
+            .parse::<u8>()?;
 
-        if !file.starts_with("/") && !path.ends_with("/") {
-            path = format!("{}/", path);
-        }
+        let pump_control_pin = env::var("DATABASE_URL")
+            .map_err(|_| anyhow!("DATABASE_URL environment variable not found"))?
+            .parse::<u8>()?;
 
-        format!("{}{}", path, file)
+        Ok(Settings {
+            console: ConsoleConfig {
+                report_freq_secs: env::var("REPORT_FREQ_SECS")
+                    .unwrap_or_else(|_| "60".to_string())
+                    .parse()
+                    .map_err(|_| anyhow!("failed to parse report frequency"))?,
+            },
+            database_url: database_url,
+            sump: SumpConfig {
+                high_sensor_pin,
+                low_sensor_pin,
+                pump_control_pin,
+            },
+        })
     }
 }
