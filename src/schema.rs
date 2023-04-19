@@ -1,7 +1,7 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
-    sump_events (id) {
+    sump_event (id) {
         id -> Integer,
         kind -> Text,
         info -> Text,

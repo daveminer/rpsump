@@ -1,1 +1,1 @@
-DROP TABLE sump_events
+DROP TABLE sump_event

@@ -3,10 +3,8 @@ use rppal::gpio::{Gpio, InputPin, Level, OutputPin, Trigger};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::sync::{Arc, Mutex};
-use std::thread;
-use tokio::time::Duration;
 
-use crate::database::Database;
+use crate::{database::DbPool, models::sump_event::NewSumpEvent};
 
 // GPIO uses BCM pin numbering.
 const HIGH_SENSOR_PIN: u8 = 18; // GPIO #18 == Pin #12
@@ -14,11 +12,11 @@ const LOW_SENSOR_PIN: u8 = 24; // GPIO #24 == Pin #18
 const PUMP_CONTROL_PIN: u8 = 14; // GPIO #14 == Pin #8
 
 // Manages the physical I/O devices
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Sump {
-    pub db: Database,
-    pub high_sensor_pin: InputPin,
-    pub low_sensor_pin: InputPin,
+    pub db_pool: DbPool,
+    pub high_sensor_pin: Arc<Mutex<InputPin>>,
+    pub low_sensor_pin: Arc<Mutex<InputPin>>,
     pub pump_control_pin: Arc<Mutex<OutputPin>>,
     pub sensor_state: Arc<Mutex<PinState>>,
 }
@@ -67,7 +65,7 @@ enum Sensor {
 
 impl Sump {
     // Creates a new sump struct with sensors and their state.
-    pub fn new(db: Database) -> Result<Self, Error> {
+    pub fn new(db_pool: DbPool) -> Result<Self, Error> {
         // create the GPIO pins
         let gpio = Gpio::new()?;
         let mut high_sensor_pin = gpio.get(HIGH_SENSOR_PIN)?.into_input_pullup();
@@ -83,7 +81,7 @@ impl Sump {
 
         // Set up interrupts
         Self::water_sensor_interrupt(
-            db.clone(),
+            db_pool.clone(),
             &mut high_sensor_pin,
             Arc::clone(&pump_control_pin),
             Arc::clone(&sensor_state),
@@ -91,17 +89,19 @@ impl Sump {
         );
 
         Self::water_sensor_interrupt(
-            db.clone(),
+            db_pool.clone(),
             &mut low_sensor_pin,
             Arc::clone(&pump_control_pin),
             Arc::clone(&sensor_state),
             Sensor::Low,
         );
 
+        //let high_sensor_arc = Arc::from(Mutex::new(high_sensor_pin)
+
         Ok(Sump {
-            db,
-            high_sensor_pin,
-            low_sensor_pin,
+            db_pool,
+            high_sensor_pin: Arc::from(Mutex::new(high_sensor_pin)),
+            low_sensor_pin: Arc::from(Mutex::new(low_sensor_pin)),
             pump_control_pin,
             sensor_state,
         })
@@ -113,7 +113,7 @@ impl Sump {
     }
 
     fn water_sensor_interrupt(
-        db: Database,
+        db: DbPool,
         pin: &mut InputPin,
         pump_control_pin: Arc<Mutex<OutputPin>>,
         sensor_state: Arc<Mutex<PinState>>,
@@ -134,7 +134,7 @@ impl Sump {
     // Call this when a sensor change event happens.
     fn water_sensor_state_change_callback(
         triggered_sensor: Sensor,
-        db: Database,
+        db: DbPool,
         level: Level,
         pump_control_pin: Arc<Mutex<OutputPin>>,
         sensor_state: Arc<Mutex<PinState>>,
@@ -149,33 +149,28 @@ impl Sump {
             Sensor::High => {
                 if level == Level::High {
                     control.set_high();
-                    db.create_sump_event(
-                        "sump motor on via sensor",
-                        "high water sensor - signal high",
+
+                    NewSumpEvent::create(
+                        NewSumpEvent {
+                            kind: "kind",
+                            info: "info",
+                        },
+                        db,
                     );
                 }
 
                 sensors.high_sensor = level;
             }
             Sensor::Low => {
-                if level == Level::High {
-                    drop(control);
-                    drop(sensors);
-                    let _sync_reporter_thread = thread::spawn(move || {
-                        thread::sleep(Duration::from_millis(60000));
-
-                        let sensors = sensor_state.lock().unwrap();
-                        if sensors.low_sensor == Level::High {
-                            let mut control = pump_control_pin.lock().unwrap();
-                            // TODO: test for
-                            control.set_high();
-                        }
-                    });
-                } else {
+                if level != Level::High {
                     control.set_low();
-                    db.create_sump_event(
-                        "sump motor off via sensor",
-                        "low water sensor - signal low",
+
+                    NewSumpEvent::create(
+                        NewSumpEvent {
+                            kind: "kind",
+                            info: "info",
+                        },
+                        db,
                     );
                 }
                 sensors_clone.low_sensor = level;

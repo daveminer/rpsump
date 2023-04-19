@@ -1,56 +1,55 @@
-use actix_web::{get, web::Data, App, HttpResponse, HttpServer, Responder};
-use database::Database;
+use actix_web::error;
+use actix_web::{get, web, web::Data, App, HttpResponse, HttpServer, Responder, Result};
+use diesel::RunQueryDsl;
 use std::thread;
 use std::time::{Duration, Instant};
 
 use crate::config::Settings;
+use crate::database::{new_pool, DbPool};
+use crate::models::sump_event::SumpEvent;
 use crate::sump::Sump;
 
 mod config;
 mod database;
-pub mod models;
+pub mod models {
+    pub mod sump_event;
+}
 pub mod schema;
 mod sump;
 
-struct AppState {
-    db: Database,
-    sump: Sump,
-}
-
 #[get("/info")]
-async fn info(_req_body: String, data: Data<AppState>) -> impl Responder {
-    let pin_state = &data.sump.sensors();
-
-    let body = serde_json::to_string(&pin_state).expect("Could not serialize the pin state");
+async fn info(_req_body: String, sump: Data<Sump>) -> impl Responder {
+    let body = serde_json::to_string(&sump.sensors()).expect("Could not serialize the pin state");
 
     HttpResponse::Ok().body(body)
 }
 
-#[get("/sump_events")]
-async fn sump_events(_req_body: String, data: Data<AppState>) -> impl Responder {
-    let events = data.db.clone().get_sump_events();
+#[get("/sump_event")]
+async fn sump_event(_req_body: String, db: Data<DbPool>) -> Result<impl Responder> {
+    let events = web::block(move || {
+        let mut conn = database::conn(db);
+        SumpEvent::all().load::<SumpEvent>(&mut conn)
+    })
+    .await?
+    .map_err(error::ErrorInternalServerError)?;
 
-    HttpResponse::Ok().body(format!("{:?}", events))
+    Ok(HttpResponse::Ok().body(format!("{:?}", events)))
 }
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let settings = Settings::new().expect("Environment configuration error.");
-    let db = Database::new(settings.clone().database()).expect("Could not initialize database.");
+    let db_pool = new_pool(settings.clone().database()).expect("Could not initialize database.");
+    let sump = Sump::new(db_pool.clone()).expect("Could not create sump object");
+    let sump_clone = sump.clone();
 
-    let app_state = Data::new(AppState {
-        db: Database::new(settings.clone().database()).expect("Could not initialize database."),
-        sump: Sump::new(db.clone()).expect("Could not create sump object"),
-    });
-
-    let app_state_clone = app_state.clone();
     let settings_clone = settings.clone();
     let _sync_reporter_thread = thread::spawn(move || {
         let mut start_time = Instant::now();
 
         loop {
             // Report to console
-            println!("{:?}", app_state_clone.sump.sensors());
+            println!("{:?}", &sump_clone.sensors());
 
             // Wait for N seconds
             let elapsed_time = start_time.elapsed();
@@ -65,9 +64,10 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
-            .app_data(app_state.clone())
+            .app_data(Data::new(db_pool.clone()))
+            .app_data(Data::new(sump.clone()))
             .service(info)
-            .service(sump_events)
+            .service(sump_event)
     })
     .bind(("127.0.0.1", 8080))?
     .run()
