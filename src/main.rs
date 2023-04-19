@@ -39,8 +39,8 @@ async fn sump_event(_req_body: String, db: Data<DbPool>) -> Result<impl Responde
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     let settings = Settings::new().expect("Environment configuration error.");
-    let db_pool = new_pool(settings.clone().database()).expect("Could not initialize database.");
-    let sump = Sump::new(db_pool.clone()).expect("Could not create sump object");
+    let db_pool = new_pool(&settings.database_url).expect("Could not initialize database.");
+    let sump = Sump::new(db_pool.clone(), &settings.sump).expect("Could not create sump object");
     let sump_clone = sump.clone();
 
     let settings_clone = settings.clone();

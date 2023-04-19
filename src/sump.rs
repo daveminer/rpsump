@@ -4,12 +4,7 @@ use rppal::gpio::{Gpio, InputPin, Level, OutputPin, Trigger};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::sync::{Arc, Mutex};
 
-use crate::{database::DbPool, models::sump_event::NewSumpEvent};
-
-// GPIO uses BCM pin numbering.
-const HIGH_SENSOR_PIN: u8 = 18; // GPIO #18 == Pin #12
-const LOW_SENSOR_PIN: u8 = 24; // GPIO #24 == Pin #18
-const PUMP_CONTROL_PIN: u8 = 14; // GPIO #14 == Pin #8
+use crate::{config::SumpConfig, database::DbPool, models::sump_event::NewSumpEvent};
 
 // Manages the physical I/O devices
 #[derive(Clone, Debug)]
@@ -65,13 +60,14 @@ enum Sensor {
 
 impl Sump {
     // Creates a new sump struct with sensors and their state.
-    pub fn new(db_pool: DbPool) -> Result<Self, Error> {
+    pub fn new(db_pool: DbPool, config: &SumpConfig) -> Result<Self, Error> {
         // create the GPIO pins
         let gpio = Gpio::new()?;
-        let mut high_sensor_pin = gpio.get(HIGH_SENSOR_PIN)?.into_input_pullup();
-        let mut low_sensor_pin = gpio.get(LOW_SENSOR_PIN)?.into_input_pullup();
-        let pump_control_pin: Arc<Mutex<OutputPin>> =
-            Arc::from(Mutex::new(gpio.get(PUMP_CONTROL_PIN)?.into_output_low()));
+        let mut high_sensor_pin = gpio.get(config.high_sensor_pin)?.into_input_pullup();
+        let mut low_sensor_pin = gpio.get(config.low_sensor_pin)?.into_input_pullup();
+        let pump_control_pin: Arc<Mutex<OutputPin>> = Arc::from(Mutex::new(
+            gpio.get(config.pump_control_pin)?.into_output_low(),
+        ));
 
         // Read initial state of inputs
         let sensor_state = Arc::from(Mutex::new(PinState {
@@ -95,8 +91,6 @@ impl Sump {
             Arc::clone(&sensor_state),
             Sensor::Low,
         );
-
-        //let high_sensor_arc = Arc::from(Mutex::new(high_sensor_pin)
 
         Ok(Sump {
             db_pool,
