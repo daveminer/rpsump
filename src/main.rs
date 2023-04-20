@@ -1,21 +1,59 @@
+use actix_identity::Identity;
 use actix_web::error;
-use actix_web::{get, web, web::Data, App, HttpResponse, HttpServer, Responder, Result};
+use actix_web::{get, post, web, web::Data, App, HttpResponse, HttpServer, Responder, Result};
 use diesel::RunQueryDsl;
 use std::thread;
 use std::time::{Duration, Instant};
 
+use crate::auth::AuthenticatedUser;
 use crate::config::Settings;
 use crate::database::{new_pool, DbPool};
 use crate::models::sump_event::SumpEvent;
+use crate::models::user::{NewUser, User};
 use crate::sump::Sump;
 
+mod auth;
 mod config;
 mod database;
 pub mod models {
     pub mod sump_event;
+    pub mod user;
 }
 pub mod schema;
 mod sump;
+
+#[post("/signup")]
+async fn signup(user_data: web::Json<NewUser>, db: Data<DbPool>) -> Result<impl Responder> {
+    let new_user = user_data.into_inner();
+    // TODO: hash the password with bcrypt and save the user to the database
+    Ok(HttpResponse::Ok().finish())
+}
+
+#[post("/login")]
+async fn login(
+    user_data: web::Json<User>,
+    db: Data<DbPool>,
+    identity: Identity,
+) -> Result<impl Responder> {
+    let user = user_data.into_inner();
+    // TODO: fetch the user from the database by their email
+    // TODO: hash the password with bcrypt and compare to the stored hash
+    // TODO: if the password matches, generate a JWT token and save it to the cookie
+    Ok(HttpResponse::Ok().finish())
+}
+
+#[post("/logout")]
+async fn logout(identity: Identity) -> impl Responder {
+    //identity.forget();
+    HttpResponse::Ok().finish()
+}
+
+#[post("/reset_password")]
+async fn reset_password(email: web::Json<String>, db: Data<DbPool>) -> Result<impl Responder> {
+    let user_email = email.into_inner();
+    // TODO: generate a new password reset token and save it to the database or cache
+    Ok(HttpResponse::Ok().finish())
+}
 
 #[get("/info")]
 async fn info(_req_body: String, sump: Data<Sump>) -> impl Responder {
@@ -25,7 +63,11 @@ async fn info(_req_body: String, sump: Data<Sump>) -> impl Responder {
 }
 
 #[get("/sump_event")]
-async fn sump_event(_req_body: String, db: Data<DbPool>) -> Result<impl Responder> {
+async fn sump_event(
+    _req_body: String,
+    db: Data<DbPool>,
+    user: AuthenticatedUser,
+) -> Result<impl Responder> {
     let events = web::block(move || {
         let mut conn = database::conn(db);
         SumpEvent::all().load::<SumpEvent>(&mut conn)
