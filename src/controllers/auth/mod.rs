@@ -14,6 +14,13 @@ pub struct AuthParams {
     password: String,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct SignupParams {
+    email: String,
+    password: String,
+    confirm_password: String,
+}
+
 pub fn auth_routes(cfg: &mut ServiceConfig) {
     cfg.service(signup::signup);
     cfg.service(login::login);
