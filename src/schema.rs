@@ -12,10 +12,11 @@ diesel::table! {
 
 diesel::table! {
     user (id) {
-        id -> Nullable<Integer>,
+        id -> Integer,
         password_hash -> Text,
         email -> Text,
-        created_at -> Nullable<Timestamp>,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
     }
 }
 
