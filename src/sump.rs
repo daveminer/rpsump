@@ -3,6 +3,7 @@ use rppal::gpio::{Gpio, InputPin, Level, OutputPin, Trigger};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::sync::{Arc, Mutex};
+use std::{thread, time::Duration};
 
 use crate::{config::SumpConfig, database::DbPool, models::sump_event::NewSumpEvent};
 
@@ -82,6 +83,7 @@ impl Sump {
             Arc::clone(&pump_control_pin),
             Arc::clone(&sensor_state),
             Sensor::High,
+            config.pump_shutoff_delay,
         );
 
         Self::water_sensor_interrupt(
@@ -90,6 +92,7 @@ impl Sump {
             Arc::clone(&pump_control_pin),
             Arc::clone(&sensor_state),
             Sensor::Low,
+            config.pump_shutoff_delay,
         );
 
         Ok(Sump {
@@ -112,6 +115,7 @@ impl Sump {
         pump_control_pin: Arc<Mutex<OutputPin>>,
         sensor_state: Arc<Mutex<PinState>>,
         sensor_name: Sensor,
+        pump_shutoff_delay: u64,
     ) {
         pin.set_async_interrupt(Trigger::Both, move |level| {
             Self::water_sensor_state_change_callback(
@@ -120,6 +124,7 @@ impl Sump {
                 level,
                 Arc::clone(&pump_control_pin),
                 Arc::clone(&sensor_state),
+                pump_shutoff_delay,
             )
         })
         .expect("Could not not listen on high water level sump pin");
@@ -132,6 +137,7 @@ impl Sump {
         level: Level,
         pump_control_pin: Arc<Mutex<OutputPin>>,
         sensor_state: Arc<Mutex<PinState>>,
+        pump_shutoff_delay: u64,
     ) {
         let mut control = pump_control_pin.lock().unwrap();
         let sensor_state_clone = sensor_state.clone();
@@ -157,6 +163,11 @@ impl Sump {
             }
             Sensor::Low => {
                 if level != Level::High {
+                    // Let the pump run a bit longer or the sensor might remain high.
+                    if pump_shutoff_delay > 0 {
+                        thread::sleep(Duration::from_millis(pump_shutoff_delay as u64 * 1000));
+                    }
+
                     control.set_low();
 
                     NewSumpEvent::create(
