@@ -16,3 +16,17 @@ pub fn new_pool(path: &String) -> Result<DbPool, Error> {
 pub fn conn(db: web::Data<DbPool>) -> DbConn {
     db.get().expect("Could not acquire db lock.")
 }
+
+#[macro_export]
+macro_rules! first {
+    ($query:expr, $typ: ty, $db:expr) => {
+        web::block(move || {
+            let mut conn = $db.get().expect("Could not get db connection.");
+
+            $query.first(&mut conn) as Result<$typ, diesel::result::Error>
+        })
+        .await?
+    };
+}
+
+pub(crate) use first;

@@ -29,15 +29,15 @@ impl Settings {
         let database_url = env::var("DATABASE_URL")
             .map_err(|_| anyhow!("DATABASE_URL environment variable not found"))?;
 
-        let high_sensor_pin = env::var("DATABASE_URL")
+        let high_sensor_pin = env::var("SUMP_HIGH_SENSOR_PIN")
             .map_err(|_| anyhow!("DATABASE_URL environment variable not found"))?
             .parse::<u8>()?;
 
-        let low_sensor_pin = env::var("DATABASE_URL")
+        let low_sensor_pin = env::var("SUMP_LOW_SENSOR_PIN")
             .map_err(|_| anyhow!("DATABASE_URL environment variable not found"))?
             .parse::<u8>()?;
 
-        let pump_control_pin = env::var("DATABASE_URL")
+        let pump_control_pin = env::var("SUMP_PUMP_CONTROL_PIN")
             .map_err(|_| anyhow!("DATABASE_URL environment variable not found"))?
             .parse::<u8>()?;
 

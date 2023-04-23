@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+actix-session = { version = "0.7.2", features = ["cookie-session"] }
 actix-web = "4.3.1"
 anyhow = "1.0"
 clippy = "0.0.302"
@@ -16,3 +17,8 @@ serde_json = "1.0"
 tokio = { version = "1.27.0", features = ["rt-multi-thread", "macros"] }
 tokio-tungstenite = "0.18.0"
 dotenv = "0.15.0"
+actix-identity = "0.5.2"
+jsonwebtoken = "8.3.0"
+futures = "0.3.28"
+bcrypt = "0.14.0"
+chrono = "0.4.24"
