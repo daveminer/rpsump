@@ -8,7 +8,7 @@ pub mod signup;
 
 const TOKEN_EXPIRATION_TIME_SECONDS: u64 = 60 * 60 * 24;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct AuthParams {
     email: String,
     password: String,
