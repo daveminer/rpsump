@@ -9,6 +9,7 @@ pub struct Claim {
     pub exp: u64,
 }
 
+// TODO: env var for secret
 pub fn create_token(user_id: i32) -> Result<String, jsonwebtoken::errors::Error> {
     let header = Header::default();
     let payload = Claim {

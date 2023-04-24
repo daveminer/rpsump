@@ -9,17 +9,12 @@ use actix_web::{cookie::Key, web, web::Data, App, HttpServer};
 use std::thread;
 use std::time::{Duration, Instant};
 
-pub mod auth {
-    pub mod authenticated_user;
-    pub mod claim;
-}
+pub mod auth;
 mod config;
 mod controllers;
 mod database;
-pub mod models {
-    pub mod sump_event;
-    pub mod user;
-}
+mod email;
+pub mod models;
 pub mod schema;
 mod sump;
 
