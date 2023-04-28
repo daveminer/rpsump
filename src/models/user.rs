@@ -1,28 +1,30 @@
-use actix_web::{error, web};
+use actix_web::web;
 use anyhow::{anyhow, Error};
-use chrono::{Duration, Utc};
+use chrono::{DateTime, Duration, Utc};
 use diesel::prelude::*;
 use diesel::sqlite::Sqlite;
 use serde::{Deserialize, Serialize};
 
+use crate::auth::token::Token;
 use crate::database::DbPool;
 use crate::schema::user;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Queryable, Selectable)]
+#[derive(Clone, Debug, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
 #[diesel(table_name = user)]
 pub struct User {
     pub id: i32,
     pub email: String,
     pub email_verification_token: Option<String>,
+    pub email_verification_token_expires_at: Option<String>,
     pub email_verified_at: Option<String>,
     pub password_hash: String,
-    pub password_reset_token_hash: Option<String>,
+    pub password_reset_token: Option<String>,
     pub password_reset_token_expires_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,
 }
 
-#[derive(Debug, Clone, Insertable, Serialize, Deserialize)]
+#[derive(Clone, Debug, Insertable, Serialize, Deserialize)]
 #[diesel(table_name = user)]
 pub struct NewUser {
     pub email: String,
@@ -52,21 +54,15 @@ impl User {
         user::table.filter(user::email.eq(email)).into_boxed()
     }
 
-    pub async fn save_reset_token(
-        self,
-        token_hash: String,
-        db: actix_web::web::Data<DbPool>,
-    ) -> Result<(), Error> {
+    pub async fn save_reset_token(self, token: Token, db: web::Data<DbPool>) -> Result<(), Error> {
         let _row_updated = web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
-
-            let expires_at = Utc::now() + Duration::hours(2);
 
             diesel::update(user::table)
                 .filter(user::email.eq(self.email))
                 .set((
-                    user::password_reset_token_hash.eq(token_hash),
-                    user::password_reset_token_expires_at.eq(expires_at.to_string()),
+                    user::password_reset_token.eq(token.value),
+                    user::password_reset_token_expires_at.eq(token.expires_at.to_string()),
                 ))
                 .execute(&mut conn)
         })
@@ -77,16 +73,19 @@ impl User {
     }
 
     pub async fn save_email_verification_token(
-        self,
-        token: String,
-        db: actix_web::web::Data<DbPool>,
+        email: String,
+        token: Token,
+        db: web::Data<DbPool>,
     ) -> Result<(), Error> {
         let _row_updated = web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 
             diesel::update(user::table)
-                .filter(user::email.eq(self.email))
-                .set(user::email_verification_token.eq(token))
+                .filter(user::email.eq(email))
+                .set((
+                    user::email_verification_token.eq(token.value),
+                    user::email_verification_token_expires_at.eq(token.expires_at.to_string()),
+                ))
                 .execute(&mut conn)
         })
         .await?
@@ -95,16 +94,12 @@ impl User {
         Ok(())
     }
 
-    pub async fn verify_email(
-        self,
-        token: String,
-        db: actix_web::web::Data<DbPool>,
-    ) -> Result<(), Error> {
+    pub async fn verify_email(self, token: Token, db: web::Data<DbPool>) -> Result<(), Error> {
         let _row_updated = web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 
             diesel::update(user::table)
-                .filter(user::email_verification_token.eq(token))
+                .filter(user::email_verification_token.eq(token.value))
                 .set(user::email_verified_at.eq(Utc::now().to_string()))
                 .execute(&mut conn)
         })

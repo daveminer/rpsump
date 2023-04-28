@@ -25,9 +25,11 @@ struct Contact {
 pub async fn send_email_verification(
     user: User,
     db: actix_web::web::Data<DbPool>,
+    server_url: String,
     auth_token: String,
 ) -> Result<(), Error> {
-    let result = sendinblue::send_email_verification(user, db, auth_token).await;
+    user.send_email_verification(db, server_url, auth_token)
+        .await?;
 
     Ok(())
 }
@@ -35,11 +37,10 @@ pub async fn send_email_verification(
 pub async fn send_password_reset(
     user: User,
     db: actix_web::web::Data<DbPool>,
+    server_url: String,
     auth_token: String,
 ) -> Result<(), Error> {
-    let result = sendinblue::send_password_reset(user, db, auth_token).await?;
-
-    println!("RESULT: {:?}", result);
+    user.send_password_reset(db, server_url, auth_token).await?;
 
     Ok(())
 }

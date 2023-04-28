@@ -1,5 +1,5 @@
 use crate::schema::user::dsl::*;
-use actix_web::{post, web, web::Data, HttpResponse, Responder, Result};
+use actix_web::{post, web, web::Data, HttpRequest, HttpResponse, Responder, Result};
 use bcrypt::{hash, DEFAULT_COST};
 use diesel::RunQueryDsl;
 
@@ -11,6 +11,7 @@ use crate::Settings;
 
 #[post("/signup")]
 pub async fn signup(
+    req: HttpRequest,
     user_data: web::Json<SignupParams>,
     db: Data<DbPool>,
     settings: Data<Settings>,
@@ -37,9 +38,14 @@ pub async fn signup(
         .get_results(&mut conn)
         .expect("Could not insert new user");
 
-    send_email_verification(users[0].clone(), db, settings.mailer_auth_token.clone())
-        .await
-        .expect("Could not send email verification");
+    send_email_verification(
+        users[0].clone(),
+        db,
+        req.connection_info().host().to_string(),
+        settings.mailer_auth_token.clone(),
+    )
+    .await
+    .expect("Could not send email verification");
 
     Ok(HttpResponse::Ok().finish())
 }
