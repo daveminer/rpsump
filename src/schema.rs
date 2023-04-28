@@ -14,10 +14,18 @@ diesel::table! {
     user (id) {
         id -> Integer,
         email -> Text,
+        email_verification_token -> Nullable<Text>,
+        email_verification_token_expires_at -> Nullable<Timestamp>,
+        email_verified_at -> Nullable<Timestamp>,
         password_hash -> Text,
+        password_reset_token -> Nullable<Text>,
+        password_reset_token_expires_at -> Nullable<Text>,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }
 }
 
-diesel::allow_tables_to_appear_in_same_query!(sump_event, user,);
+diesel::allow_tables_to_appear_in_same_query!(
+    sump_event,
+    user,
+);

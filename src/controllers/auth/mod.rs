@@ -6,8 +6,6 @@ pub mod logout;
 pub mod reset_password;
 pub mod signup;
 
-const TOKEN_EXPIRATION_TIME_SECONDS: u64 = 60 * 60 * 24;
-
 #[derive(Clone, Serialize, Deserialize)]
 pub struct AuthParams {
     email: String,

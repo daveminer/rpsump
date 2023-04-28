@@ -20,3 +20,8 @@ async fn sump_event(
 
     Ok(HttpResponse::Ok().body(format!("{:?}", events)))
 }
+
+// #[get("/pump_runs")]
+// async fn pump_runs() -> Result<impl Responder> {
+//     Ok(HttpResponse::Ok().body("Pump runs"))
+// }
