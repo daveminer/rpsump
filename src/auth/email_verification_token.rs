@@ -6,6 +6,8 @@ use rand::{
     rngs::ThreadRng,
 };
 
+// TODO: implement expiry and remove hash
+
 pub fn generate() -> Result<(String, String), Error> {
     let mut rng = rand::thread_rng();
     let token = random_string(&mut rng, 32);

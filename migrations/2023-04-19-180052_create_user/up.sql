@@ -2,6 +2,8 @@ CREATE TABLE "user"
 (
   id INTEGER PRIMARY KEY NOT NULL,
   email TEXT NOT NULL,
+  email_verification_token TEXT,
+  email_verified_at TIMESTAMP,
   password_hash TEXT NOT NULL,
   password_reset_token_hash TEXT,
   password_reset_token_expires_at TEXT,

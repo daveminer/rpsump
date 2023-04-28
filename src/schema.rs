@@ -14,6 +14,8 @@ diesel::table! {
     user (id) {
         id -> Integer,
         email -> Text,
+        email_verification_token -> Nullable<Text>,
+        email_verified_at -> Nullable<Timestamp>,
         password_hash -> Text,
         password_reset_token_hash -> Nullable<Text>,
         password_reset_token_expires_at -> Nullable<Text>,

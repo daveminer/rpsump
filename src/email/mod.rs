@@ -1,53 +1,64 @@
 use anyhow::Error;
-use serde_json::Value;
+use serde::{Deserialize, Serialize};
 
 use crate::database::DbPool;
 use crate::models::user::User;
 
 pub mod sendinblue;
 
-struct ResetEmail {
-    to: Vec<String>,
-    sender: Value,
+const MAILER_SERVICE_URL: &str = "https://api.sendinblue.com/v3/smtp/email";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Email {
+    to: Vec<Contact>,
+    sender: Contact,
     subject: String,
     html_content: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct Contact {
     email: String,
-    name: String,
+    name: Option<String>,
 }
 
-// pub fn send_email_verification_email(user: User) -> Result<(), Error> {
-//     let mut mailer =
-//         SmtpClient::new_simple("smtp.gmail.com")?.credentials(Credentials::new("").unwrap());
-
-//     Ok(())
-// }
-
-pub async fn send_password_reset_email(
+pub async fn send_email_verification(
     user: User,
-    db: DbPool,
+    db: actix_web::web::Data<DbPool>,
     auth_token: String,
 ) -> Result<(), Error> {
-    let result = sendinblue::send_password_reset_email(user, db, auth_token).await?;
+    let result = sendinblue::send_email_verification(user, db, auth_token).await;
+
+    Ok(())
+}
+
+pub async fn send_password_reset(
+    user: User,
+    db: actix_web::web::Data<DbPool>,
+    auth_token: String,
+) -> Result<(), Error> {
+    let result = sendinblue::send_password_reset(user, db, auth_token).await?;
 
     println!("RESULT: {:?}", result);
 
     Ok(())
 }
 
-// fn send(user: User) {
-//     let link = format!("https://domain.tld/reset/{}", user.reset_token);
+pub async fn send(auth_token: String, email: Email) -> Result<(), Error> {
+    let client = reqwest::Client::new();
 
-//     let email = Message::builder()
-//         .from("RPSump <system@domain.tld>".parse().unwrap())
-//         .to(user.email)
-//         .subject("RPSump Password Reset")
-//         .header(ContentType::TEXT_PLAIN)
-//         .body(format!(
-//             "Follow this link to reset your password:\n\n{}\n\n",
-//             "link"
-//         ))
-//         .unwrap();
-// }
+    let response = client
+        .post(MAILER_SERVICE_URL)
+        .header("accept", "application/json")
+        .header("api-key", auth_token)
+        .header("content-type", "application/json")
+        .body(serde_json::to_string(&email)?)
+        .send()
+        .await?;
+
+    if response.status().is_success() {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!("Failed to send email"))
+    }
+}

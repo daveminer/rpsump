@@ -54,6 +54,7 @@ async fn main() -> std::io::Result<()> {
                 CookieSessionStore::default(),
                 secret_key.clone(),
             ))
+            .app_data(Data::new(settings.clone()))
             .app_data(Data::new(db_pool.clone()))
             //.app_data(Data::new(sump.clone()))
             .service(info)

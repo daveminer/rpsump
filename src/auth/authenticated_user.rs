@@ -11,7 +11,7 @@ impl FromRequest for AuthenticatedUser {
     type Error = Error;
     type Future = Ready<Result<Self, Self::Error>>;
 
-    fn from_request(req: &HttpRequest, payload: &mut dev::Payload) -> Self::Future {
+    fn from_request(req: &HttpRequest, _payload: &mut dev::Payload) -> Self::Future {
         let auth_header = req.headers().get("Authorization");
 
         if let Some(auth_header_value) = auth_header {
