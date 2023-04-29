@@ -1,6 +1,7 @@
 use actix_web::web::ServiceConfig;
 use serde::{Deserialize, Serialize};
 
+pub mod email_verification;
 pub mod login;
 pub mod logout;
 pub mod reset_password;
@@ -12,7 +13,7 @@ pub struct AuthParams {
     password: String,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SignupParams {
     email: String,
     password: String,
@@ -20,8 +21,9 @@ pub struct SignupParams {
 }
 
 pub fn auth_routes(cfg: &mut ServiceConfig) {
-    cfg.service(signup::signup);
+    cfg.service(email_verification::verify_email);
     cfg.service(login::login);
     cfg.service(logout::logout);
     cfg.service(reset_password::reset_password);
+    cfg.service(signup::signup);
 }

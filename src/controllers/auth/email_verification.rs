@@ -1,26 +1,25 @@
-use actix_web::{post, web, web::Data, HttpResponse, Responder, Result};
-use diesel::RunQueryDsl;
+use actix_web::{get, web, web::Data, HttpResponse, Responder, Result};
+use serde::Deserialize;
+use serde_json::json;
 
-use crate::database::{first, DbPool};
-use crate::email;
+use crate::database::DbPool;
 use crate::models::user::User;
-use crate::Settings;
 
-#[post("/verify_email")]
-async fn verify_email(
-    token: web::Json<String>,
-    db: Data<DbPool>,
-    settings: Data<Settings>,
-) -> Result<impl Responder> {
-    match first!(User::verify_email(token), User, db) {
-        Ok(user) => check_expiry(user),
-        Err(_) => Ok(HttpResponse::BadRequest().body(json!({ "message": "Invalid token." }))),
-    }
+#[derive(Debug, Deserialize)]
+pub struct EmailVerificationParams {
+    token: String,
 }
-fn check_expiry(user: User) -> Result<impl Responder> {
-    if user.email_verification_token_expires_at > Utc::now() {
-        return Ok(HttpResponse::Ok().body(json! {"message": "Email verified."}));
-    }
 
-    return Ok(HttpResponse::BadRequest().body(json!({ "message": "Token expired." })));
+#[get("/verify_email")]
+async fn verify_email(
+    params: web::Query<EmailVerificationParams>,
+    db: Data<DbPool>,
+) -> Result<impl Responder> {
+    // TODO: send html response based on request content type
+    match User::verify_email(params.token.clone(), db).await {
+        Ok(_) => Ok(HttpResponse::Ok().body(json!({"message": "Email verified."}).to_string())),
+        Err(e) => {
+            Ok(HttpResponse::BadRequest().body(json!({ "message": e.to_string() }).to_string()))
+        }
+    }
 }
