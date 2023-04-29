@@ -2,13 +2,11 @@ use actix_web::{post, web, web::Data, HttpRequest, HttpResponse, Responder, Resu
 
 use diesel::prelude::*;
 
-use crate::auth::hash_user_password;
+use crate::auth::{hash_user_password, validate_password};
 use crate::controllers::auth::SignupParams;
 use crate::database::{first, DbPool};
 use crate::models::user::User;
 use crate::Settings;
-
-use super::validate_password;
 
 #[post("/signup")]
 pub async fn signup(
@@ -18,8 +16,6 @@ pub async fn signup(
     settings: Data<Settings>,
 ) -> Result<impl Responder> {
     let new_user = user_data.into_inner();
-    let db_clone = db.clone();
-    let new_user_clone = new_user.clone();
 
     if let Err(e) = validate_password(&new_user.password, &new_user.confirm_password) {
         return Ok(HttpResponse::BadRequest().body(e.to_string()));

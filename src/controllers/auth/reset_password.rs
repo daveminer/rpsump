@@ -2,7 +2,7 @@ use actix_web::{get, post, web, web::Data, HttpRequest, HttpResponse, Responder,
 use diesel::RunQueryDsl;
 use serde::{Deserialize, Serialize};
 
-use crate::controllers::auth;
+use crate::auth::validate_password;
 use crate::database::{first, DbPool};
 use crate::models::user::User;
 use crate::Settings;
@@ -54,7 +54,7 @@ async fn reset_password(
     let password = params.new_password.clone();
     let password_confirmation = params.new_password_confirmation.clone();
 
-    if let Err(e) = auth::validate_password(&password, &password_confirmation) {
+    if let Err(e) = validate_password(&password, &password_confirmation) {
         return Ok(HttpResponse::BadRequest().body(e.to_string()));
     }
 
