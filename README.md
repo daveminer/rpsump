@@ -38,8 +38,21 @@ Group of inputs/callback handlers and outputs that form the sump pump functional
 
 ![Raspberry Pi and 12V Relay Wiring](https://drive.google.com/uc?id=1UQZAugLhoaG8qODDQBWJ980w4ulJBQFf)
 
-##### Sump pump
+##### Pump Reservoir
+
+- 4in. sewer pipe assembly from retail home improvement store
+- standard pvc cement
 
 ![Pump reservoir](https://drive.google.com/uc?id=1n1YzGied9_GeD2SX95VH9Bm8LnP7bPMG)
+
+
+##### Sensor and pump assembly
+
+
+- 5v float switches
+- aquarium pump
+- flexible pvc
+- hobby-grade acrylic sheet
+- zip ties
 
 ![Sensor and pump assembly](https://drive.google.com/uc?id=1mZDRnuOX3855pdJ-EjUzNaiFuBW8YkLJ)
