@@ -29,14 +29,9 @@ impl Settings {
     pub fn new() -> Result<Self, Error> {
         dotenv().ok();
 
-        let database_url = env::var("DATABASE_URL")
-            .map_err(|_| anyhow!("DATABASE_URL environment variable not found"))?;
-
-        let jwt_secret = env::var("JWT_SECRET")
-            .map_err(|_| anyhow!("JWT_SECRET environment variable not found"))?;
-
-        let mailer_auth_token = env::var("MAILER_AUTH_TOKEN")
-            .map_err(|_| anyhow!("MAILER_AUTH_TOKEN environment variable not found"))?;
+        let database_url = Self::load_system_env("DATABASE_URL");
+        let jwt_secret = Self::load_system_env("JWT_SECRET");
+        let mailer_auth_token = Self::load_system_env("MAILER_AUTH_TOKEN");
 
         Ok(Settings {
             console: ConsoleConfig {
@@ -53,26 +48,13 @@ impl Settings {
     }
 
     fn sump_config() -> Result<SumpConfig, Error> {
-        let high_sensor_pin = env::var("SUMP_HIGH_SENSOR_PIN")
-            .map_err(|_| anyhow!("SUMP_HIGH_SENSOR_PIN environment variable not found"))?
-            .parse::<u8>()?;
-
-        let low_sensor_pin = env::var("SUMP_LOW_SENSOR_PIN")
-            .map_err(|_| Self::not_found_err("SUMP_LOW_SENSOR_PIN"))?
-            .parse::<u8>()?;
-
-        let pump_control_pin = env::var("SUMP_PUMP_CONTROL_PIN")
-            .map_err(|_| anyhow!("SUMP_PUMP_CONTROL_PIN environment variable not found"))?
-            .parse::<u8>()?;
-
-        let pump_shutoff_delay = env::var("SUMP_PUMP_SHUTOFF_DELAY")
-            .map_err(|_| anyhow!("SUMP_PUMP_SHUTOFF_DELAY environment variable not found"))?
-            .parse::<u64>()?;
+        let high_sensor_pin: u8 = Self::load_system_env("JWT_SECRET").parse()?;
+        let low_sensor_pin: u8 = Self::load_system_env("SUMP_LOW_SENSOR_PIN").parse()?;
+        let pump_control_pin: u8 = Self::load_system_env("SUMP_PUMP_CONTROL_PIN").parse()?;
+        let pump_shutoff_delay: u64 = Self::load_system_env("SUMP_PUMP_SHUTOFF_DELAY").parse()?;
 
         if pump_shutoff_delay >= 5 {
-            return Err(anyhow!(
-                "SUMP_PUMP_SHUTOFF_DELAY must be 5 seconds or less."
-            ));
+            panic!("SUMP_PUMP_SHUTOFF_DELAY must be 5 seconds or less.");
         }
 
         Ok(SumpConfig {
@@ -83,7 +65,7 @@ impl Settings {
         })
     }
 
-    fn not_found_err(env_var: &str) -> Error {
-        anyhow!("SUMP_HIGH_SENSOR_PIN environment variable not found")
+    fn load_system_env(env: &str) -> String {
+        env::var(env).expect(&format!("{} environment variable not found", env))
     }
 }

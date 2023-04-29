@@ -5,7 +5,7 @@ use diesel::prelude::*;
 use diesel::sqlite::Sqlite;
 use serde::{Deserialize, Serialize};
 
-use crate::auth::token::Token;
+use crate::auth::{hash_user_password, token::Token};
 use crate::database::DbPool;
 use crate::schema::user;
 use crate::schema::user::dsl::*;
@@ -39,6 +39,12 @@ impl User {
             .into_boxed()
     }
 
+    pub fn by_password_reset_token(user_token: String) -> BoxedQuery<'static> {
+        user::table
+            .filter(user::password_reset_token.eq(user_token))
+            .into_boxed()
+    }
+
     // Atomic insert and update operations
     pub async fn create(
         new_email: String,
@@ -56,6 +62,25 @@ impl User {
         .map_err(|_| anyhow!("Internal server error when creating user."))?;
 
         Ok(new_user)
+    }
+
+    pub async fn set_password(self, password: String, db: Data<DbPool>) -> Result<(), Error> {
+        let hash = hash_user_password(&password)?;
+
+        let _row_updated = web::block(move || {
+            let mut conn = db.get().expect("Could not get a db connection.");
+
+            let user_from_token = Self::by_email(self.email.clone()).first::<User>(&mut conn)?;
+
+            diesel::update(user::table)
+                .filter(user::email.eq(self.email))
+                .set(password_hash.eq(hash))
+                .execute(&mut conn)
+        })
+        .await?
+        .map_err(|_| anyhow!("Internal server error when creating user."))?;
+
+        Ok(())
     }
 
     pub async fn save_reset_token(self, token: Token, db: Data<DbPool>) -> Result<(), Error> {
@@ -98,6 +123,7 @@ impl User {
         Ok(())
     }
 
+
     // TODO: exit if already verified
     pub async fn verify_email(token: String, db: web::Data<DbPool>) -> Result<(), Error> {
         let _result = web::block(move || {
@@ -106,6 +132,10 @@ impl User {
             let user_from_token = Self::by_email_verification_token(token.clone())
                 .first::<User>(&mut conn)
                 .map_err(|_| anyhow!("Invalid token."))?;
+
+            if user_from_token.email_verified_at.is_some() {
+                return Err(anyhow!("Email already verified."));
+            }
 
             if let Err(e) = Self::check_email_verification_expiry(
                 user_from_token.email_verification_token_expires_at,
