@@ -123,6 +123,8 @@ impl User {
         Ok(())
     }
 
+
+    // TODO: exit if already verified
     pub async fn verify_email(token: String, db: web::Data<DbPool>) -> Result<(), Error> {
         let _result = web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");

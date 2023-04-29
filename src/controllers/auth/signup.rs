@@ -18,6 +18,8 @@ pub async fn signup(
     settings: Data<Settings>,
 ) -> Result<impl Responder> {
     let new_user = user_data.into_inner();
+    let db_clone = db.clone();
+    let new_user_clone = new_user.clone();
 
     if let Err(e) = validate_password(&new_user.password, &new_user.confirm_password) {
         return Ok(HttpResponse::BadRequest().body(e.to_string()));
