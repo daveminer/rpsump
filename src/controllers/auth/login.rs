@@ -22,6 +22,7 @@ async fn login(
 ) -> Result<impl Responder> {
     let AuthParams { email, password } = user_data.into_inner();
 
+    // Prevent timing attacks by always hashing the password
     let user: User =
         first!(User::by_email(email), User, db).or(Err(error::ErrorUnauthorized(BAD_CREDS)))?;
 

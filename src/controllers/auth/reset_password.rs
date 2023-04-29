@@ -2,7 +2,6 @@ use actix_web::{post, web, web::Data, HttpRequest, HttpResponse, Responder, Resu
 use diesel::RunQueryDsl;
 
 use crate::database::{first, DbPool};
-use crate::email;
 use crate::models::user::User;
 use crate::Settings;
 
@@ -20,8 +19,7 @@ async fn reset_password(
         Err(_) => return Ok(HttpResponse::Ok().finish()),
     };
 
-    email::send_password_reset(
-        user,
+    user.send_password_reset(
         db_clone,
         req.connection_info().host().to_string(),
         settings.mailer_auth_token.clone(),
