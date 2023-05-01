@@ -14,6 +14,7 @@ mod config;
 mod controllers;
 mod database;
 mod email;
+mod middleware;
 pub mod models;
 pub mod schema;
 mod sump;
@@ -49,14 +50,22 @@ async fn main() -> std::io::Result<()> {
 
     HttpServer::new(move || {
         App::new()
+            // Session tools
             .wrap(IdentityMiddleware::default())
             .wrap(SessionMiddleware::new(
                 CookieSessionStore::default(),
                 secret_key.clone(),
             ))
+            // Rate limiter
+            .wrap(middleware::rate_limiter::new(
+                settings.rate_limiter.per_second,
+                settings.rate_limiter.burst_size,
+            ))
+            // Application configuration
             .app_data(Data::new(settings.clone()))
             .app_data(Data::new(db_pool.clone()))
             //.app_data(Data::new(sump.clone()))
+            // HTTP API Routes
             .service(info)
             .service(sump_event)
             .service(web::scope("/auth").configure(auth_routes))
