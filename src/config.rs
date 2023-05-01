@@ -9,6 +9,7 @@ pub struct Settings {
     pub database_url: String,
     pub jwt_secret: String,
     pub mailer_auth_token: String,
+    pub rate_limiter: ThrottleConfig,
     pub sump: SumpConfig,
 }
 
@@ -25,6 +26,12 @@ pub struct SumpConfig {
     pub pump_shutoff_delay: u64,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+pub struct ThrottleConfig {
+    pub per_second: u64,
+    pub burst_size: u32,
+}
+
 impl Settings {
     pub fn new() -> Result<Self, Error> {
         dotenv().ok();
@@ -35,26 +42,33 @@ impl Settings {
 
         Ok(Settings {
             console: ConsoleConfig {
-                report_freq_secs: env::var("REPORT_FREQ_SECS")
-                    .unwrap_or_else(|_| "60".to_string())
-                    .parse()
-                    .map_err(|_| anyhow!("failed to parse report frequency"))?,
+                report_freq_secs: env::var("CONSOLE_REPORT_FREQ_SECS")
+                    .unwrap_or_else(|_| "5".to_string())
+                    .parse()?,
             },
             database_url,
             jwt_secret,
             mailer_auth_token,
+            rate_limiter: ThrottleConfig {
+                per_second: env::var("RATE_LIMIT_PER_SECOND")
+                    .unwrap_or_else(|_| "2".to_string())
+                    .parse()?,
+                burst_size: env::var("RATE_LIMIT_BURST_SIZE")
+                    .unwrap_or_else(|_| "5".to_string())
+                    .parse()?,
+            },
             sump: Self::sump_config()?,
         })
     }
 
     fn sump_config() -> Result<SumpConfig, Error> {
-        let high_sensor_pin: u8 = Self::load_system_env("JWT_SECRET").parse()?;
+        let high_sensor_pin: u8 = Self::load_system_env("SUMP_HIGH_SENSOR_PIN").parse()?;
         let low_sensor_pin: u8 = Self::load_system_env("SUMP_LOW_SENSOR_PIN").parse()?;
-        let pump_control_pin: u8 = Self::load_system_env("SUMP_PUMP_CONTROL_PIN").parse()?;
-        let pump_shutoff_delay: u64 = Self::load_system_env("SUMP_PUMP_SHUTOFF_DELAY").parse()?;
+        let pump_control_pin: u8 = Self::load_system_env("SUMP_CONTROL_PIN").parse()?;
+        let pump_shutoff_delay: u64 = Self::load_system_env("SUMP_SHUTOFF_DELAY").parse()?;
 
         if pump_shutoff_delay >= 5 {
-            panic!("SUMP_PUMP_SHUTOFF_DELAY must be 5 seconds or less.");
+            panic!("SUMP_SHUTOFF_DELAY must be 5 seconds or less.");
         }
 
         Ok(SumpConfig {
