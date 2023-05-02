@@ -5,7 +5,15 @@ use crate::database::new_pool;
 use crate::sump::Sump;
 use actix_identity::IdentityMiddleware;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
-use actix_web::{cookie::Key, web, web::Data, App, HttpServer};
+use actix_web::{cookie, dev::Service, web, web::Data, App, HttpServer};
+use actix_web_opentelemetry::RequestTracing;
+use middleware::telemetry;
+//use actix_web_opentelemetry::RequestTracing;
+use opentelemetry::{
+    global,
+    trace::{FutureExt, TraceContextExt, Tracer},
+    Key,
+};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -21,8 +29,6 @@ mod sump;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let secret_key = Key::generate();
-
     let settings = Settings::new().expect("Environment configuration error.");
     let db_pool = new_pool(&settings.database_url).expect("Could not initialize database.");
 
@@ -48,19 +54,32 @@ async fn main() -> std::io::Result<()> {
     //     }
     // });
 
+    env_logger::init();
+    telemetry::init_tracer(&settings).expect("Could not initialize telemetry.");
+
     HttpServer::new(move || {
         App::new()
             // Session tools
             .wrap(IdentityMiddleware::default())
             .wrap(SessionMiddleware::new(
                 CookieSessionStore::default(),
-                secret_key.clone(),
+                cookie::Key::generate(),
             ))
             // Rate limiter
             .wrap(middleware::rate_limiter::new(
                 settings.rate_limiter.per_second,
                 settings.rate_limiter.burst_size,
             ))
+            // Telemetry
+            .wrap_fn(|req, srv| {
+                let tracer = global::tracer("request");
+                tracer.in_span("middleware", move |cx| {
+                    cx.span()
+                        .set_attribute(Key::new("path").string(req.path().to_string()));
+                    srv.call(req).with_context(cx)
+                })
+            })
+            .wrap(RequestTracing::new())
             // Application configuration
             .app_data(Data::new(settings.clone()))
             .app_data(Data::new(db_pool.clone()))
