@@ -8,12 +8,14 @@ use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie, dev::Service, web, web::Data, App, HttpServer};
 use actix_web_opentelemetry::RequestTracing;
 use middleware::telemetry;
-//use actix_web_opentelemetry::RequestTracing;
 use opentelemetry::{
     global,
     trace::{FutureExt, TraceContextExt, Tracer},
     Key,
 };
+use std::process::exit;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -29,6 +31,12 @@ mod sump;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    ctrlc::set_handler(move || {
+        println!("received Ctrl+C!");
+        exit(0);
+    })
+    .expect("Error setting Ctrl-C handler");
+
     let settings = Settings::new().expect("Environment configuration error.");
     let db_pool = new_pool(&settings.database_url).expect("Could not initialize database.");
 
@@ -54,11 +62,21 @@ async fn main() -> std::io::Result<()> {
     //     }
     // });
 
-    env_logger::init();
+    //env_logger::init();
     telemetry::init_tracer(&settings).expect("Could not initialize telemetry.");
 
     HttpServer::new(move || {
         App::new()
+            // Telemetry
+            // .wrap_fn(|req, srv| {
+            //     let tracer = global::tracer("request");
+            //     tracer.in_span("middleware", move |cx| {
+            //         cx.span()
+            //             .set_attribute(Key::new("path").string(req.path().to_string()));
+            //         srv.call(req).with_context(cx)
+            //     })
+            // })
+            .wrap(RequestTracing::new())
             // Session tools
             .wrap(IdentityMiddleware::default())
             .wrap(SessionMiddleware::new(
@@ -70,16 +88,6 @@ async fn main() -> std::io::Result<()> {
                 settings.rate_limiter.per_second,
                 settings.rate_limiter.burst_size,
             ))
-            // Telemetry
-            .wrap_fn(|req, srv| {
-                let tracer = global::tracer("request");
-                tracer.in_span("middleware", move |cx| {
-                    cx.span()
-                        .set_attribute(Key::new("path").string(req.path().to_string()));
-                    srv.call(req).with_context(cx)
-                })
-            })
-            .wrap(RequestTracing::new())
             // Application configuration
             .app_data(Data::new(settings.clone()))
             .app_data(Data::new(db_pool.clone()))
@@ -91,5 +99,10 @@ async fn main() -> std::io::Result<()> {
     })
     .bind(("127.0.0.1", 8080))?
     .run()
-    .await
+    .await?;
+
+    // Ensure all spans have been reported
+    opentelemetry::global::shutdown_tracer_provider();
+
+    Ok(())
 }
