@@ -11,6 +11,7 @@ pub struct Settings {
     pub mailer_auth_token: String,
     pub rate_limiter: ThrottleConfig,
     pub sump: SumpConfig,
+    pub telemetry: TelemetryConfig,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -24,6 +25,12 @@ pub struct SumpConfig {
     pub low_sensor_pin: u8,
     pub pump_control_pin: u8,
     pub pump_shutoff_delay: u64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct TelemetryConfig {
+    pub api_key: String,
+    pub receiver_url: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -58,6 +65,10 @@ impl Settings {
                     .parse()?,
             },
             sump: Self::sump_config()?,
+            telemetry: TelemetryConfig {
+                api_key: Self::load_system_env("TELEMETRY_API_KEY"),
+                receiver_url: Self::load_system_env("TELEMETRY_RECEIVER_URL"),
+            },
         })
     }
 
