@@ -31,11 +31,7 @@ mod sump;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    ctrlc::set_handler(move || {
-        println!("received Ctrl+C!");
-        exit(0);
-    })
-    .expect("Error setting Ctrl-C handler");
+    init_exit_handler();
 
     let settings = Settings::new().expect("Environment configuration error.");
     let db_pool = new_pool(&settings.database_url).expect("Could not initialize database.");
@@ -62,20 +58,10 @@ async fn main() -> std::io::Result<()> {
     //     }
     // });
 
-    //env_logger::init();
     telemetry::init_tracer(&settings).expect("Could not initialize telemetry.");
 
     HttpServer::new(move || {
         App::new()
-            // Telemetry
-            // .wrap_fn(|req, srv| {
-            //     let tracer = global::tracer("request");
-            //     tracer.in_span("middleware", move |cx| {
-            //         cx.span()
-            //             .set_attribute(Key::new("path").string(req.path().to_string()));
-            //         srv.call(req).with_context(cx)
-            //     })
-            // })
             .wrap(RequestTracing::new())
             // Session tools
             .wrap(IdentityMiddleware::default())
@@ -101,8 +87,16 @@ async fn main() -> std::io::Result<()> {
     .run()
     .await?;
 
-    // Ensure all spans have been reported
-    opentelemetry::global::shutdown_tracer_provider();
-
     Ok(())
+}
+
+// actix-web will handle signals to exit but doesn't offer a hook to customize it
+fn init_exit_handler() {
+    ctrlc::set_handler(move || {
+        // Ensure all spans have been reported
+        opentelemetry::global::shutdown_tracer_provider();
+
+        exit(0);
+    })
+    .expect("Error setting Ctrl-C handler");
 }
