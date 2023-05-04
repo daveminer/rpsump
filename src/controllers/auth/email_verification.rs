@@ -15,7 +15,6 @@ async fn verify_email(
     params: web::Query<EmailVerificationParams>,
     db: Data<DbPool>,
 ) -> Result<impl Responder> {
-    // TODO: send html response based on request content type (and resend)
     match User::verify_email(params.token.clone(), db).await {
         Ok(_) => Ok(HttpResponse::Ok().body(json!({"message": "Email verified."}).to_string())),
         Err(e) => {

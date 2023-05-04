@@ -5,6 +5,7 @@ use bcrypt::verify;
 use diesel::prelude::*;
 
 use crate::auth::claim::create_token;
+use crate::auth::validate_password_length;
 use crate::controllers::auth::AuthParams;
 use crate::database::{first, DbPool};
 use crate::Settings;
@@ -22,17 +23,23 @@ async fn login(
 ) -> Result<impl Responder> {
     let AuthParams { email, password } = user_data.into_inner();
 
-    // Prevent timing attacks by always hashing the password
-    let user: User =
-        first!(User::by_email(email), User, db).or(Err(error::ErrorUnauthorized(BAD_CREDS)))?;
+    validate_password_length(&password).map_err(|e| error::ErrorBadRequest(e))?;
 
-    verify(password, &user.password_hash)
+    // Resist timing attacks by always hashing the password
+    let (user, existing_user_password_hash) = match first!(User::by_email(email), User, db) {
+        Ok(user) => (Some(user.clone()), user.password_hash),
+        Err(_e) => (None, "".to_string()),
+    };
+
+    verify(password, &existing_user_password_hash)
         .or(Err(error::ErrorUnauthorized(BAD_CREDS)))
-        .expect("Invalid password.");
+        .expect("Invalid user or password.");
 
-    Identity::login(&request.extensions(), user.id.to_string()).expect("Could not log identity in");
+    let user_id = user.unwrap().id;
 
-    let token = create_token(user.id, settings.jwt_secret.clone())
+    Identity::login(&request.extensions(), user_id.to_string()).expect("Could not log identity in");
+
+    let token = create_token(user_id, settings.jwt_secret.clone())
         .expect("Could not create token for user.");
 
     Ok(HttpResponse::Ok().body(token))

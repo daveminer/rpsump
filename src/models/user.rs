@@ -21,6 +21,7 @@ pub struct User {
     pub password_hash: String,
     pub password_reset_token: Option<String>,
     pub password_reset_token_expires_at: Option<String>,
+    pub activated: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -37,6 +38,10 @@ impl User {
         user::table
             .filter(user::email_verification_token.eq(user_token))
             .into_boxed()
+    }
+
+    pub fn by_id(user_id: i32) -> BoxedQuery<'static> {
+        user::table.filter(user::id.eq(user_id)).into_boxed()
     }
 
     pub fn by_password_reset_token(user_token: String) -> BoxedQuery<'static> {
@@ -69,8 +74,6 @@ impl User {
 
         let _row_updated = web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
-
-            let user_from_token = Self::by_email(self.email.clone()).first::<User>(&mut conn)?;
 
             diesel::update(user::table)
                 .filter(user::email.eq(self.email))
@@ -123,8 +126,6 @@ impl User {
         Ok(())
     }
 
-
-    // TODO: exit if already verified
     pub async fn verify_email(token: String, db: web::Data<DbPool>) -> Result<(), Error> {
         let _result = web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");

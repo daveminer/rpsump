@@ -11,13 +11,7 @@ pub fn hash_user_password(password: &str) -> Result<String, Error> {
 
 // Ensure passwords adhere to safety standards
 pub fn validate_password(password: &String, password_confirmation: &String) -> Result<(), Error> {
-    if password.len() < 8 {
-        return Err(anyhow!("Password is too short."));
-    }
-
-    if password.len() > 72 {
-        return Err(anyhow!("Password is too long."));
-    }
+    validate_password_length(password)?;
 
     if !password.chars().any(char::is_uppercase) {
         return Err(anyhow!("Password must have at least one uppercase letter."));
@@ -39,6 +33,18 @@ pub fn validate_password(password: &String, password_confirmation: &String) -> R
 
     if password != password_confirmation {
         return Err(anyhow!("Passwords do not match."));
+    }
+
+    Ok(())
+}
+
+pub fn validate_password_length(password: &String) -> Result<(), Error> {
+    if password.len() < 8 {
+        return Err(anyhow!("Password is too short."));
+    }
+
+    if password.len() > 72 {
+        return Err(anyhow!("Password is too long."));
     }
 
     Ok(())

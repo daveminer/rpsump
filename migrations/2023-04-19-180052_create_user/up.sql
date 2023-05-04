@@ -8,6 +8,7 @@ CREATE TABLE "user"
   password_hash TEXT NOT NULL,
   password_reset_token TEXT,
   password_reset_token_expires_at TEXT,
+  activated BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Error};
+use anyhow::Error;
 use dotenv::dotenv;
 use serde::Deserialize;
 use std::env;
@@ -12,6 +12,7 @@ pub struct Settings {
     pub rate_limiter: ThrottleConfig,
     pub sump: SumpConfig,
     pub telemetry: TelemetryConfig,
+    pub user_activation_required: bool,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -69,6 +70,9 @@ impl Settings {
                 api_key: Self::load_system_env("TELEMETRY_API_KEY"),
                 receiver_url: Self::load_system_env("TELEMETRY_RECEIVER_URL"),
             },
+            user_activation_required: env::var("USER_ACTIVATION_REQUIRED")
+                .unwrap_or_else(|_| "true".to_string())
+                .parse()?,
         })
     }
 
@@ -93,4 +97,11 @@ impl Settings {
     fn load_system_env(env: &str) -> String {
         env::var(env).expect(&format!("{} environment variable not found", env))
     }
+}
+
+#[test]
+fn test_new_settings() {
+    dotenv().ok();
+
+    assert!(Settings::new().is_ok());
 }

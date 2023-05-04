@@ -26,7 +26,8 @@ pub fn init_tracer(settings: &Settings) -> Result<(), Error> {
         .tracing()
         .with_trace_config(
             sdktrace::config()
-                .with_resource(Resource::new(vec![KeyValue::new("service.name", "rpsump")])),
+                .with_resource(Resource::new(vec![KeyValue::new("service.name", "rpsump")]))
+                .with_max_events_per_span(64),
         )
         .with_exporter(otlp_exporter)
         .install_batch(opentelemetry::runtime::Tokio)?;
