@@ -23,7 +23,7 @@ pub struct UserEvent {
 }
 
 #[derive(Clone, Debug, DbEnum, AsExpression, Serialize, Deserialize)]
-#[sql_type = "diesel::sql_types::Text"]
+#[diesel(sql_type = diesel::sql_types::Text)]
 pub enum EventType {
     FailedLogin,
     Login,

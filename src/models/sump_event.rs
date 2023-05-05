@@ -1,4 +1,4 @@
-use actix_web::{web, web::Data};
+use actix_web::web;
 use anyhow::{anyhow, Error};
 use diesel::backend::Backend;
 use diesel::dsl::*;
@@ -22,7 +22,7 @@ impl SumpEvent {
     pub async fn create(
         event_kind: String,
         event_info: String,
-        db: Data<DbPool>,
+        db: DbPool,
     ) -> Result<SumpEvent, Error> {
         let new_sump_event: SumpEvent = web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
