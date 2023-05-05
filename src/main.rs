@@ -1,23 +1,16 @@
+use actix_identity::IdentityMiddleware;
+use actix_session::{storage::CookieSessionStore, SessionMiddleware};
+use actix_web::{cookie, web, web::Data, App, HttpServer};
+use actix_web_opentelemetry::RequestTracing;
+use middleware::telemetry;
+use std::process::exit;
+use std::time::{Duration, Instant};
+
 use crate::config::Settings;
 use crate::controllers::auth::auth_routes;
 use crate::controllers::{info::info, sump_event::sump_event};
 use crate::database::new_pool;
 use crate::sump::Sump;
-use actix_identity::IdentityMiddleware;
-use actix_session::{storage::CookieSessionStore, SessionMiddleware};
-use actix_web::{cookie, dev::Service, web, web::Data, App, HttpServer};
-use actix_web_opentelemetry::RequestTracing;
-use middleware::telemetry;
-use opentelemetry::{
-    global,
-    trace::{FutureExt, TraceContextExt, Tracer},
-    Key,
-};
-use std::process::exit;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::thread;
-use std::time::{Duration, Instant};
 
 pub mod auth;
 mod config;

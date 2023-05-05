@@ -1,5 +1,4 @@
 use actix_web::web::ServiceConfig;
-use anyhow::{anyhow, Error};
 use serde::{Deserialize, Serialize};
 
 pub mod email_verification;

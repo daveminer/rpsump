@@ -9,7 +9,8 @@ use diesel::RunQueryDsl;
 async fn sump_event(
     _req_body: String,
     db: Data<DbPool>,
-    user: AuthenticatedUser,
+    // TODO: check if needed
+    _user: AuthenticatedUser,
 ) -> Result<impl Responder> {
     let events = web::block(move || {
         let mut conn = database::conn(db);

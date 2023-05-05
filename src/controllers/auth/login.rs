@@ -26,15 +26,31 @@ async fn login(
 ) -> Result<impl Responder> {
     let AuthParams { email, password } = user_data.into_inner();
 
-    validate_password_length(&password).map_err(|e| error::ErrorBadRequest(e))?;
     let db_clone = db.clone();
-
-    // Resist timing attacks by always hashing the password
     let (user, existing_user_password_hash) = match first!(User::by_email(email), User, db_clone) {
         Ok(user) => (Some(user.clone()), user.password_hash),
         Err(_e) => (None, "".to_string()),
     };
 
+    // TODO: DRY this up with signup
+    let conn_info = request.connection_info();
+
+    let ip_addr = conn_info.peer_addr().expect("Could not get IP address.");
+
+    if let Err(e) = UserEvent::check_allowed_status(
+        user.clone(),
+        ip_addr.to_string(),
+        settings.auth_attempts_allowed,
+        db.clone(),
+    )
+    .await
+    {
+        return Err(error::ErrorUnauthorized(e));
+    }
+
+    validate_password_length(&password).map_err(|e| error::ErrorBadRequest(e))?;
+
+    // Resist timing attacks by always hashing the password
     verify(password, &existing_user_password_hash)
         .or(Err(error::ErrorUnauthorized(BAD_CREDS)))
         .expect("Invalid user or password.");

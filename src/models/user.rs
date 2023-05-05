@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::auth::{hash_user_password, token::Token};
 use crate::database::DbPool;
 use crate::models::user_event::{EventType, UserEvent};
-use crate::schema::*;
+use crate::schema::{user, user_event};
 
 #[derive(Clone, Debug, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
 #[diesel(table_name = user)]
@@ -67,7 +67,7 @@ impl User {
                     ))
                     .get_result(conn)?;
 
-                let user_event: UserEvent = diesel::insert_into(user_event::table)
+                let _user_event: UserEvent = diesel::insert_into(user_event::table)
                     .values((
                         user_event::user_id.eq(user.id),
                         user_event::event_type.eq(EventType::Signup.to_string()),
