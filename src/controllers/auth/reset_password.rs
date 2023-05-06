@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::auth::validate_password;
 use crate::database::{first, DbPool};
 use crate::models::user::User;
+use crate::models::user_event::{EventType, UserEvent};
 use crate::Settings;
 
 #[derive(Serialize, Deserialize)]
@@ -24,14 +25,23 @@ async fn request_password_reset(
     settings: Data<Settings>,
 ) -> Result<impl Responder> {
     let db_clone = db.clone();
-
-    let user: User = match first!(User::by_email(email), User, db.clone()) {
+    let db_clone_two = db.clone();
+    let user: User = match first!(User::by_email(email), User, db_clone) {
         Ok(user) => user,
         Err(_) => return Ok(password_reset_response()),
     };
 
+    let user_clone = user.clone();
+
+    let conn_info = req.peer_addr().expect("Could not get IP address.");
+    let ip_addr = conn_info.ip().to_string();
+
+    UserEvent::create(user_clone, ip_addr, EventType::PasswordReset, db_clone_two)
+        .await
+        .expect("Could not create user event.");
+
     user.send_password_reset(
-        db_clone,
+        db.clone(),
         req.connection_info().host().to_string(),
         settings.mailer_auth_token.clone(),
     )

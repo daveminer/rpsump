@@ -36,7 +36,10 @@ pub async fn signup(
         }
     };
 
-    let new_user = User::create(new_user_clone.email, hash, db.clone())
+    let conn_info = req.peer_addr().expect("Could not get IP address.");
+    let ip_addr = conn_info.ip().to_string();
+
+    let new_user = User::create(new_user_clone.email, hash, ip_addr, db.clone())
         .await
         .expect("Could not create user.");
 

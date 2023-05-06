@@ -26,7 +26,20 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    user_event (id) {
+        id -> Integer,
+        user_id -> Integer,
+        event_type -> Text,
+        ip_address -> Text,
+        created_at -> Timestamp,
+    }
+}
+
+diesel::joinable!(user_event -> user (user_id));
+
 diesel::allow_tables_to_appear_in_same_query!(
     sump_event,
     user,
+    user_event,
 );

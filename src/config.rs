@@ -5,6 +5,7 @@ use std::env;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Settings {
+    pub auth_attempts_allowed: i64,
     pub console: ConsoleConfig,
     pub database_url: String,
     pub jwt_secret: String,
@@ -49,6 +50,9 @@ impl Settings {
         let mailer_auth_token = Self::load_system_env("MAILER_AUTH_TOKEN");
 
         Ok(Settings {
+            auth_attempts_allowed: env::var("AUTH_ATTEMPTS_ALLOWED")
+                .unwrap_or_else(|_| "3".to_string())
+                .parse()?,
             console: ConsoleConfig {
                 report_freq_secs: env::var("CONSOLE_REPORT_FREQ_SECS")
                     .unwrap_or_else(|_| "5".to_string())

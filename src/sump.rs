@@ -1,5 +1,5 @@
-use actix_web::web::Data;
 use anyhow::Error;
+use futures::executor::block_on;
 use rppal::gpio::{Gpio, InputPin, Level, OutputPin, Trigger};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -12,7 +12,7 @@ use crate::{config::SumpConfig, database::DbPool};
 // Manages the physical I/O devices
 #[derive(Clone, Debug)]
 pub struct Sump {
-    pub db_pool: Data<DbPool>,
+    pub db_pool: DbPool,
     pub high_sensor_pin: Arc<Mutex<InputPin>>,
     pub low_sensor_pin: Arc<Mutex<InputPin>>,
     pub pump_control_pin: Arc<Mutex<OutputPin>>,
@@ -63,7 +63,7 @@ enum Sensor {
 
 impl Sump {
     // Creates a new sump struct with sensors and their state.
-    pub fn new(db_pool: Data<DbPool>, config: &SumpConfig) -> Result<Self, Error> {
+    pub fn new(db_pool: DbPool, config: &SumpConfig) -> Result<Self, Error> {
         // create the GPIO pins
         let gpio = Gpio::new()?;
         let mut high_sensor_pin = gpio.get(config.high_sensor_pin)?.into_input_pullup();
@@ -112,7 +112,7 @@ impl Sump {
     }
 
     fn water_sensor_interrupt(
-        db: Data<DbPool>,
+        db: DbPool,
         pin: &mut InputPin,
         pump_control_pin: Arc<Mutex<OutputPin>>,
         sensor_state: Arc<Mutex<PinState>>,
@@ -135,7 +135,7 @@ impl Sump {
     // Call this when a sensor change event happens.
     fn water_sensor_state_change_callback(
         triggered_sensor: Sensor,
-        db: Data<DbPool>,
+        db: DbPool,
         level: Level,
         pump_control_pin: Arc<Mutex<OutputPin>>,
         sensor_state: Arc<Mutex<PinState>>,
@@ -152,7 +152,18 @@ impl Sump {
                 if level == Level::High {
                     control.set_high();
 
-                    SumpEvent::create("kind".to_string(), "info".to_string(), db);
+                    // TODO: set a time limit for this
+                    let event_future = async {
+                        match SumpEvent::create("kind".to_string(), "info".to_string(), db).await {
+                            Ok(_) => {}
+                            Err(e) => {
+                                // TODO: log this
+                                println!("Error creating sump event: {}", e);
+                            }
+                        }
+                    };
+
+                    block_on(event_future);
                 }
 
                 sensors.high_sensor = level;
@@ -166,7 +177,17 @@ impl Sump {
 
                     control.set_low();
 
-                    SumpEvent::create("kind".to_string(), "info".to_string(), db);
+                    let event_future = async {
+                        match SumpEvent::create("kind".to_string(), "info".to_string(), db).await {
+                            Ok(_) => {}
+                            Err(e) => {
+                                // TODO: log this
+                                println!("Error creating sump event: {}", e);
+                            }
+                        }
+                    };
+
+                    block_on(event_future);
                 }
                 sensors_clone.low_sensor = level;
             }

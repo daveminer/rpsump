@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::auth::{hash_user_password, token::Token};
 use crate::database::DbPool;
-use crate::schema::user;
-use crate::schema::user::dsl::*;
+use crate::models::user_event::{EventType, UserEvent};
+use crate::schema::{user, user_event};
 
 #[derive(Clone, Debug, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
 #[diesel(table_name = user)]
@@ -50,18 +50,35 @@ impl User {
             .into_boxed()
     }
 
-    // Atomic insert and update operations
     pub async fn create(
         new_email: String,
         new_password: String,
+        req_ip_address: String,
         db: Data<DbPool>,
     ) -> Result<User, Error> {
         let new_user: User = web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 
-            diesel::insert_into(user::table)
-                .values((email.eq(new_email), password_hash.eq(new_password)))
-                .get_result(&mut conn)
+            let user = conn.transaction::<_, Error, _>(|conn| {
+                let user: User = diesel::insert_into(user::table)
+                    .values((
+                        user::email.eq(new_email.clone()),
+                        user::password_hash.eq(new_password.clone()),
+                    ))
+                    .get_result(conn)?;
+
+                let _user_event: UserEvent = diesel::insert_into(user_event::table)
+                    .values((
+                        user_event::user_id.eq(user.id),
+                        user_event::event_type.eq(EventType::Signup.to_string()),
+                        user_event::ip_address.eq(req_ip_address.clone()),
+                    ))
+                    .get_result(conn)?;
+
+                Ok(user)
+            });
+
+            user
         })
         .await?
         .map_err(|_| anyhow!("Internal server error when creating user."))?;
@@ -77,7 +94,7 @@ impl User {
 
             diesel::update(user::table)
                 .filter(user::email.eq(self.email))
-                .set(password_hash.eq(hash))
+                .set(user::password_hash.eq(hash))
                 .execute(&mut conn)
         })
         .await?
