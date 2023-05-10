@@ -1,0 +1,65 @@
+FROM rustembedded/cross:armv7-unknown-linux-gnueabihf
+
+# TODO: Use non-home location
+WORKDIR /usr/src/rpsump
+
+RUN dpkg --add-architecture arm64
+RUN apt-get update
+
+# Install environment dependencies
+RUN apt-get -y install wget
+
+# Install OpenSSL 1.1.1
+RUN wget https://www.openssl.org/source/openssl-1.1.1t.tar.gz
+RUN tar -zxf openssl-1.1.1t.tar.gz
+RUN cd openssl-1.1.1t && \
+./config && \
+make test && \
+make install && \
+rm /usr/bin/openssl && \
+ln -s /usr/local/bin/openssl /usr/bin/openssl && \
+ldconfig
+
+# Install Rust
+#RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+COPY . .
+
+ENV PATH="$HOME/.cargo/bin:$PATH"
+
+
+# Install Rust target
+RUN $HOME/.cargo/bin/rustup target add armv7-unknown-linux-gnueabihf
+
+# Install environment dependencies
+RUN apt-get -y install build-essential \
+protobuf-compiler \
+sqlite3 \
+libsqlite3-dev:arm64 \
+libsqlite3-0 \
+gcc-arm-linux-gnueabihf \
+musl-tools
+
+#GPT answer...fix distro if trying again
+# # Install required packages
+# RUN apt-get update && \
+#     apt-get install -y curl unzip
+
+# # Download and install protoc
+# WORKDIR /usr/local
+# RUN curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v3.17.3/protoc-3.17.3-linux-aarch_64.zip && \
+#     unzip protoc-3.17.3-linux-aarch_64.zip && \
+#     rm protoc-3.17.3-linux-aarch_64.zip
+
+# # Add protoc to PATH
+# ENV PATH=/usr/local/bin:$PATH
+
+# Copy your project files to the container
+WORKDIR /usr/src/rpsump
+
+
+
+RUN $HOME/.cargo/bin/cargo build --release --target armv7-unknown-linux-gnueabihf
+
+ENTRYPOINT [ "/bin/bash" ]
