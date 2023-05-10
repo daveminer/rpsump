@@ -142,9 +142,7 @@ impl Sump {
         pump_shutoff_delay: u64,
     ) {
         let mut control = pump_control_pin.lock().unwrap();
-        let sensor_state_clone = sensor_state.clone();
         let mut sensors = sensor_state.lock().unwrap();
-        let mut sensors_clone = sensor_state_clone.lock().unwrap();
 
         // Turn the sump pump motor on or off
         match triggered_sensor {
@@ -189,7 +187,7 @@ impl Sump {
 
                     block_on(event_future);
                 }
-                sensors_clone.low_sensor = level;
+                sensors.low_sensor = level;
             }
         }
     }
