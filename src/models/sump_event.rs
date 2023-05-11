@@ -3,19 +3,19 @@ use anyhow::{anyhow, Error};
 use diesel::backend::Backend;
 use diesel::dsl::*;
 use diesel::prelude::*;
+use serde::{Deserialize, Serialize};
 
 use crate::database::DbPool;
 use crate::schema::sump_event;
-use crate::schema::sump_event::dsl::*;
+use crate::schema::sump_event::*;
 
-#[derive(Debug, Clone, Queryable, Selectable)]
+#[derive(Clone, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
 #[diesel(table_name = sump_event)]
 pub struct SumpEvent {
     pub id: i32,
     pub kind: String,
     pub info: String,
     pub created_at: String,
-    pub updated_at: String,
 }
 
 impl SumpEvent {
@@ -32,7 +32,7 @@ impl SumpEvent {
                 .get_result(&mut conn)
         })
         .await?
-        .map_err(|_| anyhow!("Internal server error when creating user."))?;
+        .map_err(|e| anyhow!("Internal server error when creating sump event: {e}"))?;
 
         Ok(new_sump_event)
     }

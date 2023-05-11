@@ -12,14 +12,15 @@ async fn sump_event(
     // TODO: check if needed
     _user: AuthenticatedUser,
 ) -> Result<impl Responder> {
-    let events = web::block(move || {
+    let _events = web::block(move || {
         let mut conn = database::conn(db);
         SumpEvent::all().load::<SumpEvent>(&mut conn)
     })
     .await?
     .map_err(error::ErrorInternalServerError)?;
 
-    Ok(HttpResponse::Ok().body(format!("{:?}", events)))
+    //Ok(HttpResponse::Ok().body(format!("{:?}", events)))
+    Ok(HttpResponse::Ok().body(""))
 }
 
 // #[get("/pump_runs")]
