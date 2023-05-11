@@ -1,10 +1,10 @@
 use anyhow::Error;
-use futures::executor::block_on;
 use rppal::gpio::{Gpio, InputPin, Level, OutputPin, Trigger};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::sync::{Arc, Mutex};
 use std::{thread, time::Duration};
+use tokio::runtime::Runtime;
 
 use crate::models::sump_event::SumpEvent;
 use crate::{config::SumpConfig, database::DbPool};
@@ -144,6 +144,8 @@ impl Sump {
         let mut control = pump_control_pin.lock().unwrap();
         let mut sensors = sensor_state.lock().unwrap();
 
+        let rt = Runtime::new().unwrap();
+
         // Turn the sump pump motor on or off
         match triggered_sensor {
             Sensor::High => {
@@ -161,7 +163,7 @@ impl Sump {
                         }
                     };
 
-                    block_on(event_future);
+                    rt.block_on(event_future);
                 }
 
                 sensors.high_sensor = level;
@@ -185,7 +187,7 @@ impl Sump {
                         }
                     };
 
-                    block_on(event_future);
+                    rt.block_on(event_future);
                 }
                 sensors.low_sensor = level;
             }
