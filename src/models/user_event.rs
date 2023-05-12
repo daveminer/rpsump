@@ -12,7 +12,7 @@ use crate::models::user::User;
 use crate::schema::user_event;
 use crate::schema::user_event::dsl::*;
 
-#[derive(Clone, Debug, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
 #[diesel(table_name = user_event)]
 pub struct UserEvent {
     pub id: i32,

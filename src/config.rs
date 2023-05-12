@@ -11,7 +11,7 @@ pub struct Settings {
     pub jwt_secret: String,
     pub mailer_auth_token: String,
     pub rate_limiter: ThrottleConfig,
-    pub sump: SumpConfig,
+    pub sump: Option<SumpConfig>,
     pub telemetry: TelemetryConfig,
     pub user_activation_required: bool,
 }
@@ -80,7 +80,11 @@ impl Settings {
         })
     }
 
-    fn sump_config() -> Result<SumpConfig, Error> {
+    fn sump_config() -> Result<Option<SumpConfig>, Error> {
+        if !Self::load_system_env("SUMP_ENABLED").parse()? {
+            return Ok(None);
+        }
+
         let high_sensor_pin: u8 = Self::load_system_env("SUMP_HIGH_SENSOR_PIN").parse()?;
         let low_sensor_pin: u8 = Self::load_system_env("SUMP_LOW_SENSOR_PIN").parse()?;
         let pump_control_pin: u8 = Self::load_system_env("SUMP_CONTROL_PIN").parse()?;
@@ -90,12 +94,12 @@ impl Settings {
             panic!("SUMP_SHUTOFF_DELAY must be 5 seconds or less.");
         }
 
-        Ok(SumpConfig {
+        Ok(Some(SumpConfig {
             high_sensor_pin,
             low_sensor_pin,
             pump_control_pin,
             pump_shutoff_delay,
-        })
+        }))
     }
 
     fn load_system_env(env: &str) -> String {
