@@ -1,4 +1,5 @@
 use anyhow::Error;
+use futures::executor::block_on;
 use rppal::gpio::{Gpio, InputPin, Level, OutputPin, Trigger};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
