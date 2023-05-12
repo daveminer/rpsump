@@ -6,35 +6,44 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-actix-session = { version = "0.7.2", features = ["cookie-session"] }
-actix-web = "4.3.1"
+# Development tools
 anyhow = "1.0"
+argon2 = "0.4.1"
+bcrypt = "0.14.0"
+chrono = "0.4.24"
 clippy = "0.0.302"
-rppal = "0.14.1"
-diesel = { version = "2.0.3", features = ["r2d2", "returning_clauses_for_sqlite_3_35", "sqlite"] }
-diesel-derive-enum = { version = "2.0.1", features = ["sqlite"] }
+ctrlc = "3.2.5"
+dotenv = "0.15.0"
+env_logger = "0.10.0"
+futures = "0.3.28"
+jsonwebtoken = "8.3.0"
+rand = "0.8.5"
+reqwest = "0.11.16"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.27.0", features = ["rt-multi-thread", "macros"] }
 tokio-tungstenite = "0.18.0"
-dotenv = "0.15.0"
-actix-identity = "0.5.2"
-jsonwebtoken = "8.3.0"
-futures = "0.3.28"
-bcrypt = "0.14.0"
-chrono = "0.4.24"
-reqwest = "0.11.16"
-rand = "0.8.5"
-argon2 = "0.4.1"
-actix-governor = "0.4.0"
-opentelemetry-otlp = { version = "0.11.0", features = ["tonic", "tls", "tls-roots"] }
-tonic = {version = "0.8.2", features = ["tls"]}
-env_logger = "0.10.0"
 url = "2.2.0"
-opentelemetry = { version = "0.18.0", features = ["trace", "rt-tokio"] }
+
+# HTTP server
+actix-governor = "0.4.0"
+actix-identity = "0.5.2"
+actix-session = { version = "0.7.2", features = ["cookie-session"] }
+actix-web = "4.3.1"
+
+# Hardware
+rppal = "0.14.1"
+
+# Database
+diesel = { version = "2.0.3", features = ["r2d2", "returning_clauses_for_sqlite_3_35", "sqlite"] }
+diesel-derive-enum = { version = "2.0.1", features = ["sqlite"] }
+
+# Telemetry
 actix-web-opentelemetry = "0.13.0"
-tracing-subscriber = { version = "0.3.17", features = ["env-filter", "registry"] }
+opentelemetry = { version = "0.18.0", features = ["trace", "rt-tokio"] }
+opentelemetry-otlp = { version = "0.11.0", features = ["tonic", "tls", "tls-roots"] }
+opentelemetry_sdk = "0.18.0"
+tonic = {version = "0.8.2", features = ["tls"]}
 tracing = "0.1.37"
 tracing-opentelemetry = "0.18"
-opentelemetry_sdk = "0.18.0"
-ctrlc = "3.2.5"
+tracing-subscriber = { version = "0.3.17", features = ["env-filter", "registry"] }
