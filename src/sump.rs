@@ -3,7 +3,10 @@ use rppal::gpio::{Gpio, InputPin, Level, OutputPin, Trigger};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::sync::{Arc, Mutex};
-use std::{thread, time::Duration};
+use std::{
+    thread,
+    time::{Duration, Instant},
+};
 use tokio::runtime::Runtime;
 
 use crate::models::sump_event::SumpEvent;
@@ -109,6 +112,26 @@ impl Sump {
     // Read the current state of the sensors
     pub fn sensors(&self) -> PinState {
         *self.sensor_state.lock().unwrap()
+    }
+
+    pub fn spawn_reporting_thread(&self, interval_seconds: u64) -> thread::JoinHandle<()> {
+        let self_clone = self.clone();
+
+        thread::spawn(move || {
+            let mut start_time = Instant::now();
+
+            loop {
+                // Report to console
+                println!("{:?}", self_clone.sensors());
+
+                // Wait for N seconds
+                let elapsed_time = start_time.elapsed();
+                if elapsed_time < Duration::from_secs(interval_seconds) {
+                    thread::sleep(Duration::from_secs(interval_seconds) - elapsed_time);
+                }
+                start_time = Instant::now();
+            }
+        })
     }
 
     fn water_sensor_interrupt(
