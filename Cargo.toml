@@ -37,6 +37,7 @@ rppal = "0.14.1"
 # Database
 diesel = { version = "2.0.3", features = ["r2d2", "returning_clauses_for_sqlite_3_35", "sqlite"] }
 diesel-derive-enum = { version = "2.0.1", features = ["sqlite"] }
+diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
 
 # Telemetry
 actix-web-opentelemetry = "0.13.0"
@@ -47,3 +48,4 @@ tonic = {version = "0.8.2", features = ["tls"]}
 tracing = "0.1.37"
 tracing-opentelemetry = "0.18"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter", "registry"] }
+lazy_static = "1.4.0"

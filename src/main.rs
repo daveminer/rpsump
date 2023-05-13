@@ -1,6 +1,10 @@
+#[macro_use]
+extern crate diesel_migrations;
+
 use actix_identity::IdentityMiddleware;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
-use actix_web::{cookie, web, web::Data, App, HttpServer};
+use actix_web::{cookie, dev::Server, web, web::Data, App, HttpServer};
+
 use actix_web_opentelemetry::RequestTracing;
 use middleware::telemetry;
 use std::process::exit;
@@ -8,12 +12,12 @@ use std::process::exit;
 use crate::config::Settings;
 use crate::controllers::auth::auth_routes;
 use crate::controllers::{info::info, sump_event::sump_event};
-use crate::database::new_pool;
+use crate::database::{new_pool, DbPool};
 use crate::sump::Sump;
 
 pub mod auth;
 mod config;
-mod controllers;
+pub mod controllers;
 mod database;
 mod email;
 mod middleware;
@@ -21,14 +25,23 @@ pub mod models;
 pub mod schema;
 mod sump;
 
+#[cfg(test)]
+mod tests;
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     init_exit_handler();
 
-    let settings = Settings::new().expect("Environment configuration error.");
-    let db_pool = new_pool(&settings.database_url).expect("Could not initialize database.");
+    let settings = Settings::new();
+    let db_pool = new_pool(&settings.database_url);
     telemetry::init_tracer(&settings).expect("Could not initialize telemetry.");
 
+    let _ = build_server(settings, db_pool).await;
+
+    Ok(())
+}
+
+fn build_server(settings: Settings, db_pool: DbPool) -> Server {
     HttpServer::new(move || {
         let mut app = App::new()
             .wrap(RequestTracing::new())
@@ -63,11 +76,9 @@ async fn main() -> std::io::Result<()> {
 
         app
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind(("127.0.0.1", 8080))
+    .expect("Could not bind to port 8080")
     .run()
-    .await?;
-
-    Ok(())
 }
 
 // actix-web will handle signals to exit but doesn't offer a hook to customize it

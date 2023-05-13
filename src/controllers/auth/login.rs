@@ -18,7 +18,7 @@ use crate::models::user::User;
 const BAD_CREDS: &str = "Invalid email or password";
 
 #[post("/login")]
-async fn login(
+pub async fn login(
     request: HttpRequest,
     user_data: web::Json<AuthParams>,
     db: Data<DbPool>,
