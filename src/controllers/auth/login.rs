@@ -4,18 +4,26 @@ use actix_web::{post, web, web::Data, HttpMessage, HttpRequest, HttpResponse, Re
 use bcrypt::verify;
 use diesel::prelude::*;
 use diesel::result::Error;
+use secrecy::ExposeSecret;
+use serde::{Deserialize, Serialize};
 
 use crate::auth::claim::create_token;
 use crate::auth::validate_password_length;
+use crate::config::Settings;
 use crate::controllers::auth::AuthParams;
+use crate::controllers::ErrorResponse;
 use crate::database::{first, DbPool};
 use crate::models::user_event::*;
 use crate::schema::user_event;
-use crate::Settings;
 
 use crate::models::user::User;
 
-const BAD_CREDS: &str = "Invalid email or password";
+const BAD_CREDS: &str = "Invalid email or password.";
+
+#[derive(Serialize, Deserialize)]
+struct Response {
+    token: String,
+}
 
 #[post("/login")]
 pub async fn login(
@@ -24,8 +32,8 @@ pub async fn login(
     db: Data<DbPool>,
     settings: Data<Settings>,
 ) -> Result<impl Responder> {
+    // User lookup from params
     let AuthParams { email, password } = user_data.into_inner();
-
     let db_clone = db.clone();
     let (user, existing_user_password_hash) = match first!(User::by_email(email), User, db_clone) {
         Ok(user) => (Some(user.clone()), user.password_hash),
@@ -48,12 +56,18 @@ pub async fn login(
         return Err(error::ErrorUnauthorized(e));
     }
 
-    validate_password_length(&password).map_err(|e| error::ErrorBadRequest(e))?;
+    if let Err(e) = validate_password_length(&password.expose_secret()) {
+        return Ok(HttpResponse::BadRequest().json(ErrorResponse {
+            reason: e.to_string(),
+        }));
+    }
 
     // Resist timing attacks by always hashing the password
-    verify(password, &existing_user_password_hash)
-        .or(Err(error::ErrorUnauthorized(BAD_CREDS)))
-        .expect("Invalid user or password.");
+    if let Err(_e) = verify(password.expose_secret(), &existing_user_password_hash) {
+        return Ok(HttpResponse::BadRequest().json(ErrorResponse {
+            reason: BAD_CREDS.into(),
+        }));
+    }
 
     let user_id = user.unwrap().id;
     let conn_info = request.connection_info();
@@ -81,5 +95,5 @@ pub async fn login(
     let token = create_token(user_id, settings.jwt_secret.clone())
         .expect("Could not create token for user.");
 
-    Ok(HttpResponse::Ok().body(token))
+    Ok(HttpResponse::Ok().json(Response { token }))
 }

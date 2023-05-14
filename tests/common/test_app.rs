@@ -1,13 +1,12 @@
-use diesel_migrations::MigrationHarness;
-use lazy_static::lazy_static;
-use std::net::TcpListener;
-use std::sync::Once;
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+use once_cell::sync::Lazy;
+use uuid::Uuid;
 
-use crate::config::Settings;
-use crate::database::{new_pool, DbPool};
+use rpsump::config::Settings;
+use rpsump::database::{new_pool, DbPool};
+use rpsump::startup::Application;
 
-pub const MIGRATIONS: diesel_migrations::EmbeddedMigrations =
-    diesel_migrations::embed_migrations!("migrations/");
+pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations/");
 
 pub struct TestApp {
     pub address: String,
@@ -19,13 +18,14 @@ pub struct TestApp {
     //pub email_client: EmailClient,
 }
 
-static INIT: Once = Once::new();
-async fn setup_database() {
-    INIT.call_once(|| {
-        let connection = new_pool("test.db");
-        connection.run_pending_migrations(MIGRATIONS)?;
-    });
-}
+static DB_INIT: Lazy<DbPool> = Lazy::new(|| {
+    let pool = new_pool(&"test.db".to_string());
+    let mut conn = pool.get().expect("Could not get connection.");
+    conn.run_pending_migrations(MIGRATIONS)
+        .expect("Could not run migrations.");
+
+    pool
+});
 
 impl TestApp {
     pub async fn post_login<Body>(&self, body: &Body) -> reqwest::Response
@@ -34,7 +34,7 @@ impl TestApp {
     {
         self.api_client
             .post(&format!("{}/auth/login", &self.address))
-            .form(body)
+            .json(body)
             .send()
             .await
             .expect("Failed to execute request.")
@@ -67,35 +67,33 @@ pub async fn spawn_app() -> TestApp {
     //     c
     // };
 
-    let settings = Settings::new();
+    let mut settings = Settings::new();
+    settings.database_url = Uuid::new_v4().to_string();
+    settings.server.port = 0;
 
-    // Create and migrate the database
-    configure_database(&configuration.database).await;
+    let db_pool = Lazy::force(&DB_INIT);
+    let application = Application::build(settings, db_pool.clone());
+    let port = application.port();
 
-    // Launch the application as a background task
-    let application = Application::build(configuration.clone())
-        .await
-        .expect("Failed to build application.");
-    let application_port = application.port();
     let _ = tokio::spawn(application.run_until_stopped());
 
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
-        .cookie_store(true)
+        //.cookie_store(true)
         .build()
         .unwrap();
 
     let test_app = TestApp {
-        address: format!("http://localhost:{}", application_port),
-        port: application_port,
-        db_pool: setup_database(),
+        address: format!("http://localhost:{}", port),
+        port: port,
+        db_pool: db_pool.clone(),
         //email_server,
         //test_user: TestUser::generate(),
         api_client: client,
         //email_client: configuration.email_client.client(),
     };
 
-    test_app.test_user.store(&test_app.db_pool).await;
+    //test_app.test_user.store(&test_app.db_pool).await;
 
     test_app
 }
