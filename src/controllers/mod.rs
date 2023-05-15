@@ -5,7 +5,7 @@ pub mod info;
 pub mod sump_event;
 
 #[derive(Serialize, Deserialize)]
-pub struct ErrorResponse {
+pub struct ErrorBody {
     pub reason: String,
 }
 
