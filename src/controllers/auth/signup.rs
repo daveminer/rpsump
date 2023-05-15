@@ -1,12 +1,13 @@
 use actix_web::{post, web, web::Data, HttpRequest, HttpResponse, Responder, Result};
 
 use diesel::prelude::*;
+use secrecy::ExposeSecret;
 
 use crate::auth::{hash_user_password, validate_password};
+use crate::config::Settings;
 use crate::controllers::auth::SignupParams;
 use crate::database::{first, DbPool};
 use crate::models::user::User;
-use crate::Settings;
 
 #[post("/signup")]
 pub async fn signup(
@@ -17,18 +18,21 @@ pub async fn signup(
 ) -> Result<impl Responder> {
     let new_user = user_data.into_inner();
 
-    if let Err(e) = validate_password(&new_user.password, &new_user.confirm_password) {
+    if let Err(e) = validate_password(
+        &new_user.password.expose_secret(),
+        &new_user.confirm_password.expose_secret(),
+    ) {
         return Ok(HttpResponse::BadRequest().body(e.to_string()));
     };
 
     let db_clone = db.clone();
-    let new_user_clone = new_user.clone();
+    let email_clone = new_user.email.clone();
 
     if let Ok(_user) = first!(User::by_email(new_user.email.clone()), User, db_clone) {
         return Ok(HttpResponse::BadRequest().body("Email already in use."));
     };
 
-    let hash = match hash_user_password(&new_user.password) {
+    let hash = match hash_user_password(&new_user.password.expose_secret()) {
         Ok(password_hash) => password_hash,
         Err(_) => {
             return Ok(HttpResponse::InternalServerError()
@@ -39,7 +43,7 @@ pub async fn signup(
     let conn_info = req.peer_addr().expect("Could not get IP address.");
     let ip_addr = conn_info.ip().to_string();
 
-    let new_user = User::create(new_user_clone.email, hash, ip_addr, db.clone())
+    let new_user = User::create(email_clone, hash, ip_addr, db.clone())
         .await
         .expect("Could not create user.");
 

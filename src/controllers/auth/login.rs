@@ -1,30 +1,44 @@
 use actix_identity::Identity;
-use actix_web::error;
 use actix_web::{post, web, web::Data, HttpMessage, HttpRequest, HttpResponse, Responder, Result};
 use bcrypt::verify;
 use diesel::prelude::*;
 use diesel::result::Error;
+use secrecy::ExposeSecret;
+use serde::{Deserialize, Serialize};
 
 use crate::auth::claim::create_token;
 use crate::auth::validate_password_length;
+use crate::config::Settings;
 use crate::controllers::auth::AuthParams;
+use crate::controllers::ErrorBody;
 use crate::database::{first, DbPool};
 use crate::models::user_event::*;
 use crate::schema::user_event;
-use crate::Settings;
 
 use crate::models::user::User;
 
-const BAD_CREDS: &str = "Invalid email or password";
+const BAD_CREDS: &str = "Invalid email or password.";
+const REQUIRED_FIELDS: &str = "Email and password are required.";
+
+#[derive(Serialize, Deserialize)]
+struct Response {
+    token: String,
+}
 
 #[post("/login")]
-async fn login(
+pub async fn login(
     request: HttpRequest,
     user_data: web::Json<AuthParams>,
     db: Data<DbPool>,
     settings: Data<Settings>,
 ) -> Result<impl Responder> {
+    // User lookup from params
     let AuthParams { email, password } = user_data.into_inner();
+    if email.is_empty() || password.expose_secret().is_empty() {
+        return Ok(HttpResponse::BadRequest().json(ErrorBody {
+            reason: REQUIRED_FIELDS.into(),
+        }));
+    }
 
     let db_clone = db.clone();
     let (user, existing_user_password_hash) = match first!(User::by_email(email), User, db_clone) {
@@ -45,15 +59,27 @@ async fn login(
     )
     .await
     {
-        return Err(error::ErrorUnauthorized(e));
+        return Ok(HttpResponse::Unauthorized().json(ErrorBody {
+            reason: e.to_string(),
+        }));
     }
 
-    validate_password_length(&password).map_err(|e| error::ErrorBadRequest(e))?;
+    if let Err(e) = validate_password_length(&password.expose_secret()) {
+        return Ok(HttpResponse::BadRequest().json(ErrorBody {
+            reason: e.to_string(),
+        }));
+    }
 
     // Resist timing attacks by always hashing the password
-    verify(password, &existing_user_password_hash)
-        .or(Err(error::ErrorUnauthorized(BAD_CREDS)))
-        .expect("Invalid user or password.");
+    match verify(password.expose_secret(), &existing_user_password_hash) {
+        Ok(true) => (),
+        // Match on false and Err
+        _ => {
+            return Ok(HttpResponse::BadRequest().json(ErrorBody {
+                reason: BAD_CREDS.into(),
+            }))
+        }
+    }
 
     let user_id = user.unwrap().id;
     let conn_info = request.connection_info();
@@ -67,7 +93,7 @@ async fn login(
         let user_event: UserEvent = diesel::insert_into(user_event::table)
             .values((
                 user_event::user_id.eq(user_id),
-                user_event::event_type.eq(EventType::Signup.to_string()),
+                user_event::event_type.eq(EventType::Login.to_string()),
                 user_event::ip_address.eq(ip_addr.clone()),
             ))
             .get_result(conn)?;
@@ -81,5 +107,5 @@ async fn login(
     let token = create_token(user_id, settings.jwt_secret.clone())
         .expect("Could not create token for user.");
 
-    Ok(HttpResponse::Ok().body(token))
+    Ok(HttpResponse::Ok().json(Response { token }))
 }

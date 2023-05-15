@@ -81,7 +81,10 @@ impl User {
             user
         })
         .await?
-        .map_err(|_| anyhow!("Internal server error when creating user."))?;
+        .map_err(|e| {
+            println!("Error creating user: {:?}", e);
+            return anyhow!("Internal server error when creating user.");
+        })?;
 
         Ok(new_user)
     }

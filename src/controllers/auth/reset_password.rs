@@ -3,10 +3,10 @@ use diesel::RunQueryDsl;
 use serde::{Deserialize, Serialize};
 
 use crate::auth::validate_password;
+use crate::config::Settings;
 use crate::database::{first, DbPool};
 use crate::models::user::User;
 use crate::models::user_event::{EventType, UserEvent};
-use crate::Settings;
 
 #[derive(Serialize, Deserialize)]
 pub struct ResetPasswordParams {

@@ -1,5 +1,4 @@
 use anyhow::Error;
-use futures::executor::block_on;
 use rppal::gpio::{Gpio, InputPin, Level, OutputPin, Trigger};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -168,26 +167,17 @@ impl Sump {
         let mut control = pump_control_pin.lock().unwrap();
         let mut sensors = sensor_state.lock().unwrap();
 
-        let rt = Runtime::new().unwrap();
-
         // Turn the sump pump motor on or off
         match triggered_sensor {
             Sensor::High => {
                 if level == Level::High {
                     control.set_high();
 
-                    // TODO: set a time limit for this
-                    let event_future = async {
-                        match SumpEvent::create("kind".to_string(), "info".to_string(), db).await {
-                            Ok(_) => {}
-                            Err(e) => {
-                                // TODO: log this
-                                println!("Error creating sump event: {}", e);
-                            }
-                        }
-                    };
-
-                    rt.block_on(event_future);
+                    Self::write_event_to_db(
+                        db,
+                        "high water sensor up".to_string(),
+                        "reservoir full".to_string(),
+                    )
                 }
 
                 sensors.high_sensor = level;
@@ -201,20 +191,31 @@ impl Sump {
 
                     control.set_low();
 
-                    let event_future = async {
-                        match SumpEvent::create("kind".to_string(), "info".to_string(), db).await {
-                            Ok(_) => {}
-                            Err(e) => {
-                                // TODO: log this
-                                println!("Error creating sump event: {}", e);
-                            }
-                        }
-                    };
-
-                    rt.block_on(event_future);
+                    Self::write_event_to_db(
+                        db,
+                        "low water sensor down".to_string(),
+                        "reservoir empty".to_string(),
+                    )
                 }
                 sensors.low_sensor = level;
             }
         }
+    }
+
+    // TODO: set a time limit for this
+    fn write_event_to_db(db: DbPool, kind: String, info: String) {
+        let rt = Runtime::new().unwrap();
+
+        let event_future = async {
+            match SumpEvent::create(kind, info, db).await {
+                Ok(_) => {}
+                Err(e) => {
+                    // TODO: log this
+                    println!("Error creating sump event: {}", e);
+                }
+            }
+        };
+
+        rt.block_on(event_future);
     }
 }

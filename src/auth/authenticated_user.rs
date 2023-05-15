@@ -1,5 +1,6 @@
 use actix_web::{dev, error, http::header::HeaderValue, web, Error, FromRequest, HttpRequest};
 use diesel::RunQueryDsl;
+// Replacing this might allow for removal of the futures crate.
 use futures::future::err;
 use jsonwebtoken::{decode, DecodingKey, TokenData, Validation};
 use std::future::Future;
