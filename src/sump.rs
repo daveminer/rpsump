@@ -211,7 +211,8 @@ fn listen(
         let db_clone = db.clone();
 
         if deb.is_none() {
-            *deb = Some(SensorDebouncer::new(
+            println!("SETTING NEW DEBOUNCER FOR {:?}", level);
+            let debouncer = SensorDebouncer::new(
                 Duration::new(2, 0),
                 level,
                 pump_control_pin.clone(),
@@ -219,11 +220,19 @@ fn listen(
                 callback,
                 delay,
                 db_clone,
-            ));
+            );
+
+            *deb = Some(debouncer);
+        } else {
+            println!("UPDATING DEBOUNCER FOR {:?}", level);
+            deb.as_mut().unwrap().reset_deadline(level);
             return;
         }
 
-        deb.as_mut().unwrap().reset_deadline(level)
+        let rt = Runtime::new().unwrap();
+        let sleep = deb.as_ref().unwrap().sleep();
+
+        rt.block_on(sleep);
     })
     .expect("Could not not listen on high water level sump pin");
 }
