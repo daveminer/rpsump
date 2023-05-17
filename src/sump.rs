@@ -9,17 +9,25 @@ use std::{
 };
 use tokio::runtime::Runtime;
 
+use crate::debounce::SensorDebouncer;
 use crate::models::sump_event::SumpEvent;
 use crate::{config::SumpConfig, database::DbPool};
+
+pub type SharedSensorDebouncer = Arc<Mutex<Option<SensorDebouncer>>>;
+pub type SharedInputPin = Arc<Mutex<InputPin>>;
+pub type SharedOutputPin = Arc<Mutex<OutputPin>>;
+pub type SharedPinState = Arc<Mutex<PinState>>;
 
 // Manages the physical I/O devices
 #[derive(Clone, Debug)]
 pub struct Sump {
     pub db_pool: DbPool,
-    pub high_sensor_pin: Arc<Mutex<InputPin>>,
-    pub low_sensor_pin: Arc<Mutex<InputPin>>,
-    pub pump_control_pin: Arc<Mutex<OutputPin>>,
-    pub sensor_state: Arc<Mutex<PinState>>,
+    pub high_sensor_debounce: SharedSensorDebouncer,
+    pub high_sensor_pin: SharedInputPin,
+    pub low_sensor_debounce: SharedSensorDebouncer,
+    pub low_sensor_pin: SharedInputPin,
+    pub pump_control_pin: SharedOutputPin,
+    pub sensor_state: SharedPinState,
 }
 
 // Tracks the level of the sensor pins. It's intended for the fields of this
@@ -58,54 +66,61 @@ where
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-enum Sensor {
-    Low = 0,
-    High = 1,
-}
-
 impl Sump {
     // Creates a new sump struct with sensors and their state.
     pub fn new(db_pool: DbPool, config: &SumpConfig) -> Result<Self, Error> {
         // create the GPIO pins
         let gpio = Gpio::new()?;
-        let mut high_sensor_pin = gpio.get(config.high_sensor_pin)?.into_input_pullup();
-        let mut low_sensor_pin = gpio.get(config.low_sensor_pin)?.into_input_pullup();
+
+        let high_sensor_pin_io = gpio.get(config.high_sensor_pin)?.into_input_pullup();
+        let high_sensor_reading = high_sensor_pin_io.read();
+        let high_sensor_pin = Arc::from(Mutex::new(high_sensor_pin_io));
+        let high_debounce = Arc::from(Mutex::new(None));
+
+        let low_sensor_pin_io = gpio.get(config.low_sensor_pin)?.into_input_pullup();
+        let low_sensor_reading = low_sensor_pin_io.read();
+        let low_sensor_pin = Arc::from(Mutex::new(low_sensor_pin_io));
+        let low_debounce = Arc::from(Mutex::new(None));
+
         let pump_control_pin: Arc<Mutex<OutputPin>> = Arc::from(Mutex::new(
             gpio.get(config.pump_control_pin)?.into_output_low(),
         ));
+        let pump_delay = config.pump_shutoff_delay;
 
         // Read initial state of inputs
         let sensor_state = Arc::from(Mutex::new(PinState {
-            high_sensor: high_sensor_pin.read(),
-            low_sensor: low_sensor_pin.read(),
+            high_sensor: high_sensor_reading,
+            low_sensor: low_sensor_reading,
         }));
 
-        // Set up interrupts
-        Self::water_sensor_interrupt(
+        listen(
+            Arc::clone(&high_sensor_pin),
+            Arc::clone(&high_debounce),
             db_pool.clone(),
-            &mut high_sensor_pin,
+            0,
             Arc::clone(&pump_control_pin),
             Arc::clone(&sensor_state),
-            Sensor::High,
-            config.pump_shutoff_delay,
+            update_high_sensor,
         );
 
-        Self::water_sensor_interrupt(
+        listen(
+            Arc::clone(&low_sensor_pin),
+            Arc::clone(&low_debounce),
             db_pool.clone(),
-            &mut low_sensor_pin,
+            pump_delay,
             Arc::clone(&pump_control_pin),
             Arc::clone(&sensor_state),
-            Sensor::Low,
-            config.pump_shutoff_delay,
+            update_low_sensor,
         );
 
         Ok(Sump {
             db_pool,
-            high_sensor_pin: Arc::from(Mutex::new(high_sensor_pin)),
-            low_sensor_pin: Arc::from(Mutex::new(low_sensor_pin)),
-            pump_control_pin,
-            sensor_state,
+            high_sensor_debounce: Arc::clone(&high_debounce),
+            high_sensor_pin: Arc::clone(&high_sensor_pin),
+            low_sensor_debounce: Arc::clone(&low_debounce),
+            low_sensor_pin: Arc::clone(&low_sensor_pin),
+            pump_control_pin: Arc::clone(&pump_control_pin),
+            sensor_state: Arc::clone(&sensor_state),
         })
     }
 
@@ -133,89 +148,99 @@ impl Sump {
             }
         })
     }
+}
 
-    fn water_sensor_interrupt(
-        db: DbPool,
-        pin: &mut InputPin,
-        pump_control_pin: Arc<Mutex<OutputPin>>,
-        sensor_state: Arc<Mutex<PinState>>,
-        sensor_name: Sensor,
-        pump_shutoff_delay: u64,
-    ) {
-        pin.set_async_interrupt(Trigger::Both, move |level| {
-            Self::water_sensor_state_change_callback(
-                sensor_name.clone(),
-                db.clone(),
-                level,
-                Arc::clone(&pump_control_pin),
-                Arc::clone(&sensor_state),
-                pump_shutoff_delay,
-            )
-        })
-        .expect("Could not not listen on high water level sump pin");
+fn update_high_sensor(
+    level: Level,
+    pump_control_pin: Arc<Mutex<OutputPin>>,
+    sensor_state: Arc<Mutex<PinState>>,
+    _delay: u64,
+    db: DbPool,
+) {
+    // Turn the pump on
+    if level == Level::High {
+        let mut pin = pump_control_pin.lock().unwrap();
+        pin.set_high();
+
+        write_event_to_db(db, "pump on".to_string(), "reservoir full".to_string())
     }
 
-    // Call this when a sensor change event happens.
-    fn water_sensor_state_change_callback(
-        triggered_sensor: Sensor,
-        db: DbPool,
-        level: Level,
-        pump_control_pin: Arc<Mutex<OutputPin>>,
-        sensor_state: Arc<Mutex<PinState>>,
-        pump_shutoff_delay: u64,
-    ) {
-        let mut control = pump_control_pin.lock().unwrap();
-        let mut sensors = sensor_state.lock().unwrap();
+    let mut sensors = sensor_state.lock().unwrap();
 
-        // Turn the sump pump motor on or off
-        match triggered_sensor {
-            Sensor::High => {
-                if level == Level::High {
-                    control.set_high();
+    sensors.high_sensor = level;
+}
 
-                    Self::write_event_to_db(
-                        db,
-                        "high water sensor up".to_string(),
-                        "reservoir full".to_string(),
-                    )
-                }
+fn update_low_sensor(
+    level: Level,
+    pump_control_pin: Arc<Mutex<OutputPin>>,
+    sensor_state: Arc<Mutex<PinState>>,
+    delay: u64,
+    db: DbPool,
+) {
+    // Turn the pump off
+    if level == Level::Low {
+        if delay > 0 {
+            thread::sleep(Duration::from_millis(delay as u64 * 1000));
+        }
 
-                sensors.high_sensor = level;
-            }
-            Sensor::Low => {
-                if level != Level::High {
-                    // Let the pump run a bit longer or the sensor might remain high.
-                    if pump_shutoff_delay > 0 {
-                        thread::sleep(Duration::from_millis(pump_shutoff_delay as u64 * 1000));
-                    }
+        let mut pin = pump_control_pin.lock().unwrap();
+        pin.set_low();
 
-                    control.set_low();
+        write_event_to_db(db, "pump off".to_string(), "reservoir empty".to_string())
+    }
 
-                    Self::write_event_to_db(
-                        db,
-                        "low water sensor down".to_string(),
-                        "reservoir empty".to_string(),
-                    )
-                }
-                sensors.low_sensor = level;
+    let mut sensors = sensor_state.lock().unwrap();
+
+    sensors.low_sensor = level;
+}
+
+fn listen(
+    shared_pin: SharedInputPin,
+    debounce: SharedSensorDebouncer,
+    db: DbPool,
+    delay: u64,
+    pump_control_pin: SharedOutputPin,
+    sensor_state: SharedPinState,
+    callback: fn(Level, SharedOutputPin, SharedPinState, u64, DbPool),
+) {
+    let mut pin = shared_pin.lock().unwrap();
+
+    pin.set_async_interrupt(Trigger::Both, move |level| {
+        let shared_deb = Arc::clone(&debounce);
+        let mut deb = shared_deb.lock().unwrap();
+        let db_clone = db.clone();
+
+        if deb.is_none() {
+            *deb = Some(SensorDebouncer::new(
+                Duration::new(2, 0),
+                level,
+                pump_control_pin.clone(),
+                sensor_state.clone(),
+                callback,
+                delay,
+                db_clone,
+            ));
+            return;
+        }
+
+        deb.as_mut().unwrap().reset_deadline(level)
+    })
+    .expect("Could not not listen on high water level sump pin");
+}
+
+// TODO: set a time limit for this
+fn write_event_to_db(db: DbPool, kind: String, info: String) {
+    let rt = Runtime::new().unwrap();
+
+    let event_future = async {
+        match SumpEvent::create(kind, info, db).await {
+            Ok(_) => {}
+            Err(e) => {
+                // TODO: log this
+                println!("Error creating sump event: {}", e);
             }
         }
-    }
+    };
 
-    // TODO: set a time limit for this
-    fn write_event_to_db(db: DbPool, kind: String, info: String) {
-        let rt = Runtime::new().unwrap();
-
-        let event_future = async {
-            match SumpEvent::create(kind, info, db).await {
-                Ok(_) => {}
-                Err(e) => {
-                    // TODO: log this
-                    println!("Error creating sump event: {}", e);
-                }
-            }
-        };
-
-        rt.block_on(event_future);
-    }
+    rt.block_on(event_future);
 }
