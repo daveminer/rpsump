@@ -123,31 +123,29 @@ impl Sump {
             sensor_state: Arc::clone(&sensor_state),
         })
     }
+}
 
-    // Read the current state of the sensors
-    pub fn sensors(&self) -> PinState {
-        *self.sensor_state.lock().unwrap()
-    }
+pub fn spawn_reporting_thread(
+    sensor_state: SharedPinState,
+    interval_seconds: u64,
+) -> thread::JoinHandle<()> {
+    thread::spawn(move || {
+        let mut start_time = Instant::now();
+        let sensors = Arc::clone(&sensor_state);
 
-    pub fn spawn_reporting_thread(&self, interval_seconds: u64) -> thread::JoinHandle<()> {
-        let self_clone = self.clone();
+        loop {
+            // Report to console
+            let sensor_reading = sensors.lock().unwrap();
+            println!("{:?}", sensor_reading);
 
-        thread::spawn(move || {
-            let mut start_time = Instant::now();
-
-            loop {
-                // Report to console
-                println!("{:?}", self_clone.sensors());
-
-                // Wait for N seconds
-                let elapsed_time = start_time.elapsed();
-                if elapsed_time < Duration::from_secs(interval_seconds) {
-                    thread::sleep(Duration::from_secs(interval_seconds) - elapsed_time);
-                }
-                start_time = Instant::now();
+            // Wait for N seconds
+            let elapsed_time = start_time.elapsed();
+            if elapsed_time < Duration::from_secs(interval_seconds) {
+                thread::sleep(Duration::from_secs(interval_seconds) - elapsed_time);
             }
-        })
-    }
+            start_time = Instant::now();
+        }
+    })
 }
 
 fn update_high_sensor(

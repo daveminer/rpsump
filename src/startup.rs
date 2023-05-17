@@ -2,12 +2,13 @@ use actix_identity::IdentityMiddleware;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie, dev::Server, web, web::Data, App, HttpServer};
 use actix_web_opentelemetry::RequestTracing;
+use std::sync::Arc;
 
 use crate::config::Settings;
 use crate::controllers::{auth::auth_routes, info::info, sump_event::sump_event};
 use crate::database::DbPool;
 use crate::middleware::rate_limiter;
-use crate::sump::Sump;
+use crate::sump::{spawn_reporting_thread, Sump};
 
 pub struct Application {
     port: u16,
@@ -48,9 +49,12 @@ impl Application {
                 let sump = Sump::new(db_pool.clone(), settings.sump.as_ref().unwrap())
                     .expect("Could not create sump object");
 
-                sump.spawn_reporting_thread(settings.console.report_freq_secs);
+                spawn_reporting_thread(
+                    Arc::clone(&sump.sensor_state),
+                    settings.console.report_freq_secs,
+                );
 
-                app = app.app_data(Data::new(sump.clone()));
+                app = app.app_data(Data::new(sump));
             }
 
             app
