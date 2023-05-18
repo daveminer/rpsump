@@ -85,7 +85,6 @@ impl Sump {
         let pump_control_pin: Arc<Mutex<OutputPin>> = Arc::from(Mutex::new(
             gpio.get(config.pump_control_pin)?.into_output_low(),
         ));
-        let pump_delay = config.pump_shutoff_delay;
 
         // Read initial state of inputs
         let sensor_state = Arc::from(Mutex::new(PinState {
@@ -93,24 +92,19 @@ impl Sump {
             low_sensor: low_sensor_reading,
         }));
 
-        listen(
+        listen_to_high_sensor(
             Arc::clone(&high_sensor_pin),
-            Arc::clone(&high_debounce),
-            db_pool.clone(),
-            0,
             Arc::clone(&pump_control_pin),
             Arc::clone(&sensor_state),
-            update_high_sensor,
+            db_pool.clone(),
         );
 
-        listen(
+        listen_to_low_sensor(
             Arc::clone(&low_sensor_pin),
-            Arc::clone(&low_debounce),
-            db_pool.clone(),
-            pump_delay,
             Arc::clone(&pump_control_pin),
             Arc::clone(&sensor_state),
-            update_low_sensor,
+            config.pump_shutoff_delay,
+            db_pool.clone(),
         );
 
         Ok(Sump {
@@ -148,11 +142,10 @@ pub fn spawn_reporting_thread(
     })
 }
 
-fn update_high_sensor(
+async fn update_high_sensor(
     level: Level,
     pump_control_pin: Arc<Mutex<OutputPin>>,
     sensor_state: Arc<Mutex<PinState>>,
-    _delay: u64,
     db: DbPool,
 ) {
     // Turn the pump on
@@ -160,7 +153,9 @@ fn update_high_sensor(
         let mut pin = pump_control_pin.lock().unwrap();
         pin.set_high();
 
-        write_event_to_db(db, "pump on".to_string(), "reservoir full".to_string())
+        SumpEvent::create("pump on".to_string(), "reservoir full".to_string(), db)
+            .await
+            .unwrap();
     }
 
     let mut sensors = sensor_state.lock().unwrap();
@@ -168,7 +163,7 @@ fn update_high_sensor(
     sensors.high_sensor = level;
 }
 
-fn update_low_sensor(
+async fn update_low_sensor(
     level: Level,
     pump_control_pin: Arc<Mutex<OutputPin>>,
     sensor_state: Arc<Mutex<PinState>>,
@@ -184,7 +179,9 @@ fn update_low_sensor(
         let mut pin = pump_control_pin.lock().unwrap();
         pin.set_low();
 
-        write_event_to_db(db, "pump off".to_string(), "reservoir empty".to_string())
+        SumpEvent::create("pump off".to_string(), "reservoir empty".to_string(), db)
+            .await
+            .unwrap();
     }
 
     let mut sensors = sensor_state.lock().unwrap();
@@ -192,62 +189,78 @@ fn update_low_sensor(
     sensors.low_sensor = level;
 }
 
-fn listen(
-    shared_pin: SharedInputPin,
-    debounce: SharedSensorDebouncer,
-    db: DbPool,
-    delay: u64,
+fn listen_to_high_sensor(
+    high_sensor_pin: SharedInputPin,
     pump_control_pin: SharedOutputPin,
     sensor_state: SharedPinState,
-    callback: fn(Level, SharedOutputPin, SharedPinState, u64, DbPool),
+    db: DbPool,
 ) {
-    let mut pin = shared_pin.lock().unwrap();
+    let debouncer: Arc<Mutex<Option<SensorDebouncer>>> = Arc::from(Mutex::new(None));
+    let mut pin = high_sensor_pin.lock().unwrap();
 
     pin.set_async_interrupt(Trigger::Both, move |level| {
-        let shared_deb = Arc::clone(&debounce);
+        let shared_deb = Arc::clone(&debouncer);
         let mut deb = shared_deb.lock().unwrap();
-        let db_clone = db.clone();
 
-        if deb.is_none() {
-            println!("SETTING NEW DEBOUNCER FOR {:?}", level);
-            let debouncer = SensorDebouncer::new(
-                Duration::new(2, 0),
-                level,
-                pump_control_pin.clone(),
-                sensor_state.clone(),
-                callback,
-                delay,
-                db_clone,
-            );
-
-            *deb = Some(debouncer);
-        } else {
+        if deb.is_some() {
             println!("UPDATING DEBOUNCER FOR {:?}", level);
             deb.as_mut().unwrap().reset_deadline(level);
             return;
         }
 
-        let rt = Runtime::new().unwrap();
+        println!("SETTING NEW DEBOUNCER FOR {:?}", level);
+        let debouncer = SensorDebouncer::new(Duration::new(2, 0), level);
+        *deb = Some(debouncer);
+
         let sleep = deb.as_ref().unwrap().sleep();
 
+        let rt = Runtime::new().unwrap();
         rt.block_on(sleep);
+        rt.block_on(update_high_sensor(
+            level,
+            Arc::clone(&pump_control_pin),
+            Arc::clone(&sensor_state),
+            db.clone(),
+        ));
     })
     .expect("Could not not listen on high water level sump pin");
 }
 
-// TODO: set a time limit for this
-fn write_event_to_db(db: DbPool, kind: String, info: String) {
-    let rt = Runtime::new().unwrap();
+fn listen_to_low_sensor(
+    low_sensor_pin: SharedInputPin,
+    pump_control_pin: SharedOutputPin,
+    sensor_state: SharedPinState,
+    delay: u64,
+    db: DbPool,
+) {
+    let debouncer: Arc<Mutex<Option<SensorDebouncer>>> = Arc::from(Mutex::new(None));
+    let mut pin = low_sensor_pin.lock().unwrap();
 
-    let event_future = async {
-        match SumpEvent::create(kind, info, db).await {
-            Ok(_) => {}
-            Err(e) => {
-                // TODO: log this
-                println!("Error creating sump event: {}", e);
-            }
+    pin.set_async_interrupt(Trigger::Both, move |level| {
+        let shared_deb = Arc::clone(&debouncer);
+        let mut deb = shared_deb.lock().unwrap();
+
+        if deb.is_some() {
+            println!("UPDATING LOW DEBOUNCER FOR {:?}", level);
+            deb.as_mut().unwrap().reset_deadline(level);
+            return;
         }
-    };
 
-    rt.block_on(event_future);
+        println!("SETTING NEW LOW DEBOUNCER FOR {:?}", level);
+        let debouncer = SensorDebouncer::new(Duration::new(2, 0), level);
+        *deb = Some(debouncer);
+
+        let sleep = deb.as_ref().unwrap().sleep();
+
+        let rt = Runtime::new().unwrap();
+        rt.block_on(sleep);
+        rt.block_on(update_low_sensor(
+            level,
+            Arc::clone(&pump_control_pin),
+            Arc::clone(&sensor_state),
+            delay,
+            db.clone(),
+        ));
+    })
+    .expect("Could not not listen on low water level sump pin");
 }
