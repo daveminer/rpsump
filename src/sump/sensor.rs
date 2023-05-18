@@ -60,7 +60,7 @@ pub fn listen_to_high_sensor(
         let mut deb = shared_deb.lock().unwrap();
 
         if deb.is_some() {
-            println!("UPDATING DEBOUNCER FOR {:?}", level);
+            println!("UPDATING HIGH DEBOUNCER FOR {:?}", level);
             deb.as_mut().unwrap().reset_deadline(level);
             return;
         }

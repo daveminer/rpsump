@@ -22,7 +22,10 @@ impl Application {
         let listener =
             std::net::TcpListener::bind(address).expect("Could not bind server address.");
         let port = listener.local_addr().unwrap().port();
-        let delay = settings.clone().sump.unwrap().pump_shutoff_delay;
+        let delay = match settings.clone().sump {
+            Some(sump) => sump.pump_shutoff_delay,
+            None => 0,
+        };
 
         let sump = match settings.clone().sump {
             None => None,
@@ -50,6 +53,10 @@ impl Application {
                 delay,
                 db_pool.clone(),
             );
+            spawn_reporting_thread(
+                Arc::clone(&sump_clone.sensor_state),
+                settings.console.report_freq_secs,
+            );
         }
 
         let server = HttpServer::new(move || {
@@ -76,12 +83,6 @@ impl Application {
 
             // Initialize the sump if enabled in configuration
             if sump.is_some() {
-                let sump = sump.as_ref().unwrap();
-                spawn_reporting_thread(
-                    Arc::clone(&sump.sensor_state),
-                    settings.console.report_freq_secs,
-                );
-
                 app = app.app_data(Data::new(sump.clone()));
             }
 

@@ -37,6 +37,8 @@ impl SensorDebouncer {
             println!("RESETTING DEADLINE");
             self.prev_reading = new_reading;
             let mut lock = self.inner.lock().unwrap();
+            let now = Instant::now();
+            println!("NOW: {:?}", now);
             lock.deadline = Instant::now() + lock.duration;
         }
     }
