@@ -129,7 +129,7 @@ pub fn spawn_reporting_thread(
 
         loop {
             // Report to console
-            let sensor_reading = sensors.lock().unwrap();
+            let sensor_reading = *sensors.lock().unwrap();
             println!("{:?}", sensor_reading);
 
             // Wait for N seconds
@@ -148,6 +148,7 @@ async fn update_high_sensor(
     sensor_state: Arc<Mutex<PinState>>,
     db: DbPool,
 ) {
+    println!("UPDATING HIGH SENSOR: {:?}", level);
     // Turn the pump on
     if level == Level::High {
         let mut pin = pump_control_pin.lock().unwrap();
@@ -170,6 +171,7 @@ async fn update_low_sensor(
     delay: u64,
     db: DbPool,
 ) {
+    println!("UPDATING LOW SENSOR: {:?}", level);
     // Turn the pump off
     if level == Level::Low {
         if delay > 0 {
@@ -189,7 +191,7 @@ async fn update_low_sensor(
     sensors.low_sensor = level;
 }
 
-fn listen_to_high_sensor(
+pub fn listen_to_high_sensor(
     high_sensor_pin: SharedInputPin,
     pump_control_pin: SharedOutputPin,
     sensor_state: SharedPinState,
@@ -208,7 +210,7 @@ fn listen_to_high_sensor(
             return;
         }
 
-        println!("SETTING NEW DEBOUNCER FOR {:?}", level);
+        println!("SETTING NEW HIGH DEBOUNCER FOR {:?}", level);
         let debouncer = SensorDebouncer::new(Duration::new(2, 0), level);
         *deb = Some(debouncer);
 
@@ -226,7 +228,7 @@ fn listen_to_high_sensor(
     .expect("Could not not listen on high water level sump pin");
 }
 
-fn listen_to_low_sensor(
+pub fn listen_to_low_sensor(
     low_sensor_pin: SharedInputPin,
     pump_control_pin: SharedOutputPin,
     sensor_state: SharedPinState,
