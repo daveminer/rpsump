@@ -22,6 +22,14 @@ impl Application {
             std::net::TcpListener::bind(address).expect("Could not bind server address.");
         let port = listener.local_addr().unwrap().port();
 
+        let sump = match settings.sump {
+            Some(_) => Some(
+                Sump::new(db_pool.clone(), settings.sump.as_ref().unwrap())
+                    .expect("Could not create sump object"),
+            ),
+            None => None,
+        };
+
         let server = HttpServer::new(move || {
             let mut app = App::new()
                 .wrap(RequestTracing::new())
@@ -45,16 +53,14 @@ impl Application {
                 .app_data(Data::new(db_pool.clone()));
 
             // Initialize the sump if enabled in configuration
-            if settings.sump.is_some() {
-                let sump = Sump::new(db_pool.clone(), settings.sump.as_ref().unwrap())
-                    .expect("Could not create sump object");
-
+            if sump.is_some() {
+                let sump = sump.as_ref().unwrap();
                 spawn_reporting_thread(
                     Arc::clone(&sump.sensor_state),
                     settings.console.report_freq_secs,
                 );
 
-                app = app.app_data(Data::new(sump));
+                app = app.app_data(Data::new(sump.clone()));
             }
 
             app
