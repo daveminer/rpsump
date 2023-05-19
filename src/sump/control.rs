@@ -1,18 +1,19 @@
 use rppal::gpio::{Level, OutputPin};
+use std::sync::{Arc, Mutex};
+use std::{thread, time::Duration};
 
 use crate::database::DbPool;
 use crate::models::sump_event::SumpEvent;
 use crate::sump::sensor::PinState;
-use std::sync::{Arc, Mutex};
-use std::{thread, time::Duration};
 
+/// Applies a state change to the high sensor by settting the pin level, creating a database event,
+/// and updating the sensor state.
 pub async fn update_high_sensor(
     level: Level,
     pump_control_pin: Arc<Mutex<OutputPin>>,
     sensor_state: Arc<Mutex<PinState>>,
     db: DbPool,
 ) {
-    println!("UPDATING HIGH SENSOR: {:?}", level);
     // Turn the pump on
     if level == Level::High {
         let mut pin = pump_control_pin.lock().unwrap();
@@ -28,6 +29,9 @@ pub async fn update_high_sensor(
     sensors.high_sensor = level;
 }
 
+/// Applies a state change to the low sensor similar to the high sensor. The difference is that the
+/// low sensor accepts a delay that allows the pump to run long to lower the water level enough to
+/// prevent signal bouncing.
 pub async fn update_low_sensor(
     level: Level,
     pump_control_pin: Arc<Mutex<OutputPin>>,
@@ -35,7 +39,6 @@ pub async fn update_low_sensor(
     delay: u64,
     db: DbPool,
 ) {
-    println!("UPDATING LOW SENSOR: {:?}", level);
     // Turn the pump off
     if level == Level::Low {
         if delay > 0 {
