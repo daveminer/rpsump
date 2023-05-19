@@ -70,9 +70,12 @@ pub fn listen_to_high_sensor(
         *deb = Some(debouncer);
 
         let sleep = deb.as_ref().unwrap().sleep();
-
         let rt = Runtime::new().unwrap();
         rt.block_on(sleep);
+        *deb = None;
+        drop(deb);
+
+        println!("DEB DONE");
         rt.block_on(update_high_sensor(
             level,
             Arc::clone(&pump_control_pin),
