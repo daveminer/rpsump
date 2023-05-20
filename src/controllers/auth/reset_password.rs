@@ -1,6 +1,7 @@
 use actix_web::{get, post, web, web::Data, HttpRequest, HttpResponse, Responder, Result};
 use diesel::RunQueryDsl;
-use serde::{Deserialize, Serialize};
+use secrecy::{ExposeSecret, Secret};
+use serde::Deserialize;
 
 use crate::auth::validate_password;
 use crate::config::Settings;
@@ -8,11 +9,11 @@ use crate::database::{first, DbPool};
 use crate::models::user::User;
 use crate::models::user_event::{EventType, UserEvent};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 pub struct ResetPasswordParams {
     pub token: String,
-    pub new_password: String,
-    pub new_password_confirmation: String,
+    pub new_password: Secret<String>,
+    pub new_password_confirmation: Secret<String>,
 }
 
 // Request a password reset by sending an email with a reset link to the
@@ -26,7 +27,7 @@ async fn request_password_reset(
 ) -> Result<impl Responder> {
     let db_clone = db.clone();
     let db_clone_two = db.clone();
-    let user: User = match first!(User::by_email(email), User, db_clone) {
+    let user: User = match first!(User::by_email(email.clone()), User, db_clone) {
         Ok(user) => user,
         Err(_) => return Ok(password_reset_response()),
     };
@@ -79,7 +80,7 @@ async fn reset_password(
         Err(_) => return Ok(HttpResponse::BadRequest().body("Invalid token.")),
     };
 
-    user.set_password(password, db_clone)
+    user.set_password(password.expose_secret().to_string(), db_clone)
         .await
         .expect("Could not set password.");
 

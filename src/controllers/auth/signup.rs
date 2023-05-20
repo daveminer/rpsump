@@ -18,10 +18,7 @@ pub async fn signup(
 ) -> Result<impl Responder> {
     let new_user = user_data.into_inner();
 
-    if let Err(e) = validate_password(
-        &new_user.password.expose_secret(),
-        &new_user.confirm_password.expose_secret(),
-    ) {
+    if let Err(e) = validate_password(&new_user.password, &new_user.confirm_password) {
         return Ok(HttpResponse::BadRequest().body(e.to_string()));
     };
 
@@ -40,9 +37,7 @@ pub async fn signup(
         }
     };
 
-    let conn_info = req.peer_addr().expect("Could not get IP address.");
-    let ip_addr = conn_info.ip().to_string();
-
+    let ip_addr = super::ip_address(&req);
     let new_user = User::create(email_clone, hash, ip_addr, db.clone())
         .await
         .expect("Could not create user.");

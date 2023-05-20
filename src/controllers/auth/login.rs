@@ -1,24 +1,18 @@
 use actix_identity::Identity;
 use actix_web::{post, web, web::Data, HttpMessage, HttpRequest, HttpResponse, Responder, Result};
 use bcrypt::verify;
-use diesel::prelude::*;
-use diesel::result::Error;
+use diesel::{prelude::*, result::Error};
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 
 use crate::auth::claim::create_token;
-use crate::auth::validate_password_length;
 use crate::config::Settings;
-use crate::controllers::auth::AuthParams;
-use crate::controllers::ErrorBody;
-use crate::database::{first, DbPool};
+use crate::controllers::{auth::AuthParams, ErrorBody};
+use crate::database::DbPool;
 use crate::models::user_event::*;
 use crate::schema::user_event;
 
-use crate::models::user::User;
-
 const BAD_CREDS: &str = "Invalid email or password.";
-const REQUIRED_FIELDS: &str = "Email and password are required.";
 
 #[derive(Serialize, Deserialize)]
 struct Response {
@@ -26,33 +20,29 @@ struct Response {
 }
 
 #[post("/login")]
+#[tracing::instrument(
+    skip(request, db, user_data, settings),
+    fields(email=tracing::field::Empty, password=tracing::field::Empty)
+)]
 pub async fn login(
     request: HttpRequest,
     user_data: web::Json<AuthParams>,
     db: Data<DbPool>,
     settings: Data<Settings>,
 ) -> Result<impl Responder> {
-    // User lookup from params
-    let AuthParams { email, password } = user_data.into_inner();
-    if email.is_empty() || password.expose_secret().is_empty() {
-        return Ok(HttpResponse::BadRequest().json(ErrorBody {
-            reason: REQUIRED_FIELDS.into(),
-        }));
-    }
-
-    let db_clone = db.clone();
-    let (user, existing_user_password_hash) = match first!(User::by_email(email), User, db_clone) {
-        Ok(user) => (Some(user.clone()), user.password_hash),
-        Err(_e) => (None, "".to_string()),
+    let credentials: AuthParams = user_data.into_inner();
+    let user = match super::validate_credentials(&credentials, db.clone()).await {
+        Ok(user) => user,
+        Err(e) => {
+            return Ok(HttpResponse::BadRequest().json(ErrorBody {
+                reason: e.to_string(),
+            }))
+        }
     };
 
-    // TODO: DRY this up with signup
-    let conn_info = request.connection_info();
-
-    let ip_addr = conn_info.peer_addr().expect("Could not get IP address.");
-
+    let ip_addr = super::ip_address(&request);
     if let Err(e) = UserEvent::check_allowed_status(
-        user.clone(),
+        Some(user.clone()),
         ip_addr.to_string(),
         settings.auth_attempts_allowed,
         db.clone(),
@@ -64,14 +54,11 @@ pub async fn login(
         }));
     }
 
-    if let Err(e) = validate_password_length(&password.expose_secret()) {
-        return Ok(HttpResponse::BadRequest().json(ErrorBody {
-            reason: e.to_string(),
-        }));
-    }
-
     // Resist timing attacks by always hashing the password
-    match verify(password.expose_secret(), &existing_user_password_hash) {
+    match verify(
+        credentials.password.expose_secret(),
+        user.password_hash.as_str(),
+    ) {
         Ok(true) => (),
         // Match on false and Err
         _ => {
@@ -81,30 +68,22 @@ pub async fn login(
         }
     }
 
-    let user_id = user.unwrap().id;
-    let conn_info = request.connection_info();
-    let ip_addr = conn_info.peer_addr().expect("Could not get IP address.");
-
-    Identity::login(&request.extensions(), user_id.to_string()).expect("Could not log identity in");
+    Identity::login(&request.extensions(), user.id.to_string()).expect("Could not log identity in");
 
     let mut conn = db.get().expect("Could not get a db connection.");
-
     let _user_event = conn.transaction::<_, Error, _>(|conn| {
         let user_event: UserEvent = diesel::insert_into(user_event::table)
             .values((
-                user_event::user_id.eq(user_id),
+                user_event::user_id.eq(user.id),
                 user_event::event_type.eq(EventType::Login.to_string()),
                 user_event::ip_address.eq(ip_addr.clone()),
             ))
             .get_result(conn)?;
 
-        Identity::login(&request.extensions(), user_id.to_string())
-            .expect("Could not log identity in");
-
         Ok(user_event)
     });
 
-    let token = create_token(user_id, settings.jwt_secret.clone())
+    let token = create_token(user.id, settings.jwt_secret.clone())
         .expect("Could not create token for user.");
 
     Ok(HttpResponse::Ok().json(Response { token }))
