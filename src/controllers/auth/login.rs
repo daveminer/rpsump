@@ -1,14 +1,17 @@
 use actix_identity::Identity;
 use actix_web::{post, web, web::Data, HttpMessage, HttpRequest, HttpResponse, Responder, Result};
+use anyhow::{anyhow, Error};
 use bcrypt::verify;
-use diesel::{prelude::*, result::Error};
+use diesel::prelude::*;
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 
 use crate::auth::claim::create_token;
+use crate::auth::{validate_credentials, AuthParams};
 use crate::config::Settings;
-use crate::controllers::{auth::AuthParams, ErrorBody};
+use crate::controllers::ErrorBody;
 use crate::database::DbPool;
+use crate::middleware::telemetry::spawn_blocking_with_tracing;
 use crate::models::user_event::*;
 use crate::schema::user_event;
 
@@ -30,8 +33,9 @@ pub async fn login(
     db: Data<DbPool>,
     settings: Data<Settings>,
 ) -> Result<impl Responder> {
+    // User lookup from params
     let credentials: AuthParams = user_data.into_inner();
-    let user = match super::validate_credentials(&credentials, db.clone()).await {
+    let user = match validate_credentials(&credentials, db.clone()).await {
         Ok(user) => user,
         Err(e) => {
             return Ok(HttpResponse::BadRequest().json(ErrorBody {
@@ -40,6 +44,7 @@ pub async fn login(
         }
     };
 
+    // Check if user is allowed to login
     let ip_addr = super::ip_address(&request);
     if let Err(e) = UserEvent::check_allowed_status(
         Some(user.clone()),
@@ -54,22 +59,33 @@ pub async fn login(
         }));
     }
 
-    // Resist timing attacks by always hashing the password
-    match verify(
-        credentials.password.expose_secret(),
-        user.password_hash.as_str(),
-    ) {
-        Ok(true) => (),
-        // Match on false and Err
-        _ => {
-            return Ok(HttpResponse::BadRequest().json(ErrorBody {
-                reason: BAD_CREDS.into(),
-            }))
+    // Check if password is correct
+    match spawn_blocking_with_tracing(move || {
+        // Resist timing attacks by always hashing the password
+        match verify(
+            credentials.password.expose_secret(),
+            user.password_hash.as_str(),
+        ) {
+            Ok(true) => Ok(()),
+            // Match on false and Err
+            _ => Err(anyhow!(BAD_CREDS.to_string())),
         }
-    }
+    })
+    .await
+    .unwrap()
+    {
+        Ok(()) => (),
+        Err(e) => {
+            return Ok(HttpResponse::BadRequest().json(ErrorBody {
+                reason: e.to_string(),
+            }));
+        }
+    };
 
+    // Log user in
     Identity::login(&request.extensions(), user.id.to_string()).expect("Could not log identity in");
 
+    // Create user event
     let mut conn = db.get().expect("Could not get a db connection.");
     let _user_event = conn.transaction::<_, Error, _>(|conn| {
         let user_event: UserEvent = diesel::insert_into(user_event::table)
@@ -83,6 +99,7 @@ pub async fn login(
         Ok(user_event)
     });
 
+    // Create token
     let token = create_token(user.id, settings.jwt_secret.clone())
         .expect("Could not create token for user.");
 

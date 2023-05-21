@@ -8,8 +8,3 @@ pub mod sump_event;
 pub struct ErrorBody {
     pub reason: String,
 }
-
-#[derive(Serialize, Deserialize)]
-pub struct LoginResponse {
-    pub token: String,
-}

@@ -5,7 +5,7 @@ use diesel::prelude::*;
 use diesel::sqlite::Sqlite;
 use serde::{Deserialize, Serialize};
 
-use crate::auth::{hash_user_password, token::Token};
+use crate::auth::{password::Password, token::Token};
 use crate::database::DbPool;
 use crate::models::user_event::{EventType, UserEvent};
 use crate::schema::{user, user_event};
@@ -63,7 +63,7 @@ impl User {
                 let user: User = diesel::insert_into(user::table)
                     .values((
                         user::email.eq(new_email.clone()),
-                        user::password_hash.eq(new_password.clone()),
+                        user::password_hash.eq(new_password),
                     ))
                     .get_result(conn)?;
 
@@ -89,9 +89,8 @@ impl User {
         Ok(new_user)
     }
 
-    pub async fn set_password(self, password: String, db: Data<DbPool>) -> Result<(), Error> {
-        let hash = hash_user_password(&password)?;
-
+    pub async fn set_password(self, password: &Password, db: Data<DbPool>) -> Result<(), Error> {
+        let hash = password.hash()?;
         let _row_updated = web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 

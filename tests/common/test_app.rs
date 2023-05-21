@@ -49,9 +49,13 @@ impl TestApp {
             .expect("Failed to execute request.")
     }
 
-    pub async fn post_logout(&self) -> reqwest::Response {
+    pub async fn post_signup<Body>(&self, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+    {
         self.api_client
-            .post(&format!("{}/auth/logout", &self.address))
+            .post(&format!("{}/auth/signup", &self.address))
+            .json(body)
             .send()
             .await
             .expect("Failed to execute request.")
@@ -91,7 +95,6 @@ pub async fn spawn_app() -> TestApp {
 
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
-        //.cookie_store(true)
         .build()
         .unwrap();
 

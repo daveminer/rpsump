@@ -1,47 +1,54 @@
 use actix_web::{post, web, web::Data, HttpRequest, HttpResponse, Responder, Result};
+use serde::Deserialize;
+use validator::Validate;
 
-use diesel::prelude::*;
-use secrecy::ExposeSecret;
-
-use crate::auth::{hash_user_password, validate_password};
+use crate::auth::{password::Password, validate_password};
 use crate::config::Settings;
-use crate::controllers::auth::SignupParams;
-use crate::database::{first, DbPool};
+use crate::controllers::auth::ip_address;
+use crate::database::DbPool;
 use crate::models::user::User;
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct SignupParams {
+    #[validate(email)]
+    email: String,
+    #[validate(custom = "validate_password")]
+    password: Password,
+    #[validate(must_match = "password")]
+    confirm_password: Password,
+}
 
 #[post("/signup")]
 pub async fn signup(
     req: HttpRequest,
-    user_data: web::Json<SignupParams>,
+    params: web::Json<SignupParams>,
     db: Data<DbPool>,
     settings: Data<Settings>,
 ) -> Result<impl Responder> {
-    let new_user = user_data.into_inner();
-
-    if let Err(e) = validate_password(&new_user.password, &new_user.confirm_password) {
-        return Ok(HttpResponse::BadRequest().body(e.to_string()));
+    // Validate params
+    match &params.validate() {
+        Ok(_) => (),
+        Err(e) => return Ok(HttpResponse::BadRequest().body(e.to_string())),
     };
 
-    let db_clone = db.clone();
-    let email_clone = new_user.email.clone();
-
-    if let Ok(_user) = first!(User::by_email(new_user.email.clone()), User, db_clone) {
-        return Ok(HttpResponse::BadRequest().body("Email already in use."));
-    };
-
-    let hash = match hash_user_password(&new_user.password.expose_secret()) {
+    // Hash password
+    let hash = match params.password.hash() {
         Ok(password_hash) => password_hash,
-        Err(_) => {
-            return Ok(HttpResponse::InternalServerError()
-                .body("There was a problem; try a different password."))
-        }
+        Err(_) => return Ok(HttpResponse::BadRequest().body("Try a different password.")),
     };
 
-    let ip_addr = super::ip_address(&req);
-    let new_user = User::create(email_clone, hash, ip_addr, db.clone())
-        .await
-        .expect("Could not create user.");
+    // Create user
+    let new_user =
+        match User::create(params.email.to_string(), hash, ip_address(&req), db.clone()).await {
+            Ok(user) => user,
+            Err(e) => {
+                println!("EEE: {}", e);
+                return Ok(HttpResponse::BadRequest()
+                    .body("There was a problem; try a different email address."));
+            }
+        };
 
+    // Send email verification
     new_user
         .send_email_verification(
             db.clone(),

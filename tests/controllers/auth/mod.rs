@@ -1,10 +1,10 @@
 mod login;
-mod logout;
+mod signup;
 
 use actix_web::web::Data;
-use serde_json::Value;
+use serde_json::{Map, Value};
 
-use rpsump::auth::hash_user_password;
+use rpsump::auth::password::Password;
 use rpsump::database::DbPool;
 use rpsump::models::user::User;
 
@@ -14,7 +14,7 @@ const TEST_PASSWORD: &str = "testing87_*Password";
 async fn create_test_user(db_pool: Data<DbPool>) -> User {
     User::create(
         TEST_EMAIL.into(),
-        hash_user_password(TEST_PASSWORD.into()).unwrap(),
+        Password::new(TEST_PASSWORD.into()).hash().unwrap(),
         "127.0.0.1".into(),
         db_pool,
     )
@@ -22,13 +22,16 @@ async fn create_test_user(db_pool: Data<DbPool>) -> User {
     .unwrap()
 }
 
-async fn create_logged_in_user(db_pool: Data<DbPool>) {
-    let user = create_test_user(db_pool).await;
+fn signup_params() -> Map<String, Value> {
+    let mut map = user_params();
+    map.insert("confirm_password".into(), TEST_PASSWORD.into());
+    map
 }
 
-fn user_params() -> Value {
-    serde_json::json!({
-        "email": TEST_EMAIL,
-        "password": TEST_PASSWORD,
-    })
+fn user_params() -> Map<String, Value> {
+    let mut map = serde_json::Map::new();
+    map.insert("email".into(), TEST_EMAIL.into());
+    map.insert("password".into(), TEST_PASSWORD.into());
+
+    map
 }
