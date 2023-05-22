@@ -3,7 +3,7 @@ use anyhow::Error;
 use rpsump::models::user_event::UserEvent;
 use serde_json::Value;
 
-use rpsump::controllers::ErrorBody;
+use rpsump::controllers::ApiResponse;
 use rpsump::database::DbPool;
 use rpsump::models::user::User;
 use rpsump::models::user_event::EventType;
@@ -21,11 +21,11 @@ async fn login_failed_username_not_found() {
     // Act
     let response = app.post_login(&user_params()).await;
     let status = response.status();
-    let body: ErrorBody = response.json().await.unwrap();
+    let body: ApiResponse = response.json().await.unwrap();
 
     // Assert
     assert!(status.is_client_error());
-    assert_eq!(body.reason, "Invalid email or password.");
+    assert_eq!(body.message, "Invalid email or password.");
 }
 
 #[tokio::test]
@@ -40,11 +40,11 @@ async fn login_password_incorrect() {
     // Act
     let response = app.post_login(&params).await;
     let status = response.status();
-    let body: ErrorBody = response.json().await.unwrap();
+    let body: ApiResponse = response.json().await.unwrap();
 
     // Assert
     assert!(status.is_client_error());
-    assert_eq!(body.reason, "Invalid email or password.");
+    assert_eq!(body.message, "Invalid email or password.");
 }
 
 #[tokio::test]
@@ -59,11 +59,11 @@ async fn login_missing_email() {
     // Act
     let response = app.post_login(&params).await;
     let status = response.status();
-    let body: ErrorBody = response.json().await.unwrap();
+    let body: ApiResponse = response.json().await.unwrap();
 
     // Assert
     assert!(status.is_client_error());
-    assert_eq!(body.reason, "Email and password are required.");
+    assert_eq!(body.message, "Email and password are required.");
 }
 
 #[tokio::test]
@@ -78,11 +78,11 @@ async fn login_missing_password() {
     // Act
     let response = app.post_login(&params).await;
     let status = response.status();
-    let body: ErrorBody = response.json().await.unwrap();
+    let body: ApiResponse = response.json().await.unwrap();
 
     // Assert
     assert!(status.is_client_error());
-    assert_eq!(body.reason, "Email and password are required.");
+    assert_eq!(body.message, "Email and password are required.");
 }
 
 #[tokio::test]

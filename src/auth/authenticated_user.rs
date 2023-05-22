@@ -110,6 +110,6 @@ fn validate_activated_status(
     }
 }
 
-fn unauthorized_err(reason: String) -> AuthFuture {
-    Box::pin(err(actix_web::error::ErrorUnauthorized(reason)))
+fn unauthorized_err(message: String) -> AuthFuture {
+    Box::pin(err(actix_web::error::ErrorUnauthorized(message)))
 }

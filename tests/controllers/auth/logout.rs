@@ -17,7 +17,7 @@ async fn logout_success() {
 
     // Assert
     assert!(status.is_success());
-    assert_eq!(body.reason, "Password is too short.");
+    assert_eq!(body.message, "Password is too short.");
 }
 
 #[tokio::test]
@@ -32,7 +32,7 @@ async fn logout_failed_user_not_logged_in() {
 
     // Assert
     assert!(status.is_client_error());
-    assert_eq!(body.reason, "Invalid email or password.");
+    assert_eq!(body.message, "Invalid email or password.");
 }
 
 // async fn recent_login_events(record: User, db_pool: DbPool) -> Result<Vec<UserEvent>, Error> {

@@ -1,10 +1,13 @@
 use actix_identity::IdentityMiddleware;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie, dev::Server, web, web::Data, App, HttpServer};
+use actix_web::{error::ErrorBadRequest, web::JsonConfig};
 use actix_web_opentelemetry::RequestTracing;
+use serde_json::json;
 use std::sync::Arc;
 
 use crate::config::Settings;
+
 use crate::controllers::{auth::auth_routes, info::info, sump_event::sump_event};
 use crate::database::DbPool;
 use crate::middleware::rate_limiter;
@@ -78,6 +81,7 @@ impl Application {
                 .service(sump_event)
                 .service(web::scope("/auth").configure(auth_routes))
                 // Application configuration
+                .app_data(Self::json_cfg())
                 .app_data(Data::new(settings.clone()))
                 .app_data(Data::new(db_pool.clone()));
 
@@ -102,5 +106,13 @@ impl Application {
 
     pub async fn run_until_stopped(self) -> Result<(), std::io::Error> {
         self.server.await
+    }
+
+    fn json_cfg() -> JsonConfig {
+        web::JsonConfig::default().error_handler(|err, _req| {
+            ErrorBadRequest(json!({
+                "message": err.to_string()
+            }))
+        })
     }
 }

@@ -6,10 +6,9 @@ use diesel::prelude::*;
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 
-use crate::auth::claim::create_token;
-use crate::auth::{validate_credentials, AuthParams};
+use crate::auth::{claim::create_token, validate_credentials, AuthParams};
 use crate::config::Settings;
-use crate::controllers::ErrorBody;
+use crate::controllers::ApiResponse;
 use crate::database::DbPool;
 use crate::middleware::telemetry::spawn_blocking_with_tracing;
 use crate::models::user_event::*;
@@ -37,11 +36,7 @@ pub async fn login(
     let credentials: AuthParams = user_data.into_inner();
     let user = match validate_credentials(&credentials, db.clone()).await {
         Ok(user) => user,
-        Err(e) => {
-            return Ok(HttpResponse::BadRequest().json(ErrorBody {
-                reason: e.to_string(),
-            }))
-        }
+        Err(e) => return Ok(ApiResponse::bad_request(e.to_string())),
     };
 
     // Check if user is allowed to login
@@ -54,9 +49,7 @@ pub async fn login(
     )
     .await
     {
-        return Ok(HttpResponse::Unauthorized().json(ErrorBody {
-            reason: e.to_string(),
-        }));
+        return Ok(ApiResponse::unauthorized(e.to_string()));
     }
 
     // Check if password is correct
@@ -76,9 +69,7 @@ pub async fn login(
     {
         Ok(()) => (),
         Err(e) => {
-            return Ok(HttpResponse::BadRequest().json(ErrorBody {
-                reason: e.to_string(),
-            }));
+            return Ok(ApiResponse::bad_request(e.to_string()));
         }
     };
 
