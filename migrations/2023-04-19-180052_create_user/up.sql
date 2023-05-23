@@ -10,7 +10,9 @@ CREATE TABLE "user"
   password_reset_token_expires_at TEXT,
   activated BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  CONSTRAINT unique_email UNIQUE (email)
 );
 
 CREATE INDEX idx_user_on_email ON "user" (email);

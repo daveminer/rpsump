@@ -1,18 +1,18 @@
 use actix_web::{get, post, web, web::Data, HttpRequest, HttpResponse, Responder, Result};
 use diesel::RunQueryDsl;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
-use crate::auth::validate_password;
+use crate::auth::{password::Password, validate_password};
 use crate::config::Settings;
 use crate::database::{first, DbPool};
 use crate::models::user::User;
 use crate::models::user_event::{EventType, UserEvent};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Deserialize)]
 pub struct ResetPasswordParams {
     pub token: String,
-    pub new_password: String,
-    pub new_password_confirmation: String,
+    pub new_password: Password,
+    pub new_password_confirmation: Password,
 }
 
 // Request a password reset by sending an email with a reset link to the
@@ -26,7 +26,7 @@ async fn request_password_reset(
 ) -> Result<impl Responder> {
     let db_clone = db.clone();
     let db_clone_two = db.clone();
-    let user: User = match first!(User::by_email(email), User, db_clone) {
+    let user: User = match first!(User::by_email(email.clone()), User, db_clone) {
         Ok(user) => user,
         Err(_) => return Ok(password_reset_response()),
     };
@@ -61,25 +61,21 @@ async fn reset_password(
     params: web::Query<ResetPasswordParams>,
     db: Data<DbPool>,
 ) -> Result<impl Responder> {
-    let password = params.new_password.clone();
-    let password_confirmation = params.new_password_confirmation.clone();
+    //let password_confirmation = params.new_password_confirmation.clone();
+    let token_clone = params.token.clone();
 
-    if let Err(e) = validate_password(&password, &password_confirmation) {
+    if let Err(e) = validate_password(&params.new_password) {
         return Ok(HttpResponse::BadRequest().body(e.to_string()));
     }
 
     let db_clone = db.clone();
 
-    let user: User = match first!(
-        User::by_password_reset_token(params.token.clone()),
-        User,
-        db.clone()
-    ) {
+    let user: User = match first!(User::by_password_reset_token(token_clone), User, db.clone()) {
         Ok(user) => user,
         Err(_) => return Ok(HttpResponse::BadRequest().body("Invalid token.")),
     };
 
-    user.set_password(password, db_clone)
+    user.set_password(&params.new_password, db_clone)
         .await
         .expect("Could not set password.");
 

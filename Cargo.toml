@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 # Development tools
 anyhow = "1.0"
-#argon2 = "0.4.1"
 bcrypt = "0.14.0"
 chrono = "0.4.24"
 clippy = "0.0.302"
@@ -24,6 +23,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.27.0", features = ["rt-multi-thread", "macros"] }
 tokio-tungstenite = "0.18.0"
+validator = { version = "0.16.0", features = ["derive"] }
 url = "2.2.0"
 uuid = { version = "1", features = ["v4", "serde"] }
 
@@ -50,6 +50,7 @@ tonic = {version = "0.8.2", features = ["tls"]}
 tracing = "0.1.37"
 tracing-opentelemetry = "0.18"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter", "registry"] }
+
 
 [dev-dependencies]
 lazy_static = "1.4.0"

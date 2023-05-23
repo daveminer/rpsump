@@ -1,35 +1,17 @@
 use actix_web::web::Data;
 use anyhow::Error;
-use rpsump::auth::hash_user_password;
 use rpsump::models::user_event::UserEvent;
 use serde_json::Value;
 
-use rpsump::controllers::ErrorBody;
+use rpsump::controllers::ApiResponse;
 use rpsump::database::DbPool;
 use rpsump::models::user::User;
 use rpsump::models::user_event::EventType;
 
+use super::{create_test_user, user_params};
 use crate::common::test_app::spawn_app;
 
-const TEST_EMAIL: &str = "test_acct@test.local";
-const TEST_PASSWORD: &str = "testing87_*Password";
-
-#[tokio::test]
-async fn login_failed_password_too_short() {
-    // Arrange
-    let app = spawn_app().await;
-    let mut params = user_params();
-    params["password"] = "test".into();
-
-    // Act
-    let response = app.post_login(&params).await;
-    let status = response.status();
-    let body: ErrorBody = response.json().await.unwrap();
-
-    // Assert
-    assert!(status.is_client_error());
-    assert_eq!(body.reason, "Password is too short.");
-}
+//TODO: cover identity creation
 
 #[tokio::test]
 async fn login_failed_username_not_found() {
@@ -39,11 +21,11 @@ async fn login_failed_username_not_found() {
     // Act
     let response = app.post_login(&user_params()).await;
     let status = response.status();
-    let body: ErrorBody = response.json().await.unwrap();
+    let body: ApiResponse = response.json().await.unwrap();
 
     // Assert
     assert!(status.is_client_error());
-    assert_eq!(body.reason, "Invalid email or password.");
+    assert_eq!(body.message, "Invalid email or password.");
 }
 
 #[tokio::test]
@@ -58,11 +40,11 @@ async fn login_password_incorrect() {
     // Act
     let response = app.post_login(&params).await;
     let status = response.status();
-    let body: ErrorBody = response.json().await.unwrap();
+    let body: ApiResponse = response.json().await.unwrap();
 
     // Assert
     assert!(status.is_client_error());
-    assert_eq!(body.reason, "Invalid email or password.");
+    assert_eq!(body.message, "Invalid email or password.");
 }
 
 #[tokio::test]
@@ -77,11 +59,11 @@ async fn login_missing_email() {
     // Act
     let response = app.post_login(&params).await;
     let status = response.status();
-    let body: ErrorBody = response.json().await.unwrap();
+    let body: ApiResponse = response.json().await.unwrap();
 
     // Assert
     assert!(status.is_client_error());
-    assert_eq!(body.reason, "Email and password are required.");
+    assert_eq!(body.message, "Email and password are required.");
 }
 
 #[tokio::test]
@@ -96,11 +78,11 @@ async fn login_missing_password() {
     // Act
     let response = app.post_login(&params).await;
     let status = response.status();
-    let body: ErrorBody = response.json().await.unwrap();
+    let body: ApiResponse = response.json().await.unwrap();
 
     // Assert
     assert!(status.is_client_error());
-    assert_eq!(body.reason, "Email and password are required.");
+    assert_eq!(body.message, "Email and password are required.");
 }
 
 #[tokio::test]
@@ -139,17 +121,6 @@ async fn login_user_blocked() {
     assert!(body["token"].is_string());
 }
 
-async fn create_test_user(db_pool: Data<DbPool>) -> User {
-    User::create(
-        TEST_EMAIL.into(),
-        hash_user_password(TEST_PASSWORD.into()).unwrap(),
-        "127.0.0.1".into(),
-        db_pool,
-    )
-    .await
-    .unwrap()
-}
-
 async fn recent_login_events(record: User, db_pool: DbPool) -> Result<Vec<UserEvent>, Error> {
     UserEvent::recent_events(
         Some(record),
@@ -159,11 +130,4 @@ async fn recent_login_events(record: User, db_pool: DbPool) -> Result<Vec<UserEv
         actix_web::web::Data::new(db_pool),
     )
     .await
-}
-
-fn user_params() -> Value {
-    serde_json::json!({
-        "email": TEST_EMAIL,
-        "password": TEST_PASSWORD,
-    })
 }
