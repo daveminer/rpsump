@@ -1,4 +1,4 @@
-use actix_web::web;
+use actix_web::{web, web::Data};
 use anyhow::Error;
 use diesel::RunQueryDsl;
 
@@ -8,8 +8,26 @@ use rpsump::first;
 use rpsump::models::user::User;
 use rpsump::models::user_event::{EventType, UserEvent};
 
-use super::{signup_params, user_params};
+use super::{create_test_user, signup_params, user_params};
 use crate::common::test_app::spawn_app;
+
+#[tokio::test]
+async fn signup_failed_email_taken() {
+    // Arrange
+    let app = spawn_app().await;
+    let user = create_test_user(Data::new(app.db_pool.clone())).await;
+    let mut params = signup_params();
+    params["email"] = serde_json::json!(user.email);
+
+    // Act
+    let response = app.post_signup(&params).await;
+    let status = response.status();
+    let body: ApiResponse = response.json().await.unwrap();
+
+    // Assert
+    assert!(status.is_client_error());
+    assert_eq!(body.message, "Email already exists.");
+}
 
 #[tokio::test]
 async fn signup_failed_password_does_not_match() {

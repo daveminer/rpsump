@@ -48,10 +48,8 @@ pub async fn signup(
     let new_user =
         match User::create(params.email.to_string(), hash, ip_address(&req), db.clone()).await {
             Ok(user) => user,
-            Err(_e) => {
-                return Ok(ApiResponse::bad_request(
-                    "There was a problem; try a different email address.".to_string(),
-                ));
+            Err(e) => {
+                return Ok(ApiResponse::bad_request(e.to_string()));
             }
         };
 

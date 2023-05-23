@@ -2,6 +2,7 @@ use actix_web::{web, web::Data};
 use anyhow::{anyhow, Error};
 use chrono::Utc;
 use diesel::prelude::*;
+use diesel::result::{DatabaseErrorKind, Error as DieselError};
 use diesel::sqlite::Sqlite;
 use serde::{Deserialize, Serialize};
 
@@ -65,7 +66,13 @@ impl User {
                         user::email.eq(new_email.clone()),
                         user::password_hash.eq(new_password),
                     ))
-                    .get_result(conn)?;
+                    .get_result(conn)
+                    .map_err(|e| match e {
+                        DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
+                            anyhow!("Email already exists.")
+                        }
+                        _e => anyhow!("Internal server error when creating user."),
+                    })?;
 
                 let _user_event: UserEvent = diesel::insert_into(user_event::table)
                     .values((
@@ -80,11 +87,7 @@ impl User {
 
             user
         })
-        .await?
-        .map_err(|e| {
-            println!("Error creating user: {:?}", e);
-            return anyhow!("Internal server error when creating user.");
-        })?;
+        .await??;
 
         Ok(new_user)
     }
