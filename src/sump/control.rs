@@ -8,6 +8,7 @@ use crate::sump::sensor::PinState;
 
 /// Applies a state change to the high sensor by settting the pin level, creating a database event,
 /// and updating the sensor state.
+#[tracing::instrument(skip(db))]
 pub async fn update_high_sensor(
     level: Level,
     pump_control_pin: Arc<Mutex<OutputPin>>,
@@ -32,6 +33,7 @@ pub async fn update_high_sensor(
 /// Applies a state change to the low sensor similar to the high sensor. The difference is that the
 /// low sensor accepts a delay that allows the pump to run long to lower the water level enough to
 /// prevent signal bouncing.
+#[tracing::instrument(skip(db))]
 pub async fn update_low_sensor(
     level: Level,
     pump_control_pin: Arc<Mutex<OutputPin>>,

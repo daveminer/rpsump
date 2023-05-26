@@ -28,7 +28,7 @@ pub struct AuthParams {
     pub password: Secret<String>,
 }
 
-#[tracing::instrument(name = "Validate credentials", skip(credentials, pool))]
+#[tracing::instrument(skip(credentials, pool))]
 pub async fn validate_credentials(
     credentials: &AuthParams,
     pool: Data<DbPool>,
@@ -52,6 +52,7 @@ pub async fn validate_credentials(
 }
 
 // Ensure passwords adhere to safety standards
+#[tracing::instrument(skip(password))]
 pub fn validate_password(password: &Password) -> Result<(), ValidationError> {
     let secret = password.expose_secret();
     validate_password_length(password)?;
@@ -72,13 +73,10 @@ pub fn validate_password(password: &Password) -> Result<(), ValidationError> {
         return Err(ValidationError::new(PASSWORD_SPECIAL));
     }
 
-    // if secret != password_confirmation.expose_secret() {
-    //     return Err(ValidationError::new(PASSWORD_MISMATCH));
-    // }
-
     Ok(())
 }
 
+#[tracing::instrument(skip(password))]
 pub fn validate_password_length(password: &Password) -> Result<(), ValidationError> {
     let secret = password.expose_secret();
 

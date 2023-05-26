@@ -1,4 +1,4 @@
-use actix_web::{post, web, web::Data, HttpRequest, HttpResponse, Responder, Result};
+use actix_web::{post, web, web::Data, HttpRequest, Responder, Result};
 use serde::Deserialize;
 use validator::Validate;
 
@@ -22,6 +22,7 @@ pub struct SignupParams {
 }
 
 #[post("/signup")]
+#[tracing::instrument(skip(params, db, settings))]
 pub async fn signup(
     req: HttpRequest,
     params: web::Json<SignupParams>,

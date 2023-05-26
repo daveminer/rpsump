@@ -18,6 +18,7 @@ pub struct ResetPasswordParams {
 // Request a password reset by sending an email with a reset link to the
 // provided email address.
 #[post("/reset_password")]
+#[tracing::instrument(skip(email, req, db, settings))]
 async fn request_password_reset(
     email: String,
     req: HttpRequest,
@@ -57,6 +58,7 @@ fn password_reset_response() -> HttpResponse {
 
 // Use a token provided in an email to reset a user's password.
 #[get("/new_password")]
+#[tracing::instrument(skip(params, db))]
 async fn reset_password(
     params: web::Query<ResetPasswordParams>,
     db: Data<DbPool>,

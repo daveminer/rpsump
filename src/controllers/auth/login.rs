@@ -22,10 +22,7 @@ struct Response {
 }
 
 #[post("/login")]
-#[tracing::instrument(
-    skip(request, db, user_data, settings),
-    fields(email=tracing::field::Empty, password=tracing::field::Empty)
-)]
+#[tracing::instrument(skip(request, db, user_data, settings))]
 pub async fn login(
     request: HttpRequest,
     user_data: web::Json<AuthParams>,

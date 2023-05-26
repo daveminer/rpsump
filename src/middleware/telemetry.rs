@@ -32,8 +32,7 @@ pub fn init_tracer(settings: &Settings) -> Result<(), Error> {
         .with_exporter(otlp_exporter)
         .install_batch(opentelemetry::runtime::Tokio)?;
 
-    let env_filter =
-        EnvFilter::new("my_crate=debug,app=info").add_directive("my_crate::internal=off".parse()?);
+    let env_filter = EnvFilter::new("info").add_directive("my_crate::internal=off".parse()?);
 
     Registry::default()
         // Uncomment to output tracing debug logs to terminal

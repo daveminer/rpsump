@@ -5,7 +5,7 @@ use actix_web::error;
 use actix_web::{get, web, web::Data, HttpResponse, Responder, Result};
 use diesel::RunQueryDsl;
 
-#[get("/sump_event")]
+//#[get("/sump_event")]
 async fn sump_event(
     _req_body: String,
     db: Data<DbPool>,

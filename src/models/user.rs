@@ -51,6 +51,7 @@ impl User {
             .into_boxed()
     }
 
+    #[tracing::instrument(name = "Create user", skip(new_email, new_password, db))]
     pub async fn create(
         new_email: String,
         new_password: String,
@@ -92,6 +93,7 @@ impl User {
         Ok(new_user)
     }
 
+    #[tracing::instrument(skip(self, password, db))]
     pub async fn set_password(self, password: &Password, db: Data<DbPool>) -> Result<(), Error> {
         let hash = password.hash()?;
         let _row_updated = web::block(move || {
@@ -108,6 +110,7 @@ impl User {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self, token, db))]
     pub async fn save_reset_token(self, token: Token, db: Data<DbPool>) -> Result<(), Error> {
         let _row_updated = web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
@@ -126,6 +129,7 @@ impl User {
         Ok(())
     }
 
+    #[tracing::instrument(skip(user_email, token, db))]
     pub async fn save_email_verification_token(
         user_email: String,
         token: Token,
@@ -148,6 +152,7 @@ impl User {
         Ok(())
     }
 
+    #[tracing::instrument(skip(token, db))]
     pub async fn verify_email(token: String, db: web::Data<DbPool>) -> Result<(), Error> {
         let _result = web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
@@ -182,6 +187,7 @@ impl User {
         Ok(())
     }
 
+    #[tracing::instrument]
     fn check_email_verification_expiry(expires_at: Option<String>) -> Result<(), Error> {
         let expires_at = expires_at
             .ok_or_else(|| anyhow!("Invalid token."))?

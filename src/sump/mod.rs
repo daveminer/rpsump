@@ -89,6 +89,7 @@ impl Sump {
     }
 }
 
+#[tracing::instrument]
 pub fn spawn_reporting_thread(
     sensor_state: SharedPinState,
     interval_seconds: u64,

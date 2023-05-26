@@ -45,6 +45,7 @@ impl Display for EventType {
 }
 
 impl UserEvent {
+    #[tracing::instrument(skip(request_user, db))]
     pub async fn check_allowed_status(
         request_user: Option<User>,
         ip_addr: String,
@@ -105,6 +106,7 @@ impl UserEvent {
         Ok(())
     }
 
+    #[tracing::instrument(skip(request_user, db))]
     pub async fn recent_events(
         request_user: Option<User>,
         ip_addr: Option<String>,
@@ -137,6 +139,7 @@ impl UserEvent {
         .map_err(|_| anyhow!("Internal server error when getting recent user signups."))
     }
 
+    #[tracing::instrument(skip(request_user, db))]
     pub async fn create(
         request_user: User,
         request_ip_address: String,

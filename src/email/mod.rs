@@ -21,6 +21,7 @@ struct Contact {
 }
 
 impl User {
+    #[tracing::instrument(name = "Send email verification", skip(self, db, server_url, auth_token), fields(user_id = self.id))]
     pub async fn send_email_verification(
         self,
         db: actix_web::web::Data<DbPool>,
@@ -30,6 +31,7 @@ impl User {
         sendinblue::send_email_verification(self, db, server_url, auth_token).await
     }
 
+    #[tracing::instrument(name = "Send password reset", skip(self, db, server_url, auth_token), fields(user_id = self.id))]
     pub async fn send_password_reset(
         self,
         db: actix_web::web::Data<DbPool>,

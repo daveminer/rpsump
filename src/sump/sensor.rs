@@ -46,6 +46,7 @@ where
     }
 }
 
+#[tracing::instrument(skip(db))]
 pub fn listen_to_high_sensor(
     high_sensor_pin: SharedInputPin,
     pump_control_pin: SharedOutputPin,
@@ -86,6 +87,7 @@ pub fn listen_to_high_sensor(
     .expect("Could not not listen on high water level sump pin");
 }
 
+#[tracing::instrument(skip(db))]
 pub fn listen_to_low_sensor(
     low_sensor_pin: SharedInputPin,
     pump_control_pin: SharedOutputPin,

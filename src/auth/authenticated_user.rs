@@ -24,6 +24,7 @@ impl FromRequest for AuthenticatedUser {
     type Error = Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self, Self::Error>>>>;
 
+    #[tracing::instrument(skip(req, _payload))]
     fn from_request(req: &HttpRequest, _payload: &mut dev::Payload) -> Self::Future {
         let auth_header = req.headers().get("Authorization");
         let user = match user_from_token(auth_header, settings(req)) {
