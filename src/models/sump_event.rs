@@ -1,11 +1,13 @@
 use actix_web::web;
 use anyhow::{anyhow, Error};
+use chrono::{DateTime, Utc};
 use diesel::backend::Backend;
 use diesel::dsl::*;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::database::DbPool;
+use crate::models::rfc3339;
 use crate::schema::sump_event;
 use crate::schema::sump_event::*;
 
@@ -15,7 +17,8 @@ pub struct SumpEvent {
     pub id: i32,
     pub kind: String,
     pub info: String,
-    pub created_at: String,
+    #[serde(with = "rfc3339")]
+    pub created_at: DateTime<Utc>,
 }
 
 impl SumpEvent {

@@ -9,7 +9,7 @@ edition = "2021"
 # Development tools
 anyhow = "1.0"
 bcrypt = "0.14.0"
-chrono = "0.4.24"
+chrono = { version = "0.4.24", features = ["serde"] }
 clippy = "0.0.302"
 ctrlc = "3.2.5"
 dotenv = "0.15.0"
@@ -37,7 +37,7 @@ actix-web = "4.3.1"
 rppal = "0.14.1"
 
 # Database
-diesel = { version = "2.0.3", features = ["r2d2", "returning_clauses_for_sqlite_3_35", "sqlite"] }
+diesel = { version = "2.0.3", features = ["chrono", "r2d2", "returning_clauses_for_sqlite_3_35", "sqlite"] }
 diesel-derive-enum = { version = "2.0.1", features = ["sqlite"] }
 diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
 

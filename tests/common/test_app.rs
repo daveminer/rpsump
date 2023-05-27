@@ -37,6 +37,12 @@ static TEST_DB_TEMPLATE: Lazy<TempDir> = Lazy::new(|| {
 });
 
 impl TestApp {
+    pub async fn get_email_verification(&self, token: String) -> reqwest::Response
+    {
+        self.api_client.get(&format!("{}/auth/verify_email?token={}", &self.address, token)).send().await
+            .expect("Failed to execute request.")
+    }
+
     pub async fn post_login<Body>(&self, body: &Body) -> reqwest::Response
     where
         Body: serde::Serialize,

@@ -3,7 +3,7 @@ CREATE TABLE "sump_event"
   id INTEGER PRIMARY KEY NOT NULL,
   kind TEXT NOT NULL,
   info TEXT NOT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_sump_event_on_created_at ON sump_event (created_at);

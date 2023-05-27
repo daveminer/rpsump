@@ -1,5 +1,6 @@
 use actix_web::{web, web::Data};
 use anyhow::{anyhow, Error};
+use chrono::{DateTime, Utc};
 use diesel::prelude::*;
 use diesel::AsExpression;
 use diesel_derive_enum::DbEnum;
@@ -8,7 +9,7 @@ use std::collections::HashMap;
 use std::fmt::Display;
 
 use crate::database::DbPool;
-use crate::models::user::User;
+use crate::models::{rfc3339, user::User};
 use crate::schema::user_event;
 use crate::schema::user_event::dsl::*;
 
@@ -19,13 +20,16 @@ pub struct UserEvent {
     pub user_id: i32,
     pub event_type: String,
     pub ip_address: String,
-    pub created_at: String,
+    #[serde(with = "rfc3339")]
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Clone, Debug, DbEnum, AsExpression, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[diesel(sql_type = diesel::sql_types::Text)]
 pub enum EventType {
     FailedLogin,
+    LockedLogin,
     Login,
     Logout,
     PasswordReset,
@@ -36,6 +40,7 @@ impl Display for EventType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             EventType::FailedLogin => write!(f, "failed_login"),
+            EventType::LockedLogin => write!(f, "locked_login"),
             EventType::Login => write!(f, "login"),
             EventType::Logout => write!(f, "logout"),
             EventType::PasswordReset => write!(f, "password_reset"),
@@ -152,7 +157,7 @@ impl UserEvent {
             diesel::insert_into(user_event::table)
                 .values((
                     user_id.eq(request_user.id),
-                    event_type.eq(user_event_type.to_string()),
+                    //event_type.eq(user_event_type.to_string()),
                     ip_address.eq(request_ip_address),
                 ))
                 .get_result(&mut conn)

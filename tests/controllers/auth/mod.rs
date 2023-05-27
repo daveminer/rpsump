@@ -1,3 +1,4 @@
+mod email_verification;
 mod login;
 mod signup;
 

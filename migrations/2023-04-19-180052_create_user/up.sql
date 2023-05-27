@@ -3,14 +3,14 @@ CREATE TABLE "user"
   id INTEGER PRIMARY KEY NOT NULL,
   email TEXT NOT NULL,
   email_verification_token TEXT,
-  email_verification_token_expires_at TIMESTAMP,
-  email_verified_at TIMESTAMP,
+  email_verification_token_expires_at DATETIME,
+  email_verified_at TEXT,
   password_hash TEXT NOT NULL,
   password_reset_token TEXT,
-  password_reset_token_expires_at TEXT,
+  password_reset_token_expires_at DATETIME,
   activated BOOLEAN NOT NULL DEFAULT FALSE,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
   CONSTRAINT unique_email UNIQUE (email)
 );
