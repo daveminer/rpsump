@@ -1,6 +1,6 @@
 use actix_web::{web, web::Data};
 use anyhow::{anyhow, Error};
-use chrono::{DateTime, Utc};
+use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use diesel::AsExpression;
 use diesel_derive_enum::DbEnum;
@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::fmt::Display;
 
 use crate::database::DbPool;
-use crate::models::{rfc3339, user::User};
+use crate::models::user::User;
 use crate::schema::user_event;
 use crate::schema::user_event::dsl::*;
 
@@ -20,8 +20,7 @@ pub struct UserEvent {
     pub user_id: i32,
     pub event_type: String,
     pub ip_address: String,
-    #[serde(with = "rfc3339")]
-    pub created_at: DateTime<Utc>,
+    pub created_at: NaiveDateTime,
 }
 
 #[derive(Clone, Debug, DbEnum, AsExpression, Serialize, Deserialize)]

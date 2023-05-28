@@ -4,7 +4,7 @@ CREATE TABLE "user"
   email TEXT NOT NULL,
   email_verification_token TEXT,
   email_verification_token_expires_at DATETIME,
-  email_verified_at TEXT,
+  email_verified_at DATETIME,
   password_hash TEXT NOT NULL,
   password_reset_token TEXT,
   password_reset_token_expires_at DATETIME,

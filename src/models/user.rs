@@ -1,17 +1,13 @@
 use actix_web::{web, web::Data};
 use anyhow::{anyhow, Error};
-use chrono::{DateTime, Utc};
-use diesel::prelude::*;
+use chrono::{NaiveDateTime, Utc};
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
-use diesel::sqlite::Sqlite;
+use diesel::{prelude::*, sqlite::Sqlite};
 use serde::{Deserialize, Serialize};
 
 use crate::auth::{password::Password, token::Token};
 use crate::database::DbPool;
-use crate::models::{
-    rfc3339,
-    user_event::{EventType, UserEvent},
-};
+use crate::models::user_event::{EventType, UserEvent};
 use crate::schema::{user, user_event};
 
 #[derive(Clone, Debug, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
@@ -20,18 +16,14 @@ pub struct User {
     pub id: i32,
     pub email: String,
     pub email_verification_token: Option<String>,
-    #[serde(with = "rfc3339::option")]
-    pub email_verification_token_expires_at: Option<DateTime<Utc>>,
-    #[serde(with = "rfc3339::option")]
-    pub email_verified_at: Option<DateTime<Utc>>,
+    pub email_verification_token_expires_at: Option<NaiveDateTime>,
+    pub email_verified_at: Option<NaiveDateTime>,
     pub password_hash: String,
     pub password_reset_token: Option<String>,
-    pub password_reset_token_expires_at: Option<String>,
+    pub password_reset_token_expires_at: Option<NaiveDateTime>,
     pub activated: bool,
-    #[serde(with = "rfc3339")]
-    pub created_at: DateTime<Utc>,
-    #[serde(with = "rfc3339")]
-    pub updated_at: DateTime<Utc>,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 type BoxedQuery<'a> = user::BoxedQuery<'a, Sqlite, user::SqlType>;
@@ -145,8 +137,6 @@ impl User {
         let _row_updated = web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 
-            println!("EXPIRRR: {}", token.expires_at.to_string());
-
             diesel::update(user::table)
                 .filter(user::email.eq(user_email))
                 .set((
@@ -204,10 +194,10 @@ impl User {
     }
 
     #[tracing::instrument]
-    fn check_email_verification_expiry(expires_at: Option<DateTime<Utc>>) -> Result<(), Error> {
+    fn check_email_verification_expiry(expires_at: Option<NaiveDateTime>) -> Result<(), Error> {
         match expires_at {
             Some(expires_at) => {
-                if expires_at <= Utc::now() {
+                if expires_at <= Utc::now().naive_utc() {
                     return Err(anyhow!("Token expired."));
                 }
 

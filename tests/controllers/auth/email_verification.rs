@@ -1,6 +1,6 @@
 use actix_web::web;
 use anyhow::Error;
-use chrono::DateTime<Utc>;
+use chrono::NaiveDateTime;
 use chrono::{DateTime, Duration, Utc};
 
 use diesel::ExpressionMethods;
@@ -36,8 +36,6 @@ async fn email_verification_token_expired() {
     .unwrap();
 
     let token_expiry = user.email_verification_token_expires_at.unwrap();
-    let expiry_string = DateTime<Utc>::parse_from_str(&token_expiry, "").unwrap();
-
     let yesterday = token_expiry - Duration::days(1);
     let _ = set_email_verification_expiry(user.email, yesterday, db_pool.get().unwrap()).await;
 
@@ -49,7 +47,7 @@ async fn email_verification_token_expired() {
 
     // Assert
     assert!(email_verif_status.is_client_error());
-    assert!(body.message == "Invalid token.");
+    assert!(body.message == "Token expired.");
 }
 
 #[tokio::test]
@@ -121,7 +119,7 @@ async fn email_verification_failed_no_token() {
 
 async fn set_email_verification_expiry(
     email: String,
-    time: DateTime<Utc>,
+    time: NaiveDateTime,
     mut conn: DbConn,
 ) -> Result<usize, anyhow::Error> {
     diesel::update(user::table)
