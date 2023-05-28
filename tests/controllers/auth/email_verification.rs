@@ -1,10 +1,8 @@
 use actix_web::web;
 use anyhow::Error;
-use chrono::NaiveDateTime;
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, NaiveDateTime};
 
-use diesel::ExpressionMethods;
-use diesel::RunQueryDsl;
+use diesel::{ExpressionMethods, RunQueryDsl};
 
 use rpsump::auth::token::Token;
 use rpsump::controllers::ApiResponse;
@@ -92,30 +90,30 @@ async fn email_verification_failed_no_token() {
 }
 
 // TODO: test email
-// #[tokio::test]
-// async fn email_verification_succeeded() {
-//     // Arrange
-//     let app = spawn_app().await;
-//     let db_pool = app.db_pool.clone();
-//     let params = signup_params();
+#[tokio::test]
+async fn email_verification_succeeded() {
+    // Arrange
+    let app = spawn_app().await;
+    let db_pool = app.db_pool.clone();
+    let params = signup_params();
 
-//     // Act
-//     let response = app.post_signup(&params).await;
-//     let status = response.status();
-//     assert!(status.is_success());
+    // Act
+    let response = app.post_signup(&params).await;
+    let status = response.status();
+    assert!(status.is_success());
 
-//     let token = token_for_email(params["email"].as_str().unwrap().to_string(), db_pool)
-//         .await
-//         .unwrap();
+    let token = token_for_email(params["email"].as_str().unwrap().to_string(), db_pool)
+        .await
+        .unwrap();
 
-//     let email_verif_response = app.get_email_verification(token).await;
-//     let email_verif_status = email_verif_response.status();
-//     let body: ApiResponse = email_verif_response.json().await.unwrap();
+    let email_verif_response = app.get_email_verification(token).await;
+    let email_verif_status = email_verif_response.status();
+    let body: ApiResponse = email_verif_response.json().await.unwrap();
 
-//     // Assert
-//     assert!(email_verif_status.is_success());
-//     assert!(body.message == "Email verified.");
-// }
+    // Assert
+    assert!(email_verif_status.is_success());
+    assert!(body.message == "Email verified.");
+}
 
 async fn set_email_verification_expiry(
     email: String,
