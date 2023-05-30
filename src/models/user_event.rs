@@ -156,13 +156,14 @@ impl UserEvent {
             diesel::insert_into(user_event::table)
                 .values((
                     user_id.eq(request_user.id),
-                    //event_type.eq(user_event_type.to_string()),
+                    event_type.eq(user_event_type.to_string()),
                     ip_address.eq(request_ip_address),
                 ))
                 .get_result(&mut conn)
         })
         .await?
-        .map_err(|_| anyhow!("Internal server error when creating user event."))?;
+        // TODO: log this error
+        .map_err(|_e| anyhow!("Internal server error when creating user event."))?;
 
         Ok(new_user_event)
     }

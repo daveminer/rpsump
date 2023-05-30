@@ -8,7 +8,7 @@ pub struct Settings {
     pub console: ConsoleConfig,
     pub database_url: String,
     pub jwt_secret: String,
-    pub mailer_auth_token: String,
+    pub mailer: MailerConfig,
     pub rate_limiter: ThrottleConfig,
     pub server: ServerConfig,
     pub sump: Option<SumpConfig>,
@@ -19,6 +19,12 @@ pub struct Settings {
 #[derive(Clone, Debug, Deserialize)]
 pub struct ConsoleConfig {
     pub report_freq_secs: u64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct MailerConfig {
+    pub auth_token: String,
+    pub server_url: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -72,7 +78,10 @@ impl Settings {
             },
             database_url,
             jwt_secret,
-            mailer_auth_token,
+            mailer: MailerConfig {
+                auth_token: Self::load_system_env("MAILER_AUTH_TOKEN"),
+                server_url: Self::load_system_env("MAILER_SERVER_URL"),
+            },
             rate_limiter: ThrottleConfig {
                 per_second: env::var("RATE_LIMIT_PER_SECOND")
                     .unwrap_or_else(|_| "2".to_string())

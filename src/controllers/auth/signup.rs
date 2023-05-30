@@ -58,8 +58,9 @@ pub async fn signup(
     match new_user
         .send_email_verification(
             db.clone(),
-            req.connection_info().host().to_string(),
-            settings.mailer_auth_token.clone(),
+            &settings.mailer.server_url,
+            req.connection_info().host(),
+            &settings.mailer.auth_token.clone(),
         )
         .await
     {

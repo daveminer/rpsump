@@ -10,6 +10,7 @@ pub fn auth_routes(cfg: &mut ServiceConfig) {
     cfg.service(email_verification::verify_email);
     cfg.service(login::login);
     cfg.service(reset_password::reset_password);
+    cfg.service(reset_password::request_password_reset);
     cfg.service(signup::signup);
 }
 

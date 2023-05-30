@@ -1,8 +1,10 @@
 use once_cell::sync::Lazy;
+use rpsump::email;
 use rusqlite::{Connection, OpenFlags};
 use std::fs::copy;
 use tempfile::TempDir;
 use uuid::Uuid;
+use wiremock::MockServer;
 
 use rpsump::config::Settings;
 use rpsump::database::{new_pool, DbPool};
@@ -12,10 +14,15 @@ pub struct TestApp {
     pub address: String,
     pub port: u16,
     pub db_pool: DbPool,
-    //pub email_server: MockServer,
+    pub email_server: MockServer,
     //pub test_user: TestUser,
     pub api_client: reqwest::Client,
     //pub email_client: EmailClient,
+}
+
+struct PasswordResetLink {
+    pub html: reqwest::Url,
+    pub plain_text: reqwest::Url,
 }
 
 const DB_TEMPLATE_FILE: &str = "test.db";
@@ -37,9 +44,14 @@ static TEST_DB_TEMPLATE: Lazy<TempDir> = Lazy::new(|| {
 });
 
 impl TestApp {
-    pub async fn get_email_verification(&self, token: String) -> reqwest::Response
-    {
-        self.api_client.get(&format!("{}/auth/verify_email?token={}", &self.address, token)).send().await
+    pub async fn get_email_verification(&self, token: String) -> reqwest::Response {
+        self.api_client
+            .get(&format!(
+                "{}/auth/verify_email?token={}",
+                &self.address, token
+            ))
+            .send()
+            .await
             .expect("Failed to execute request.")
     }
 
@@ -49,6 +61,30 @@ impl TestApp {
     {
         self.api_client
             .post(&format!("{}/auth/login", &self.address))
+            .json(body)
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+
+    pub async fn post_password_reset<Body>(&self, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+    {
+        self.api_client
+            .post(&format!("{}/auth/reset_password?token", &self.address))
+            .json(body)
+            .send()
+            .await
+            .expect("Failed to execute request.")
+    }
+
+    pub async fn post_request_password_reset<Body>(&self, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+    {
+        self.api_client
+            .post(&format!("{}/auth/request_password_reset", &self.address))
             .json(body)
             .send()
             .await
@@ -89,9 +125,13 @@ pub fn spawn_test_db() -> String {
 }
 
 pub async fn spawn_app() -> TestApp {
+    let email_server = MockServer::start().await;
+
     let mut settings = Settings::new();
     settings.database_url = spawn_test_db();
     settings.server.port = 0;
+
+    settings.mailer.server_url = email_server.uri();
 
     let db_pool = new_pool(&spawn_test_db());
     let application = Application::build(settings, db_pool.clone());
@@ -108,7 +148,7 @@ pub async fn spawn_app() -> TestApp {
         address: format!("http://localhost:{}", port),
         port: port,
         db_pool: db_pool.clone(),
-        //email_server,
+        email_server,
         //test_user: TestUser::generate(),
         api_client: client,
         //email_client: configuration.email_client.client(),

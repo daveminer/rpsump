@@ -1,5 +1,6 @@
 mod email_verification;
 mod login;
+mod reset_password;
 mod signup;
 
 use actix_web::web::Data;
@@ -21,6 +22,14 @@ async fn create_test_user(db_pool: Data<DbPool>) -> User {
     )
     .await
     .unwrap()
+}
+
+fn password_reset_params(token: String, new_password: String) -> Map<String, Value> {
+    let mut map = serde_json::Map::new();
+    map.insert("token".into(), token.into());
+    map.insert("new_password".into(), new_password.clone().into());
+    map.insert("new_password_confirmation".into(), new_password.into());
+    map
 }
 
 fn signup_params() -> Map<String, Value> {
