@@ -1,3 +1,4 @@
+use actix_web::HttpResponse;
 use serde::{Deserialize, Serialize};
 
 pub mod auth;
@@ -10,21 +11,21 @@ pub struct ApiResponse {
 }
 
 impl ApiResponse {
-    pub fn bad_request(message: String) -> actix_web::HttpResponse {
-        actix_web::HttpResponse::BadRequest().json(Self { message })
+    pub fn bad_request(message: String) -> HttpResponse {
+        HttpResponse::BadRequest().json(Self { message })
     }
 
-    pub fn internal_server_error() -> actix_web::HttpResponse {
-        actix_web::HttpResponse::InternalServerError().json(Self {
+    pub fn internal_server_error() -> HttpResponse {
+        HttpResponse::InternalServerError().json(Self {
             message: "Internal server error".to_string(),
         })
     }
 
-    pub fn ok(message: String) -> actix_web::HttpResponse {
-        actix_web::HttpResponse::Ok().json(Self { message })
+    pub fn ok(message: String) -> HttpResponse {
+        HttpResponse::Ok().json(Self { message })
     }
 
-    pub fn unauthorized(message: String) -> actix_web::HttpResponse {
-        actix_web::HttpResponse::Unauthorized().json(Self { message })
+    pub fn unauthorized(message: String) -> HttpResponse {
+        HttpResponse::Unauthorized().json(Self { message })
     }
 }

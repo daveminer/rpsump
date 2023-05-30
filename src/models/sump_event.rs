@@ -1,5 +1,6 @@
 use actix_web::web;
 use anyhow::{anyhow, Error};
+use chrono::NaiveDateTime;
 use diesel::backend::Backend;
 use diesel::dsl::*;
 use diesel::prelude::*;
@@ -15,7 +16,7 @@ pub struct SumpEvent {
     pub id: i32,
     pub kind: String,
     pub info: String,
-    pub created_at: String,
+    pub created_at: NaiveDateTime,
 }
 
 impl SumpEvent {

@@ -1,5 +1,6 @@
 use actix_web::{web, web::Data};
 use anyhow::{anyhow, Error};
+use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use diesel::AsExpression;
 use diesel_derive_enum::DbEnum;
@@ -19,13 +20,15 @@ pub struct UserEvent {
     pub user_id: i32,
     pub event_type: String,
     pub ip_address: String,
-    pub created_at: String,
+    pub created_at: NaiveDateTime,
 }
 
 #[derive(Clone, Debug, DbEnum, AsExpression, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[diesel(sql_type = diesel::sql_types::Text)]
 pub enum EventType {
     FailedLogin,
+    LockedLogin,
     Login,
     Logout,
     PasswordReset,
@@ -36,6 +39,7 @@ impl Display for EventType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             EventType::FailedLogin => write!(f, "failed_login"),
+            EventType::LockedLogin => write!(f, "locked_login"),
             EventType::Login => write!(f, "login"),
             EventType::Logout => write!(f, "logout"),
             EventType::PasswordReset => write!(f, "password_reset"),
@@ -158,7 +162,8 @@ impl UserEvent {
                 .get_result(&mut conn)
         })
         .await?
-        .map_err(|_| anyhow!("Internal server error when creating user event."))?;
+        // TODO: log this error
+        .map_err(|_e| anyhow!("Internal server error when creating user event."))?;
 
         Ok(new_user_event)
     }

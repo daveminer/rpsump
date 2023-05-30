@@ -25,19 +25,21 @@ impl User {
     pub async fn send_email_verification(
         self,
         db: actix_web::web::Data<DbPool>,
-        server_url: String,
-        auth_token: String,
+        mailer_url: &str,
+        server_url: &str,
+        auth_token: &str,
     ) -> Result<(), anyhow::Error> {
-        sendinblue::send_email_verification(self, db, server_url, auth_token).await
+        sendinblue::send_email_verification(self, db, mailer_url, server_url, auth_token).await
     }
 
     #[tracing::instrument(name = "Send password reset", skip(self, db, server_url, auth_token), fields(user_id = self.id))]
     pub async fn send_password_reset(
         self,
         db: actix_web::web::Data<DbPool>,
-        server_url: String,
-        auth_token: String,
+        mailer_url: &str,
+        server_url: &str,
+        auth_token: &str,
     ) -> Result<(), anyhow::Error> {
-        sendinblue::send_password_reset(self, db, server_url, auth_token).await
+        sendinblue::send_password_reset(self, db, mailer_url, server_url, auth_token).await
     }
 }

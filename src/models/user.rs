@@ -1,9 +1,8 @@
 use actix_web::{web, web::Data};
 use anyhow::{anyhow, Error};
-use chrono::Utc;
-use diesel::prelude::*;
+use chrono::{NaiveDateTime, Utc};
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
-use diesel::sqlite::Sqlite;
+use diesel::{prelude::*, sqlite::Sqlite};
 use serde::{Deserialize, Serialize};
 
 use crate::auth::{password::Password, token::Token};
@@ -17,14 +16,14 @@ pub struct User {
     pub id: i32,
     pub email: String,
     pub email_verification_token: Option<String>,
-    pub email_verification_token_expires_at: Option<String>,
-    pub email_verified_at: Option<String>,
+    pub email_verification_token_expires_at: Option<NaiveDateTime>,
+    pub email_verified_at: Option<NaiveDateTime>,
     pub password_hash: String,
     pub password_reset_token: Option<String>,
-    pub password_reset_token_expires_at: Option<String>,
+    pub password_reset_token_expires_at: Option<NaiveDateTime>,
     pub activated: bool,
-    pub created_at: String,
-    pub updated_at: String,
+    pub created_at: NaiveDateTime,
+    pub updated_at: NaiveDateTime,
 }
 
 type BoxedQuery<'a> = user::BoxedQuery<'a, Sqlite, user::SqlType>;
@@ -142,7 +141,7 @@ impl User {
                 .filter(user::email.eq(user_email))
                 .set((
                     user::email_verification_token.eq(token.value),
-                    user::email_verification_token_expires_at.eq(token.expires_at.to_string()),
+                    user::email_verification_token_expires_at.eq(Some(token.expires_at)),
                 ))
                 .execute(&mut conn)
         })
@@ -157,9 +156,16 @@ impl User {
         let _result = web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 
-            let user_from_token = Self::by_email_verification_token(token.clone())
-                .first::<User>(&mut conn)
-                .map_err(|_| anyhow!("Invalid token."))?;
+            let user_from_token =
+                match Self::by_email_verification_token(token.clone()).first::<User>(&mut conn) {
+                    Ok(user) => user,
+                    Err(DieselError::NotFound) => {
+                        return Err(anyhow!("Invalid token."));
+                    }
+                    Err(_e) => {
+                        return Err(anyhow!("Internal server error when verifying email."));
+                    }
+                };
 
             if user_from_token.email_verified_at.is_some() {
                 return Err(anyhow!("Email already verified."));
@@ -171,7 +177,7 @@ impl User {
                 return Err(e);
             }
 
-            diesel::update(user::table)
+            let _row_update_count = diesel::update(user::table)
                 .filter(user::email_verification_token.eq(token))
                 .set((
                     user::email_verification_token.eq(None::<String>),
@@ -182,22 +188,22 @@ impl User {
 
             Ok(())
         })
-        .await?;
+        .await??;
 
         Ok(())
     }
 
     #[tracing::instrument]
-    fn check_email_verification_expiry(expires_at: Option<String>) -> Result<(), Error> {
-        let expires_at = expires_at
-            .ok_or_else(|| anyhow!("Invalid token."))?
-            .parse::<chrono::DateTime<chrono::Utc>>()
-            .map_err(|_| anyhow!("Invalid token."))?;
+    fn check_email_verification_expiry(expires_at: Option<NaiveDateTime>) -> Result<(), Error> {
+        match expires_at {
+            Some(expires_at) => {
+                if expires_at <= Utc::now().naive_utc() {
+                    return Err(anyhow!("Token expired."));
+                }
 
-        if expires_at <= Utc::now() {
-            return Err(anyhow!("Token expired."));
+                return Ok(());
+            }
+            None => return Err(anyhow!("Invalid token.")),
         }
-
-        Ok(())
     }
 }

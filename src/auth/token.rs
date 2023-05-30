@@ -1,4 +1,4 @@
-use chrono::{DateTime, Duration, Utc};
+use chrono::{Duration, NaiveDateTime, Utc};
 use rand::{distributions::Alphanumeric, Rng};
 
 const EMAIL_CONFIRM_TOKEN_VALIDITY_DURATION: i64 = 3600 * 24;
@@ -9,7 +9,7 @@ const TOKEN_LENGTH: usize = 32;
 pub struct Token {
     pub value: String,
     pub user_id: i32,
-    pub expires_at: DateTime<Utc>,
+    pub expires_at: NaiveDateTime,
 }
 
 impl Token {
@@ -22,7 +22,7 @@ impl Token {
     }
 
     fn new_token(user_id: i32, duration: i64) -> Self {
-        let now = Utc::now();
+        let now = Utc::now().naive_utc();
         let expires_at = now + Duration::seconds(duration);
         let value: String = rand::thread_rng()
             .sample_iter(&Alphanumeric)

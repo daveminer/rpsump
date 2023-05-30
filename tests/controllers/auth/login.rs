@@ -11,8 +11,6 @@ use rpsump::models::user_event::EventType;
 use super::{create_test_user, user_params};
 use crate::common::test_app::spawn_app;
 
-//TODO: cover identity creation
-
 #[tokio::test]
 async fn login_failed_username_not_found() {
     // Arrange
