@@ -59,7 +59,6 @@ impl Settings {
 
         let database_url = Self::load_system_env("DATABASE_URL");
         let jwt_secret = Self::load_system_env("JWT_SECRET");
-        let mailer_auth_token = Self::load_system_env("MAILER_AUTH_TOKEN");
         let server_host = Self::load_system_env("SERVER_HOST");
         let server_port: u16 = Self::load_system_env("SERVER_PORT")
             .parse()

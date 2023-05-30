@@ -1,5 +1,4 @@
 use once_cell::sync::Lazy;
-use rpsump::email;
 use rusqlite::{Connection, OpenFlags};
 use std::fs::copy;
 use tempfile::TempDir;
@@ -18,11 +17,6 @@ pub struct TestApp {
     //pub test_user: TestUser,
     pub api_client: reqwest::Client,
     //pub email_client: EmailClient,
-}
-
-struct PasswordResetLink {
-    pub html: reqwest::Url,
-    pub plain_text: reqwest::Url,
 }
 
 const DB_TEMPLATE_FILE: &str = "test.db";

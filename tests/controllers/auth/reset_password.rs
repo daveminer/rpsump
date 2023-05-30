@@ -1,14 +1,115 @@
+use actix_web::web;
+use anyhow::Error;
+use chrono::{Duration, Utc};
+use diesel::RunQueryDsl;
+use rpsump::database::DbPool;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
 
+use rpsump::auth::token::Token;
 use rpsump::controllers::ApiResponse;
+use rpsump::first;
+use rpsump::models::user::User;
 
 use super::signup_params;
-use crate::common::test_app::spawn_app;
+use crate::common::test_app::{spawn_app, TestApp};
 use crate::controllers::{auth::password_reset_params, param_from_email_text};
+
+const NEW_PASSWORD: &str = "new_%Password53";
+const INVALID_NEW_PASSWORD: &str = "123";
 
 #[tokio::test]
 async fn reset_password_success() {
+    let (app, params) = signup_and_request_password_reset().await;
+    let token = get_token_from_email(&app).await;
+
+    // Validate the reset password response
+    let reset_response = app
+        .post_password_reset(&password_reset_params(token, NEW_PASSWORD.into()))
+        .await;
+    assert!(reset_response.status().is_success());
+    let reset_body: ApiResponse = reset_response.json().await.unwrap();
+    assert!(reset_body.message == "Password reset successfully.");
+
+    // Try to log in with the old password
+    let stale_login_response = app.post_login(&params).await;
+    assert!(stale_login_response.status().is_client_error());
+
+    // Log in with the new password
+    let mut new_login_params = serde_json::Map::new();
+    new_login_params.insert("email".into(), params["email"].as_str().unwrap().into());
+    new_login_params.insert("password".into(), NEW_PASSWORD.into());
+
+    let new_login_response = app.post_login(&new_login_params).await;
+    assert!(new_login_response.status().is_success());
+}
+
+#[tokio::test]
+async fn reset_password_failed_invalid_token() {
+    let (app, _params) = signup_and_request_password_reset().await;
+
+    // Validate the reset password response
+    let reset_response = app
+        .post_password_reset(&password_reset_params(
+            "wrong_token".into(),
+            NEW_PASSWORD.into(),
+        ))
+        .await;
+
+    assert!(reset_response.status().is_client_error());
+    let reset_body: ApiResponse = reset_response.json().await.unwrap();
+    assert!(reset_body.message == "Invalid token.");
+}
+
+#[tokio::test]
+async fn reset_password_failed_invalid_password() {
+    let (app, _params) = signup_and_request_password_reset().await;
+    let token = get_token_from_email(&app).await;
+
+    // Validate the reset password response
+    let reset_response = app
+        .post_password_reset(&password_reset_params(token, INVALID_NEW_PASSWORD.into()))
+        .await;
+
+    assert!(reset_response.status().is_client_error());
+    let reset_body: ApiResponse = reset_response.json().await.unwrap();
+    assert!(reset_body.message == "Validation error: Password is too short. [{}]");
+}
+
+#[tokio::test]
+async fn reset_password_failed_token_expired() {
+    let (app, _params) = signup_and_request_password_reset().await;
+    let token = get_token_from_email(&app).await;
+
+    let db_pool = app.db_pool.clone();
+    let user = user_from_token(db_pool, token.clone()).await.unwrap();
+
+    let expired_token = Token {
+        user_id: user.id,
+        expires_at: Utc::now().naive_utc() - Duration::hours(1),
+        value: token.clone(),
+    };
+
+    User::save_reset_token(
+        user.clone(),
+        expired_token.clone(),
+        web::Data::new(app.db_pool.clone()),
+    )
+    .await
+    .unwrap();
+
+    // Validate the reset password response
+    let reset_response = app
+        .post_password_reset(&password_reset_params(token, NEW_PASSWORD.into()))
+        .await;
+
+    assert!(reset_response.status().is_client_error());
+    let reset_body: ApiResponse = reset_response.json().await.unwrap();
+    assert!(reset_body.message == "Invalid token.");
+}
+
+async fn signup_and_request_password_reset() -> (TestApp, serde_json::Map<String, serde_json::Value>)
+{
     let app = spawn_app().await;
     let params = signup_params();
 
@@ -25,13 +126,17 @@ async fn reset_password_success() {
     let response = app.post_signup(&params).await;
     assert!(response.status().is_success());
 
-    // Use the email to reset the password
+    // Request a password reset
     let email = params["email"].as_str().unwrap().to_string();
     let mut map = serde_json::Map::new();
     map.insert("email".into(), email.clone().into());
     let reset_password_response = app.post_request_password_reset(&map).await;
     assert!(reset_password_response.status().is_success());
 
+    (app, params)
+}
+
+async fn get_token_from_email(app: &TestApp) -> String {
     // Get the token from the email
     let reset_password_email = app
         .email_server
@@ -41,29 +146,11 @@ async fn reset_password_success() {
         .pop()
         .unwrap();
     let body = std::str::from_utf8(&reset_password_email.body).unwrap();
-    let token = param_from_email_text(body, "token");
+    let params = param_from_email_text(body, "token");
+    params[0].clone()
+}
 
-    // Validate the reset password response
-    let new_password = "new_%Password53";
-    let reset_response = app
-        .post_password_reset(&password_reset_params(
-            token[0].clone(),
-            new_password.into(),
-        ))
-        .await;
-    assert!(reset_response.status().is_success());
-    let reset_body: ApiResponse = reset_response.json().await.unwrap();
-    assert!(reset_body.message == "Password reset successfully.");
-
-    // Try to log in with the old password
-    let stale_login_response = app.post_login(&params).await;
-    assert!(stale_login_response.status().is_client_error());
-
-    // Log in with the new password
-    let mut new_login_params = serde_json::Map::new();
-    new_login_params.insert("email".into(), email.into());
-    new_login_params.insert("password".into(), new_password.into());
-
-    let new_login_response = app.post_login(&new_login_params).await;
-    assert!(new_login_response.status().is_success());
+async fn user_from_token(db_pool: DbPool, token: String) -> Result<User, Error> {
+    let user = first!(User::by_password_reset_token(token), User, db_pool)?;
+    Ok(user)
 }

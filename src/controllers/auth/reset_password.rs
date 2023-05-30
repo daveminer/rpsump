@@ -2,6 +2,7 @@ use actix_web::{post, web, web::Data, HttpRequest, HttpResponse, Responder, Resu
 use chrono::Utc;
 use diesel::RunQueryDsl;
 use serde::Deserialize;
+use validator::Validate;
 
 use crate::auth::{password::Password, validate_password};
 use crate::config::Settings;
@@ -10,10 +11,15 @@ use crate::database::{first, DbPool};
 use crate::models::user::User;
 use crate::models::user_event::{EventType, UserEvent};
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Validate)]
 pub struct ResetPasswordParams {
     pub token: String,
+    #[validate(custom = "validate_password")]
     pub new_password: Password,
+    #[validate(must_match(
+        other = "new_password",
+        message = "Password and confirm password must match."
+    ))]
     pub new_password_confirmation: Password,
 }
 
@@ -71,7 +77,7 @@ async fn reset_password(
     let token_clone = params.token.clone();
 
     if let Err(e) = validate_password(&params.new_password) {
-        return Ok(HttpResponse::BadRequest().body(e.to_string()));
+        return Ok(ApiResponse::bad_request(e.to_string()));
     }
 
     let db_clone = db.clone();
@@ -93,5 +99,5 @@ async fn reset_password(
 }
 
 fn invalid_token_response() -> HttpResponse {
-    HttpResponse::BadRequest().body("Invalid token.")
+    ApiResponse::bad_request("Invalid token.".to_string())
 }
