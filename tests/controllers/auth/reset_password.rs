@@ -19,32 +19,6 @@ const NEW_PASSWORD: &str = "new_%Password53";
 const INVALID_NEW_PASSWORD: &str = "123";
 
 #[tokio::test]
-async fn reset_password_success() {
-    let (app, params) = signup_and_request_password_reset().await;
-    let token = get_token_from_email(&app).await;
-
-    // Validate the reset password response
-    let reset_response = app
-        .post_password_reset(&password_reset_params(token, NEW_PASSWORD.into()))
-        .await;
-    assert!(reset_response.status().is_success());
-    let reset_body: ApiResponse = reset_response.json().await.unwrap();
-    assert!(reset_body.message == "Password reset successfully.");
-
-    // Try to log in with the old password
-    let stale_login_response = app.post_login(&params).await;
-    assert!(stale_login_response.status().is_client_error());
-
-    // Log in with the new password
-    let mut new_login_params = serde_json::Map::new();
-    new_login_params.insert("email".into(), params["email"].as_str().unwrap().into());
-    new_login_params.insert("password".into(), NEW_PASSWORD.into());
-
-    let new_login_response = app.post_login(&new_login_params).await;
-    assert!(new_login_response.status().is_success());
-}
-
-#[tokio::test]
 async fn reset_password_failed_invalid_token() {
     let (app, _params) = signup_and_request_password_reset().await;
 
@@ -106,6 +80,32 @@ async fn reset_password_failed_token_expired() {
     assert!(reset_response.status().is_client_error());
     let reset_body: ApiResponse = reset_response.json().await.unwrap();
     assert!(reset_body.message == "Invalid token.");
+}
+
+#[tokio::test]
+async fn reset_password_success() {
+    let (app, params) = signup_and_request_password_reset().await;
+    let token = get_token_from_email(&app).await;
+
+    // Validate the reset password response
+    let reset_response = app
+        .post_password_reset(&password_reset_params(token, NEW_PASSWORD.into()))
+        .await;
+    assert!(reset_response.status().is_success());
+    let reset_body: ApiResponse = reset_response.json().await.unwrap();
+    assert!(reset_body.message == "Password reset successfully.");
+
+    // Try to log in with the old password
+    let stale_login_response = app.post_login(&params).await;
+    assert!(stale_login_response.status().is_client_error());
+
+    // Log in with the new password
+    let mut new_login_params = serde_json::Map::new();
+    new_login_params.insert("email".into(), params["email"].as_str().unwrap().into());
+    new_login_params.insert("password".into(), NEW_PASSWORD.into());
+
+    let new_login_response = app.post_login(&new_login_params).await;
+    assert!(new_login_response.status().is_success());
 }
 
 async fn signup_and_request_password_reset() -> (TestApp, serde_json::Map<String, serde_json::Value>)
