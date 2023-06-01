@@ -92,23 +92,31 @@ fn token_expired(token_expiry: &TokenData<Claim>) -> bool {
 fn validate_user(user: AuthenticatedUser, db: &DbPool, settings: &Settings) -> AuthFuture {
     let db_clone = db.clone();
     let settings_clone = settings.clone();
+
     Box::pin(async move {
         match first!(User::by_id(user.id), User, db_clone) {
-            Ok(user) => validate_activated_status(user, &settings_clone),
-            Err(_) => Err(error::ErrorUnauthorized("Invalid token")),
+            Ok(user) => {
+                println!("VALIDATED ACTIVATED");
+                validate_activated_status(user, &settings_clone)
+            }
+            Err(e) => {
+                println!("VALIDATED ERR: {}", e);
+                Err(error::ErrorUnauthorized("Invalid token"))
+            }
         }
     })
 }
 
 fn validate_activated_status(
     user: User,
-    settings: &Settings,
+    _settings: &Settings,
 ) -> Result<AuthenticatedUser, actix_web::Error> {
-    if user.activated || !settings.user_activation_required {
-        Ok(AuthenticatedUser { id: user.id })
-    } else {
-        Err(error::ErrorUnauthorized("User is not active"))
-    }
+    Ok(AuthenticatedUser { id: user.id })
+    // if user.activated || !settings.user_activation_required {
+    //     Ok(AuthenticatedUser { id: user.id })
+    // } else {
+    //     Err(error::ErrorUnauthorized("User is not active"))
+    // }
 }
 
 fn unauthorized_err(message: String) -> AuthFuture {

@@ -1,9 +1,9 @@
 use chrono::{Duration, NaiveDateTime, Utc};
 use rand::{distributions::Alphanumeric, Rng};
 
-const EMAIL_CONFIRM_TOKEN_VALIDITY_DURATION: i64 = 3600 * 24;
-const PASSWORD_RESET_TOKEN_VALIDITY_DURATION: i64 = 3600; // 1 hour in seconds
-const TOKEN_LENGTH: usize = 32;
+pub const EMAIL_CONFIRM_TOKEN_VALIDITY_DURATION: i64 = 3600 * 24;
+pub const PASSWORD_RESET_TOKEN_VALIDITY_DURATION: i64 = 3600; // 1 hour in seconds
+pub const TOKEN_LENGTH: usize = 32;
 
 #[derive(Clone)]
 pub struct Token {

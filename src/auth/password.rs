@@ -20,7 +20,7 @@ impl Password {
 
 impl Debug for Password {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_tuple("Password").field(&"[REDACTED]").finish()
+        f.write_str("[REDACTED]")
     }
 }
 
@@ -37,6 +37,7 @@ impl ExposeSecret<String> for Password {
         &self.0.expose_secret()
     }
 }
+
 
 impl Serialize for Password {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {

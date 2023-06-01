@@ -3,7 +3,7 @@ use jsonwebtoken::{encode, EncodingKey, Header};
 use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 
-const TOKEN_EXPIRATION_TIME_SECONDS: u64 = 60 * 60 * 24;
+pub const TOKEN_EXPIRATION_TIME_SECONDS: u64 = 60 * 60 * 24;
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claim {
     pub sub: String,

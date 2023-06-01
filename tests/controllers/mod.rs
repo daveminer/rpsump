@@ -1,7 +1,7 @@
 use linkify::{LinkFinder, LinkKind};
 use reqwest::Url;
 
-mod auth;
+pub mod auth;
 
 pub fn link_from_email_text<'a>(text: &str) -> Vec<String> {
     let finder = LinkFinder::new();
