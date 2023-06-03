@@ -4,7 +4,6 @@ use diesel::RunQueryDsl;
 
 use rpsump::controllers::ApiResponse;
 use rpsump::database::DbPool;
-use rpsump::first;
 use rpsump::models::user::User;
 use rpsump::models::user_event::{EventType, UserEvent};
 
@@ -95,15 +94,15 @@ async fn signup_success() {
 }
 
 async fn recent_signup_events(email: String, db_pool: DbPool) -> Result<Vec<UserEvent>, Error> {
-    let db_clone = db_pool.clone();
-    let user = first!(User::by_email(email), User, &db_pool).unwrap();
+    let mut conn = db_pool.get().unwrap();
+    let user = User::by_email(email).first(&mut conn).unwrap();
 
     UserEvent::recent_events(
         Some(user),
         None,
         EventType::Signup,
         10,
-        actix_web::web::Data::new(db_clone),
+        actix_web::web::Data::new(db_pool),
     )
     .await
 }

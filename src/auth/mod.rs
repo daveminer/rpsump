@@ -1,11 +1,10 @@
-use actix_web::{web, web::Data};
 use anyhow::{anyhow, Error};
 use diesel::RunQueryDsl;
 use secrecy::{ExposeSecret, Secret};
 use validator::ValidationError;
 
 use crate::auth::password::Password;
-use crate::database::{first, DbPool};
+use crate::database::DbConn;
 use crate::models::user::User;
 
 pub mod authenticated_user;
@@ -28,11 +27,8 @@ pub struct AuthParams {
     pub password: Secret<String>,
 }
 
-#[tracing::instrument(skip(credentials, pool))]
-pub async fn validate_credentials(
-    credentials: &AuthParams,
-    pool: Data<DbPool>,
-) -> Result<User, Error> {
+#[tracing::instrument(skip(credentials, db))]
+pub async fn validate_credentials(credentials: &AuthParams, mut db: DbConn) -> Result<User, Error> {
     // User lookup from params
     let AuthParams { email, password } = credentials;
     if email.is_empty() || password.expose_secret().is_empty() {
@@ -41,7 +37,7 @@ pub async fn validate_credentials(
 
     let email_clone = email.clone();
 
-    let user = match first!(User::by_email(email_clone), User, pool.clone()) {
+    let user = match User::by_email(email_clone).first(&mut db) {
         Ok(user) => user,
         Err(_not_found) => {
             return Err(anyhow!(BAD_CREDS.to_string()));
