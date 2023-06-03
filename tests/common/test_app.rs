@@ -1,5 +1,4 @@
 use once_cell::sync::Lazy;
-use rusqlite::{Connection, OpenFlags};
 use std::fs::copy;
 use tempfile::TempDir;
 use uuid::Uuid;
@@ -105,12 +104,8 @@ pub fn spawn_test_db() -> String {
 
     let db_instance_file = format!("{}.db", Uuid::new_v4().to_string());
     let db_instance = format!("{}/{}", test_db_path, db_instance_file);
-
-    let _conn = Connection::open_with_flags(
-        &db_instance,
-        OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
-    )
-    .unwrap();
+    let pool = new_pool(&db_instance);
+    let _conn = pool.get().unwrap();
 
     // copy
     copy(&template_db, &db_instance).unwrap();
@@ -143,12 +138,8 @@ pub async fn spawn_app() -> TestApp {
         port: port,
         db_pool: db_pool.clone(),
         email_server,
-        //test_user: TestUser::generate(),
         api_client: client,
-        //email_client: configuration.email_client.client(),
     };
-
-    //test_app.test_user.store(&test_app.db_pool).await;
 
     test_app
 }
