@@ -22,6 +22,7 @@ async fn email_verification_token_expired() {
     let params = signup_params();
     let _mock = mock_email_verification_send(&app).await;
 
+
     // Act
     let response = app.post_signup(&params).await;
     let status = response.status();
@@ -78,6 +79,7 @@ async fn email_verification_failed_no_token() {
     let params = signup_params();
     let _mock = mock_email_verification_send(&app).await;
 
+
     // Act
     let response = app.post_signup(&params).await;
     let status = response.status();
@@ -129,3 +131,4 @@ async fn user_from_email(email: String, db_pool: DbPool) -> Result<User, Error> 
     let user = first!(User::by_email(email), User, db_pool).unwrap();
     Ok(user)
 }
+
