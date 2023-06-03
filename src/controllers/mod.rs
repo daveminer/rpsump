@@ -29,3 +29,16 @@ impl ApiResponse {
         HttpResponse::Unauthorized().json(Self { message })
     }
 }
+
+#[macro_export]
+macro_rules! new_conn {
+    ($db:expr) => {
+        match $db.get() {
+            Ok(conn) => conn,
+            Err(e) => {
+                tracing::error!("Could not get database connection: {}", e);
+                return Ok(ApiResponse::internal_server_error());
+            }
+        }
+    };
+}

@@ -8,7 +8,6 @@ use wiremock::{Mock, ResponseTemplate};
 
 use rpsump::auth::token::Token;
 use rpsump::controllers::ApiResponse;
-use rpsump::first;
 use rpsump::models::user::User;
 
 use super::signup_params;
@@ -55,8 +54,11 @@ async fn reset_password_failed_token_expired() {
     let (app, _params) = signup_and_request_password_reset().await;
     let token = get_token_from_email(&app).await;
 
-    let db_pool = app.db_pool.clone();
-    let user = user_from_token(db_pool, token.clone()).await.unwrap();
+    let mut db = app.db_pool.get().unwrap();
+
+    let user: User = User::by_password_reset_token(token.clone())
+        .first(&mut db)
+        .unwrap();
 
     let expired_token = Token {
         user_id: user.id,
@@ -148,9 +150,4 @@ async fn get_token_from_email(app: &TestApp) -> String {
     let body = std::str::from_utf8(&reset_password_email.body).unwrap();
     let params = param_from_email_text(body, "token");
     params[0].clone()
-}
-
-async fn user_from_token(db_pool: DbPool, token: String) -> Result<User, Error> {
-    let user = first!(User::by_password_reset_token(token), User, db_pool)?;
-    Ok(user)
 }

@@ -1,3 +1,7 @@
+use crate::auth::claim::Claim;
+use crate::config::Settings;
+use crate::database::{DbConn, DbPool};
+use crate::models::user::User;
 use actix_web::{dev, error, http::header::HeaderValue, web, Error, FromRequest, HttpRequest};
 use diesel::RunQueryDsl;
 use futures::future::err;
@@ -5,12 +9,6 @@ use jsonwebtoken::{decode, DecodingKey, TokenData, Validation};
 use std::future::Future;
 use std::pin::Pin;
 use std::time::{SystemTime, UNIX_EPOCH};
-
-use crate::auth::claim::Claim;
-use crate::config::Settings;
-use crate::database::DbPool;
-use crate::first;
-use crate::models::user::User;
 
 #[derive(Debug)]
 pub struct AuthenticatedUser {
@@ -31,9 +29,15 @@ impl FromRequest for AuthenticatedUser {
             Err(_e) => return unauthorized_err("Invalid token".to_string()),
         };
 
-        let database = req.app_data::<web::Data<DbPool>>().unwrap().get_ref();
+        let db_pool = req.app_data::<web::Data<DbPool>>().unwrap().get_ref();
+
+        let conn = match db_pool.get() {
+            Ok(db_conn) => db_conn,
+            Err(_e) => return internal_server_err("Could not get database connection".to_string()),
+        };
+
         let settings = req.app_data::<web::Data<Settings>>().unwrap().get_ref();
-        validate_user(user, database, settings)
+        validate_user(user, conn, settings)
     }
 }
 
@@ -88,18 +92,18 @@ fn token_expired(token_expiry: &TokenData<Claim>) -> bool {
     token_expiry.claims.exp < now
 }
 
-fn validate_user(user: AuthenticatedUser, db: &DbPool, settings: &Settings) -> AuthFuture {
-    let db_clone = db.clone();
+fn validate_user(user: AuthenticatedUser, mut db: DbConn, settings: &Settings) -> AuthFuture {
     let settings_clone = settings.clone();
 
     Box::pin(async move {
-        match first!(User::by_id(user.id), User, db_clone) {
+        match User::by_id(user.id).first(&mut db) {
             Ok(user) => validate_activated_status(user, &settings_clone),
             Err(_e) => Err(error::ErrorUnauthorized("Invalid token")),
         }
     })
 }
 
+// TODO: change activated for allow list
 fn validate_activated_status(
     user: User,
     _settings: &Settings,
@@ -114,4 +118,8 @@ fn validate_activated_status(
 
 fn unauthorized_err(message: String) -> AuthFuture {
     Box::pin(err(actix_web::error::ErrorUnauthorized(message)))
+}
+
+fn internal_server_err(message: String) -> AuthFuture {
+    Box::pin(err(actix_web::error::ErrorInternalServerError(message)))
 }

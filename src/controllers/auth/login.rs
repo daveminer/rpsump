@@ -12,6 +12,7 @@ use crate::controllers::ApiResponse;
 use crate::database::DbPool;
 use crate::middleware::telemetry::spawn_blocking_with_tracing;
 use crate::models::user_event::*;
+use crate::new_conn;
 use crate::schema::user_event;
 
 const BAD_CREDS: &str = "Invalid email or password.";
@@ -29,9 +30,11 @@ pub async fn login(
     db: Data<DbPool>,
     settings: Data<Settings>,
 ) -> Result<impl Responder> {
+    let conn = new_conn!(db);
+
     // User lookup from params
     let credentials: AuthParams = user_data.into_inner();
-    let user = match validate_credentials(&credentials, db.clone()).await {
+    let user = match validate_credentials(&credentials, conn).await {
         Ok(user) => user,
         Err(e) => return Ok(ApiResponse::bad_request(e.to_string())),
     };

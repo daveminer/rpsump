@@ -7,9 +7,10 @@ use validator::Validate;
 use crate::auth::{password::Password, validate_password};
 use crate::config::Settings;
 use crate::controllers::ApiResponse;
-use crate::database::{first, DbPool};
+use crate::database::DbPool;
 use crate::models::user::User;
 use crate::models::user_event::{EventType, UserEvent};
+use crate::new_conn;
 
 #[derive(Deserialize, Validate)]
 pub struct ResetPasswordParams {
@@ -38,9 +39,10 @@ async fn request_password_reset(
     db: Data<DbPool>,
     settings: Data<Settings>,
 ) -> Result<impl Responder> {
+    let mut conn = new_conn!(db);
     let db_clone = db.clone();
-    let db_clone_two = db.clone();
-    let user: User = match first!(User::by_email(params.email.clone()), User, db_clone) {
+
+    let user: User = match User::by_email(params.email.clone()).first(&mut conn) {
         Ok(user) => user,
         Err(_) => return Ok(ApiResponse::internal_server_error()),
     };
@@ -48,7 +50,7 @@ async fn request_password_reset(
     let user_clone = user.clone();
     let conn_info = req.peer_addr().expect("Could not get IP address.");
     let ip_addr = conn_info.ip().to_string();
-    UserEvent::create(user_clone, ip_addr, EventType::PasswordReset, db_clone_two)
+    UserEvent::create(user_clone, ip_addr, EventType::PasswordReset, db_clone)
         .await
         .expect("Could not create user event.");
 
@@ -73,16 +75,15 @@ async fn reset_password(
     params: web::Json<ResetPasswordParams>,
     db: Data<DbPool>,
 ) -> Result<impl Responder> {
-    //let password_confirmation = params.new_password_confirmation.clone();
     let token_clone = params.token.clone();
+    let mut conn = new_conn!(db);
+    let db_clone = db.clone();
 
     if let Err(e) = validate_password(&params.new_password) {
         return Ok(ApiResponse::bad_request(e.to_string()));
     }
 
-    let db_clone = db.clone();
-
-    let user: User = match first!(User::by_password_reset_token(token_clone), User, db.clone()) {
+    let user: User = match User::by_password_reset_token(token_clone).first(&mut conn) {
         Ok(user) => user,
         Err(_) => return Ok(invalid_token_response()),
     };
