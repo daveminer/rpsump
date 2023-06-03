@@ -1,0 +1,63 @@
+name: Code Coverage
+
+on:
+  merge_group:
+  push:
+    branches: [main]
+  pull_request:
+    branches: ['*']
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_TOOLCHAIN: 1.67.0
+
+jobs:
+  test:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          override: true
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Checkout
+        uses: actions/checkout@v3
+      - uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - name: Deps
+        run: make deps
+      - name: Run tests
+        run: make test
+
+  coverage:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          override: true
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      # - name: Checkout
+      #   uses: actions/checkout@v3
+      # - uses: actions/setup-python@v2
+      #   with:
+      #     python-version: '3.9'
+      # - name: Deps
+      #   run: make deps
+      - name: Coverage
+        run: make coverage
+      # - name: Upload coverage to codecov.io
+      #   uses: codecov/codecov-action@v3
+      #   with:
+      #     fail_ci_if_error: true
+      #     token: ${{ secrets.CODECOV_TOKEN }}
+      #     files: lcov.info
