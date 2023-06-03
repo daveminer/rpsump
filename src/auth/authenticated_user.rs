@@ -1,6 +1,5 @@
 use actix_web::{dev, error, http::header::HeaderValue, web, Error, FromRequest, HttpRequest};
 use diesel::RunQueryDsl;
-// Replacing this might allow for removal of the futures crate.
 use futures::future::err;
 use jsonwebtoken::{decode, DecodingKey, TokenData, Validation};
 use std::future::Future;
@@ -95,14 +94,8 @@ fn validate_user(user: AuthenticatedUser, db: &DbPool, settings: &Settings) -> A
 
     Box::pin(async move {
         match first!(User::by_id(user.id), User, db_clone) {
-            Ok(user) => {
-                println!("VALIDATED ACTIVATED");
-                validate_activated_status(user, &settings_clone)
-            }
-            Err(e) => {
-                println!("VALIDATED ERR: {}", e);
-                Err(error::ErrorUnauthorized("Invalid token"))
-            }
+            Ok(user) => validate_activated_status(user, &settings_clone),
+            Err(_e) => Err(error::ErrorUnauthorized("Invalid token")),
         }
     })
 }

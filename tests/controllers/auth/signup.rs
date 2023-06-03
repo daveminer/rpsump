@@ -10,6 +10,7 @@ use rpsump::models::user_event::{EventType, UserEvent};
 
 use super::{create_test_user, signup_params, user_params};
 use crate::common::test_app::spawn_app;
+use crate::controllers::mock_email_verification_send;
 
 #[tokio::test]
 async fn signup_failed_email_taken() {
@@ -76,6 +77,7 @@ async fn signup_success() {
     let db_pool = app.db_pool.clone();
     let params = signup_params();
     let email = params.get("email").unwrap().as_str().unwrap();
+    let _mock = mock_email_verification_send(&app).await;
 
     // Act
     let response = app.post_signup(&params).await;

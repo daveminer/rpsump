@@ -1,5 +1,9 @@
 use linkify::{LinkFinder, LinkKind};
 use reqwest::Url;
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, MockGuard, ResponseTemplate};
+
+use crate::common::test_app::TestApp;
 
 pub mod auth;
 
@@ -35,4 +39,29 @@ pub fn param_from_email_text<'a>(text: &str, param: &str) -> Vec<String> {
     }
 
     return found_params;
+}
+
+async fn email_link_from_mock_server(app: &TestApp) -> String {
+    let verification_email = app
+        .email_server
+        .received_requests()
+        .await
+        .unwrap()
+        .pop()
+        .unwrap();
+    let body = std::str::from_utf8(&verification_email.body).unwrap();
+
+    let link = link_from_email_text(body);
+
+    link[0].clone()
+}
+
+async fn mock_email_verification_send(app: &TestApp) -> MockGuard {
+    Mock::given(path("/"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .named("Email verification.")
+        .expect(1)
+        .mount_as_scoped(&app.email_server)
+        .await
 }

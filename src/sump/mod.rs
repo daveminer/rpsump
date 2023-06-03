@@ -12,6 +12,8 @@ use crate::config::SumpConfig;
 use crate::database::DbPool;
 use crate::sump::sensor::PinState;
 
+use self::sensor::{listen_to_high_sensor, listen_to_low_sensor};
+
 /// Threads spawned from sensor state changes will share one of these per sensor
 pub type SharedSensorDebouncer = Arc<Mutex<Option<debounce::SensorDebouncer>>>;
 
@@ -62,20 +64,20 @@ impl Sump {
             low_sensor: low_sensor_reading,
         }));
 
-        // listen_to_high_sensor(
-        //     Arc::clone(&high_sensor_pin),
-        //     Arc::clone(&pump_control_pin),
-        //     Arc::clone(&sensor_state),
-        //     db_pool.clone(),
-        // );
+        listen_to_high_sensor(
+            Arc::clone(&high_sensor_pin),
+            Arc::clone(&pump_control_pin),
+            Arc::clone(&sensor_state),
+            db_pool.clone(),
+        );
 
-        // listen_to_low_sensor(
-        //     Arc::clone(&low_sensor_pin),
-        //     Arc::clone(&pump_control_pin),
-        //     Arc::clone(&sensor_state),
-        //     config.pump_shutoff_delay,
-        //     db_pool.clone(),
-        // );
+        listen_to_low_sensor(
+            Arc::clone(&low_sensor_pin),
+            Arc::clone(&pump_control_pin),
+            Arc::clone(&sensor_state),
+            config.pump_shutoff_delay,
+            db_pool.clone(),
+        );
 
         Ok(Sump {
             db_pool,
