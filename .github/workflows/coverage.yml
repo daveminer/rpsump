@@ -7,14 +7,14 @@ on:
   pull_request:
     branches: ['*']
 
-# env:
-#   CARGO_TERM_COLOR: always
-#   RUST_TOOLCHAIN: 1.69.0
+env:
+  CARGO_TERM_COLOR: always
+  RUST_TOOLCHAIN: 1.69.0
 
 jobs:
   test:
     name: cargo test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
