@@ -1,6 +1,5 @@
 use actix_web::{dev, error, http::header::HeaderValue, web, Error, FromRequest, HttpRequest};
 use diesel::RunQueryDsl;
-// Replacing this might allow for removal of the futures crate.
 use futures::future::err;
 use jsonwebtoken::{decode, DecodingKey, TokenData, Validation};
 use std::future::Future;
@@ -92,23 +91,25 @@ fn token_expired(token_expiry: &TokenData<Claim>) -> bool {
 fn validate_user(user: AuthenticatedUser, db: &DbPool, settings: &Settings) -> AuthFuture {
     let db_clone = db.clone();
     let settings_clone = settings.clone();
+
     Box::pin(async move {
         match first!(User::by_id(user.id), User, db_clone) {
             Ok(user) => validate_activated_status(user, &settings_clone),
-            Err(_) => Err(error::ErrorUnauthorized("Invalid token")),
+            Err(_e) => Err(error::ErrorUnauthorized("Invalid token")),
         }
     })
 }
 
 fn validate_activated_status(
     user: User,
-    settings: &Settings,
+    _settings: &Settings,
 ) -> Result<AuthenticatedUser, actix_web::Error> {
-    if user.activated || !settings.user_activation_required {
-        Ok(AuthenticatedUser { id: user.id })
-    } else {
-        Err(error::ErrorUnauthorized("User is not active"))
-    }
+    Ok(AuthenticatedUser { id: user.id })
+    // if user.activated || !settings.user_activation_required {
+    //     Ok(AuthenticatedUser { id: user.id })
+    // } else {
+    //     Err(error::ErrorUnauthorized("User is not active"))
+    // }
 }
 
 fn unauthorized_err(message: String) -> AuthFuture {

@@ -1,11 +1,32 @@
-use actix_web::Result;
 use actix_web::{get, HttpResponse, Responder};
+use actix_web::{web::Data, Result};
+
+use crate::auth::authenticated_user::AuthenticatedUser;
+use crate::sump::Sump;
 
 #[get("/info")]
-//async fn info(_req_body: String, sump: Data<Sump>) -> Result<impl Responder> {
-async fn info(_req_body: String) -> Result<impl Responder> {
-    //let body = serde_json::to_string(&sump.sensors()).expect("Could not serialize the pin state");
+async fn info(sump: Option<Data<Sump>>, _user: AuthenticatedUser) -> Result<impl Responder> {
+    if sump.is_none() {
+        return Ok(HttpResponse::Ok().body("Sump disabled."));
+    }
 
-    //Ok(HttpResponse::Ok().body(body))
-    Ok(HttpResponse::Ok().body("Sump disabled."))
+    let sump = sump.unwrap();
+
+    let sensor_state = match sump.sensor_state.lock() {
+        Ok(sensor_state) => *sensor_state,
+        Err(_) => {
+            return Ok(HttpResponse::InternalServerError().body("Could not lock sensor state."));
+        }
+    };
+
+    let body = match serde_json::to_string(&sensor_state) {
+        Ok(body) => body,
+        Err(_) => {
+            return Ok(
+                HttpResponse::InternalServerError().body("Could not serialize sensor state.")
+            );
+        }
+    };
+
+    Ok(HttpResponse::Ok().body(body))
 }

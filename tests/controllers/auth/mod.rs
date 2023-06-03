@@ -13,7 +13,7 @@ use rpsump::models::user::User;
 const TEST_EMAIL: &str = "test_acct@test.local";
 const TEST_PASSWORD: &str = "testing87_*Password";
 
-async fn create_test_user(db_pool: Data<DbPool>) -> User {
+pub async fn create_test_user(db_pool: Data<DbPool>) -> User {
     User::create(
         TEST_EMAIL.into(),
         Password::new(TEST_PASSWORD.into()).hash().unwrap(),

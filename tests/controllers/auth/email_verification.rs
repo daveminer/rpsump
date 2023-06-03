@@ -2,8 +2,6 @@ use actix_web::web;
 use anyhow::Error;
 use chrono::{Duration, NaiveDateTime};
 use diesel::{ExpressionMethods, RunQueryDsl};
-use wiremock::matchers::{method, path};
-use wiremock::{Mock, MockGuard, ResponseTemplate};
 
 use rpsump::auth::token::Token;
 use rpsump::controllers::ApiResponse;
@@ -12,9 +10,9 @@ use rpsump::first;
 use rpsump::models::user::User;
 use rpsump::schema::user;
 
-use super::super::link_from_email_text;
 use super::signup_params;
-use crate::common::test_app::{spawn_app, TestApp};
+use crate::common::test_app::spawn_app;
+use crate::controllers::{email_link_from_mock_server, mock_email_verification_send};
 
 #[tokio::test]
 async fn email_verification_token_expired() {
@@ -22,6 +20,8 @@ async fn email_verification_token_expired() {
     let app = spawn_app().await;
     let db_pool = app.db_pool.clone();
     let params = signup_params();
+    let _mock = mock_email_verification_send(&app).await;
+
 
     // Act
     let response = app.post_signup(&params).await;
@@ -56,6 +56,7 @@ async fn email_verification_failed_token_mismatch() {
     let app = spawn_app().await;
     let params = signup_params();
     let token = Token::new_email_verification(0);
+    let _mock = mock_email_verification_send(&app).await;
 
     // Act
     let response = app.post_signup(&params).await;
@@ -76,6 +77,8 @@ async fn email_verification_failed_no_token() {
     // Arrange
     let app = spawn_app().await;
     let params = signup_params();
+    let _mock = mock_email_verification_send(&app).await;
+
 
     // Act
     let response = app.post_signup(&params).await;
@@ -129,27 +132,3 @@ async fn user_from_email(email: String, db_pool: DbPool) -> Result<User, Error> 
     Ok(user)
 }
 
-async fn email_link_from_mock_server(app: &TestApp) -> String {
-    let verification_email = app
-        .email_server
-        .received_requests()
-        .await
-        .unwrap()
-        .pop()
-        .unwrap();
-    let body = std::str::from_utf8(&verification_email.body).unwrap();
-
-    let link = link_from_email_text(body);
-
-    link[0].clone()
-}
-
-async fn mock_email_verification_send(app: &TestApp) -> MockGuard {
-    Mock::given(path("/"))
-        .and(method("POST"))
-        .respond_with(ResponseTemplate::new(200))
-        .named("Email verification.")
-        .expect(1)
-        .mount_as_scoped(&app.email_server)
-        .await
-}

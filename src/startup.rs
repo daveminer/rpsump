@@ -87,12 +87,11 @@ impl Application {
 
             // Initialize the sump if enabled in configuration
             if sump.is_some() {
-                app = app.app_data(Data::new(sump.clone()));
+                app = app.app_data(Data::new(Some(sump.clone())));
             }
 
             app
         })
-        //.bind(("127.0.0.1", 8080))
         .listen(listener)
         .expect(&format!("Could not listen on port {}", port))
         .run();
