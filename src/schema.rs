@@ -19,7 +19,6 @@ diesel::table! {
         password_hash -> Text,
         password_reset_token -> Nullable<Text>,
         password_reset_token_expires_at -> Nullable<Timestamp>,
-        activated -> Bool,
         created_at -> Timestamp,
         updated_at -> Timestamp,
     }

@@ -1,9 +1,7 @@
 use crate::auth::claim::Claim;
 use crate::config::Settings;
-use crate::database::{DbConn, DbPool};
-use crate::models::user::User;
+
 use actix_web::{dev, error, http::header::HeaderValue, web, Error, FromRequest, HttpRequest};
-use diesel::RunQueryDsl;
 use futures::future::err;
 use jsonwebtoken::{decode, DecodingKey, TokenData, Validation};
 use std::future::Future;
@@ -29,15 +27,7 @@ impl FromRequest for AuthenticatedUser {
             Err(_e) => return unauthorized_err("Invalid token".to_string()),
         };
 
-        let db_pool = req.app_data::<web::Data<DbPool>>().unwrap().get_ref();
-
-        let conn = match db_pool.get() {
-            Ok(db_conn) => db_conn,
-            Err(_e) => return internal_server_err("Could not get database connection".to_string()),
-        };
-
-        let settings = req.app_data::<web::Data<Settings>>().unwrap().get_ref();
-        validate_user(user, conn, settings)
+        Box::pin(async move { Ok(AuthenticatedUser { id: user.id }) })
     }
 }
 
@@ -92,34 +82,6 @@ fn token_expired(token_expiry: &TokenData<Claim>) -> bool {
     token_expiry.claims.exp < now
 }
 
-fn validate_user(user: AuthenticatedUser, mut db: DbConn, settings: &Settings) -> AuthFuture {
-    let settings_clone = settings.clone();
-
-    Box::pin(async move {
-        match User::by_id(user.id).first(&mut db) {
-            Ok(user) => validate_activated_status(user, &settings_clone),
-            Err(_e) => Err(error::ErrorUnauthorized("Invalid token")),
-        }
-    })
-}
-
-// TODO: change activated for allow list
-fn validate_activated_status(
-    user: User,
-    _settings: &Settings,
-) -> Result<AuthenticatedUser, actix_web::Error> {
-    Ok(AuthenticatedUser { id: user.id })
-    // if user.activated || !settings.user_activation_required {
-    //     Ok(AuthenticatedUser { id: user.id })
-    // } else {
-    //     Err(error::ErrorUnauthorized("User is not active"))
-    // }
-}
-
 fn unauthorized_err(message: String) -> AuthFuture {
     Box::pin(err(actix_web::error::ErrorUnauthorized(message)))
-}
-
-fn internal_server_err(message: String) -> AuthFuture {
-    Box::pin(err(actix_web::error::ErrorInternalServerError(message)))
 }

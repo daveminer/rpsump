@@ -21,7 +21,6 @@ pub struct User {
     pub password_hash: String,
     pub password_reset_token: Option<String>,
     pub password_reset_token_expires_at: Option<NaiveDateTime>,
-    pub activated: bool,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }

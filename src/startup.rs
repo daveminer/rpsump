@@ -10,7 +10,6 @@ use crate::config::Settings;
 
 use crate::controllers::{auth::auth_routes, info::info};
 use crate::database::DbPool;
-use crate::middleware::rate_limiter;
 use crate::sump::sensor::{listen_to_high_sensor, listen_to_low_sensor};
 use crate::sump::{spawn_reporting_thread, Sump};
 
@@ -70,11 +69,6 @@ impl Application {
                 .wrap(SessionMiddleware::new(
                     CookieSessionStore::default(),
                     cookie::Key::generate(),
-                ))
-                // Rate limiter
-                .wrap(rate_limiter::new(
-                    settings.rate_limiter.per_second.clone(),
-                    settings.rate_limiter.burst_size.clone(),
                 ))
                 // HTTP API Routes
                 .service(info)
