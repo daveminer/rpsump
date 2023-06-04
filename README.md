@@ -1,3 +1,5 @@
+![Tests](https://github.com/daveminer/rpsump/actions/workflows/test.yml/badge.svg)
+
 # rpsump
 
 Turn your Raspberry Pi into a sump pump!
@@ -7,6 +9,10 @@ Turn your Raspberry Pi into a sump pump!
 This particular sump pump was designed to prevent lawn damage due to moisture output from residential heaters and A/C units. The water from the appliances is routed to the sump where the Pi monitors the water level sensors and operates the pump when needed.
 
 Later stages of this application will output the reclaimed water to a reservoir where it will be used for gardening; the Pi will also control the watering schedule.
+
+## Requirements
+
+SQlite >= 3.35
 
 ## Components
 
@@ -45,9 +51,7 @@ Group of inputs/callback handlers and outputs that form the sump pump functional
 
 ![Pump reservoir](https://drive.google.com/uc?id=1n1YzGied9_GeD2SX95VH9Bm8LnP7bPMG)
 
-
 ##### Sensor and pump assembly
-
 
 - 5v float switches
 - aquarium pump

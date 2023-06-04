@@ -6,3 +6,6 @@
 
 # Local database
 *.db
+
+# Coverage artifacts
+lcov.info

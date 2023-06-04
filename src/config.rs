@@ -13,7 +13,6 @@ pub struct Settings {
     pub server: ServerConfig,
     pub sump: Option<SumpConfig>,
     pub telemetry: TelemetryConfig,
-    pub user_activation_required: bool,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -55,12 +54,12 @@ pub struct ThrottleConfig {
 
 impl Settings {
     pub fn new() -> Self {
-        dotenv().ok();
+        set_application_environment();
 
-        let database_url = Self::load_system_env("DATABASE_URL");
-        let jwt_secret = Self::load_system_env("JWT_SECRET");
-        let server_host = Self::load_system_env("SERVER_HOST");
-        let server_port: u16 = Self::load_system_env("SERVER_PORT")
+        let database_url = load_system_var("DATABASE_URL");
+        let jwt_secret = load_system_var("JWT_SECRET");
+        let server_host = load_system_var("SERVER_HOST");
+        let server_port: u16 = load_system_var("SERVER_PORT")
             .parse()
             .expect("SERVER_PORT must be a 16-bit unsigned integer.");
 
@@ -78,8 +77,8 @@ impl Settings {
             database_url,
             jwt_secret,
             mailer: MailerConfig {
-                auth_token: Self::load_system_env("MAILER_AUTH_TOKEN"),
-                server_url: Self::load_system_env("MAILER_SERVER_URL"),
+                auth_token: load_system_var("MAILER_AUTH_TOKEN"),
+                server_url: load_system_var("MAILER_SERVER_URL"),
             },
             rate_limiter: ThrottleConfig {
                 per_second: env::var("RATE_LIMIT_PER_SECOND")
@@ -97,34 +96,30 @@ impl Settings {
             },
             sump: Self::sump_config(),
             telemetry: TelemetryConfig {
-                api_key: Self::load_system_env("TELEMETRY_API_KEY"),
-                receiver_url: Self::load_system_env("TELEMETRY_RECEIVER_URL"),
+                api_key: load_system_var("TELEMETRY_API_KEY"),
+                receiver_url: load_system_var("TELEMETRY_RECEIVER_URL"),
             },
-            user_activation_required: env::var("USER_ACTIVATION_REQUIRED")
-                .unwrap_or_else(|_| "true".to_string())
-                .parse()
-                .expect("USER_ACTIVATION_REQUIRED must be a boolean."),
         }
     }
 
     fn sump_config() -> Option<SumpConfig> {
-        if !Self::load_system_env("SUMP_ENABLED")
+        if !load_system_var("SUMP_ENABLED")
             .parse::<bool>()
             .expect("SUMP_ENABLED must be a boolean.")
         {
             return None;
         }
 
-        let high_sensor_pin: u8 = Self::load_system_env("SUMP_HIGH_SENSOR_PIN")
+        let high_sensor_pin: u8 = load_system_var("SUMP_HIGH_SENSOR_PIN")
             .parse()
             .expect("SUMP_HIGH_SENSOR_PIN must be a number.");
-        let low_sensor_pin: u8 = Self::load_system_env("SUMP_LOW_SENSOR_PIN")
+        let low_sensor_pin: u8 = load_system_var("SUMP_LOW_SENSOR_PIN")
             .parse()
             .expect("SUMP_LOW_SENSOR_PIN must be a number.");
-        let pump_control_pin: u8 = Self::load_system_env("SUMP_CONTROL_PIN")
+        let pump_control_pin: u8 = load_system_var("SUMP_CONTROL_PIN")
             .parse()
             .expect("SUMP_CONTROL_PIN must be a number.");
-        let pump_shutoff_delay: u64 = Self::load_system_env("SUMP_SHUTOFF_DELAY")
+        let pump_shutoff_delay: u64 = load_system_var("SUMP_SHUTOFF_DELAY")
             .parse()
             .expect("SUMP_SHUTOFF_DELAY must be a number.");
 
@@ -139,8 +134,19 @@ impl Settings {
             pump_shutoff_delay,
         })
     }
+}
 
-    fn load_system_env(env: &str) -> String {
-        env::var(env).expect(&format!("{} environment variable not found.", env))
+fn load_system_var(env: &str) -> String {
+    env::var(env).expect(&format!("{} environment variable not found.", env))
+}
+
+fn set_application_environment() {
+    let environment = env::var("RPSUMP_ENVIRONMENT").unwrap_or_else(|_e| "development".to_string());
+
+    if environment == "test" {
+        dotenv::from_filename(".env.test").ok();
+        return;
     }
+
+    dotenv().ok();
 }

@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  merge_group:
+  push:
+    branches: [main]
+  pull_request:
+    branches: ['*']
+
+jobs:
+  test:
+    name: cargo test
+    runs-on: ubuntu-22.04
+    env:
+      RPSUMP_ENVIRONMENT: test
+    steps:
+      - name: Update apt
+        run: sudo apt-get update && sudo apt-get upgrade -y
+      - name: Install protobuf-compiler
+        run: sudo apt-get install protobuf-compiler -y
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@1.69.0
+      - run: make test
+  # test:
+  #   runs-on: ubuntu-20.04
+  #   steps:
+  #     - name: Install Rust
+  #       uses: dtolnay/rust-toolchain@stable
+  #       with:
+  #         toolchain: ${{ env.RUST_TOOLCHAIN }}
+  #         override: true
+  #         components: rustfmt, clippy
+  #     - uses: Swatinem/rust-cache@v2
+  #       with:
+  #         cache-on-failure: true
+  #     - name: Checkout
+  #       uses: actions/checkout@v3
+  #     - uses: actions/setup-python@v2
+  #       with:
+  #         python-version: '3.9'
+  #     - name: Run tests
+  #       run: make test
+
+  # coverage:
+  #   runs-on: ubuntu-20.04
+  #   steps:
+  #     - name: Install Rust
+  #       uses: dtolnay/rust-toolchain@stable
+  #       with:
+  #         toolchain: ${{ env.RUST_TOOLCHAIN }}
+  #         override: true
+  #         components: rustfmt, clippy
+  #     - uses: Swatinem/rust-cache@v2
+  #       with:
+  #         cache-on-failure: true
+  #     - name: Checkout
+  #       uses: actions/checkout@v3
+  #     - uses: actions/setup-python@v2
+  #       with:
+  #         python-version: '3.9'
+  #     # - name: Deps
+  #     #   run: make deps
+  #     - name: Coverage
+  #       run: make coverage
+  #     # - name: Upload coverage to codecov.io
+  #     #   uses: codecov/codecov-action@v3
+  #     #   with:
+  #     #     fail_ci_if_error: true
+  #     #     token: ${{ secrets.CODECOV_TOKEN }}
+  #     #     files: lcov.info
