@@ -1,4 +1,4 @@
-![Tests](https://github.com/daveminer/rpsump/actions/workflows/main.yml/badge.svg)
+![Tests](https://github.com/daveminer/rpsump/actions/workflows/test.yml/badge.svg)
 
 # rpsump
 
