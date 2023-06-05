@@ -1,3 +1,4 @@
+use actix_web::web::Data;
 use linkify::{LinkFinder, LinkKind};
 use reqwest::Url;
 use wiremock::matchers::{method, path};
@@ -5,7 +6,28 @@ use wiremock::{Mock, MockGuard, ResponseTemplate};
 
 use crate::common::test_app::TestApp;
 
+use rpsump::auth::password::Password;
+use rpsump::database::DbPool;
+use rpsump::models::user::User;
+use serde_json::{Map, Value};
+
 pub mod auth;
+pub mod info;
+pub mod sump_event;
+
+const TEST_EMAIL: &str = "test_acct@test.local";
+const TEST_PASSWORD: &str = "testing87_*Password";
+
+pub async fn create_test_user(db_pool: Data<DbPool>) -> User {
+    User::create(
+        TEST_EMAIL.into(),
+        Password::new(TEST_PASSWORD.into()).hash().unwrap(),
+        "127.0.0.1".into(),
+        db_pool,
+    )
+    .await
+    .unwrap()
+}
 
 pub fn link_from_email_text<'a>(text: &str) -> Vec<String> {
     let finder = LinkFinder::new();
@@ -64,4 +86,12 @@ async fn mock_email_verification_send(app: &TestApp) -> MockGuard {
         .expect(1)
         .mount_as_scoped(&app.email_server)
         .await
+}
+
+pub fn user_params() -> Map<String, Value> {
+    let mut map = serde_json::Map::new();
+    map.insert("email".into(), TEST_EMAIL.into());
+    map.insert("password".into(), TEST_PASSWORD.into());
+
+    map
 }

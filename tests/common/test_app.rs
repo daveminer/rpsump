@@ -8,6 +8,9 @@ use rpsump::config::Settings;
 use rpsump::database::{new_pool, DbPool};
 use rpsump::startup::Application;
 
+// TODO: move to shared location
+use crate::auth::authenticated_user::create_auth_header;
+
 pub struct TestApp {
     pub address: String,
     pub port: u16,
@@ -28,6 +31,7 @@ static TEST_DB_TEMPLATE: Lazy<TempDir> = Lazy::new(|| {
     let template_db_path = temp_dir.path().join(DB_TEMPLATE_FILE);
 
     let mut conn = new_pool(&template_db_path.to_str().unwrap().to_string())
+        .unwrap()
         .get()
         .unwrap();
     conn.run_pending_migrations(MIGRATIONS)
@@ -45,7 +49,29 @@ impl TestApp {
             ))
             .send()
             .await
-            .expect("Failed to execute request.")
+            .unwrap()
+    }
+
+    pub async fn get_info(&self, token: String) -> reqwest::Response {
+        let (header_name, header_value) = create_auth_header(&token);
+
+        self.api_client
+            .get(&format!("{}/info", &self.address))
+            .header(header_name, header_value)
+            .send()
+            .await
+            .unwrap()
+    }
+
+    pub async fn get_sump_event(&self, token: String) -> reqwest::Response {
+        let (header_name, header_value) = create_auth_header(&token);
+
+        self.api_client
+            .get(&format!("{}/sump_event", &self.address))
+            .header(header_name, header_value)
+            .send()
+            .await
+            .unwrap()
     }
 
     pub async fn post_login<Body>(&self, body: &Body) -> reqwest::Response
@@ -57,7 +83,7 @@ impl TestApp {
             .json(body)
             .send()
             .await
-            .expect("Failed to execute request.")
+            .unwrap()
     }
 
     pub async fn post_password_reset<Body>(&self, body: &Body) -> reqwest::Response
@@ -69,7 +95,7 @@ impl TestApp {
             .json(body)
             .send()
             .await
-            .expect("Failed to execute request.")
+            .unwrap()
     }
 
     pub async fn post_request_password_reset<Body>(&self, body: &Body) -> reqwest::Response
@@ -81,7 +107,7 @@ impl TestApp {
             .json(body)
             .send()
             .await
-            .expect("Failed to execute request.")
+            .unwrap()
     }
 
     pub async fn post_signup<Body>(&self, body: &Body) -> reqwest::Response
@@ -93,7 +119,7 @@ impl TestApp {
             .json(body)
             .send()
             .await
-            .expect("Failed to execute request.")
+            .unwrap()
     }
 }
 
@@ -105,7 +131,7 @@ pub fn spawn_test_db() -> String {
     let db_instance_file = format!("{}.db", Uuid::new_v4().to_string());
     let db_instance = format!("{}/{}", test_db_path, db_instance_file);
     let pool = new_pool(&db_instance);
-    let _conn = pool.get().unwrap();
+    let _conn = pool.unwrap().get().unwrap();
 
     // copy
     copy(&template_db, &db_instance).unwrap();
@@ -122,7 +148,7 @@ pub async fn spawn_app() -> TestApp {
 
     settings.mailer.server_url = email_server.uri();
 
-    let db_pool = new_pool(&spawn_test_db());
+    let db_pool = new_pool(&spawn_test_db()).unwrap();
     let application = Application::build(settings, db_pool.clone());
     let port = application.port();
 
@@ -135,8 +161,8 @@ pub async fn spawn_app() -> TestApp {
 
     let test_app = TestApp {
         address: format!("http://localhost:{}", port),
-        port: port,
-        db_pool: db_pool.clone(),
+        port,
+        db_pool,
         email_server,
         api_client: client,
     };

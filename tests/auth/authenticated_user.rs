@@ -12,7 +12,7 @@ use rpsump::models::user::User;
 use crate::common::test_app::spawn_app;
 use crate::controllers::auth::create_test_user;
 
-fn create_auth_header(token: &str) -> (HeaderName, HeaderValue) {
+pub fn create_auth_header(token: &str) -> (HeaderName, HeaderValue) {
     (
         HeaderName::from_str("Authorization").unwrap(),
         HeaderValue::from_str(&format!("Bearer {}", token)).unwrap(),

@@ -24,7 +24,10 @@ impl FromRequest for AuthenticatedUser {
         let auth_header = req.headers().get("Authorization");
         let user = match user_from_token(auth_header, settings(req)) {
             Ok(user) => user,
-            Err(_e) => return unauthorized_err("Invalid token".to_string()),
+            Err(e) => {
+                tracing::warn!("Could not get user from token: {:?}", e);
+                return unauthorized_err("Invalid token".to_string());
+            }
         };
 
         Box::pin(async move { Ok(AuthenticatedUser { id: user.id }) })
@@ -36,11 +39,12 @@ fn user_from_token(
     settings: &Settings,
 ) -> Result<AuthenticatedUser, Error> {
     if auth_header.is_none() {
+        tracing::warn!("Authentication token not found for request.");
         return Err(error::ErrorUnauthorized("Missing authentication"));
     };
 
     let encoded_token = auth_header
-        .expect("Could not convert token to string")
+        .unwrap()
         .to_str()
         .unwrap()
         .replace("Bearer ", "");

@@ -6,11 +6,11 @@ use diesel::prelude::*;
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 
+use super::super::spawn_blocking_with_tracing;
 use crate::auth::{claim::create_token, validate_credentials, AuthParams};
 use crate::config::Settings;
 use crate::controllers::ApiResponse;
 use crate::database::DbPool;
-use crate::middleware::telemetry::spawn_blocking_with_tracing;
 use crate::models::user_event::*;
 use crate::new_conn;
 use crate::schema::user_event;
