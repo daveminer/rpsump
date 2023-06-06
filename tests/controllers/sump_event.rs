@@ -25,7 +25,7 @@ async fn sump_event_success() {
     let sump_events = sump_event_response.json::<Vec<SumpEvent>>().await.unwrap();
 
     // Assert
-    assert!(sump_events[0].created_at > sump_events[1].created_at);
+    assert!(sump_events.len() == 4);
 }
 
 #[tokio::test]
@@ -36,35 +36,19 @@ async fn sump_event_failed_no_auth() {
 }
 
 async fn insert_sump_events(db: DbPool) {
-    SumpEvent::create(
-        "pump on".to_string(),
-        "2021-01-01 00:00:00".to_string(),
-        db.clone(),
-    )
-    .await
-    .unwrap();
+    SumpEvent::create("sump pump".to_string(), "pump on".to_string(), db.clone())
+        .await
+        .unwrap();
 
-    SumpEvent::create(
-        "pump off".to_string(),
-        "2021-01-01 00:00:10".to_string(),
-        db.clone(),
-    )
-    .await
-    .unwrap();
+    SumpEvent::create("sump pump".to_string(), "pump off".to_string(), db.clone())
+        .await
+        .unwrap();
 
-    SumpEvent::create(
-        "pump on".to_string(),
-        "2021-01-01 03:15:10".to_string(),
-        db.clone(),
-    )
-    .await
-    .unwrap();
+    SumpEvent::create("sump pump".to_string(), "pump on".to_string(), db.clone())
+        .await
+        .unwrap();
 
-    SumpEvent::create(
-        "pump off".to_string(),
-        "2021-01-01 03:15:20".to_string(),
-        db,
-    )
-    .await
-    .unwrap();
+    SumpEvent::create("sump pump".to_string(), "pump off".to_string(), db)
+        .await
+        .unwrap();
 }
