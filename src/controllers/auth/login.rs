@@ -75,6 +75,7 @@ pub async fn login(
 
     // Log user in
     Identity::login(&request.extensions(), user.id.to_string()).expect("Could not log identity in");
+    tracing::info!("User {} logged in.", user.id);
 
     // Create user event
     let mut conn = db.get().expect("Could not get a db connection.");

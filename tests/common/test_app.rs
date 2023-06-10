@@ -1,4 +1,5 @@
 use once_cell::sync::Lazy;
+use rpsump::middleware::telemetry;
 use std::fs::copy;
 use tempfile::TempDir;
 use uuid::Uuid;

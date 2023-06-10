@@ -12,6 +12,7 @@ use crate::config::Settings;
 // Configure a global `tracing` subscriber. `actix-web-opentelemetry` will use this
 // for spanning on requests.
 pub fn init_tracer(settings: &Settings) -> Result<(), Error> {
+    println!("HEREEEE");
     global::set_text_map_propagator(TraceContextPropagator::new());
 
     let otlp_exporter = opentelemetry_otlp::new_exporter()

@@ -7,6 +7,7 @@ use rpsump::controllers::ApiResponse;
 use rpsump::database::DbPool;
 use rpsump::models::user::User;
 use rpsump::models::user_event::EventType;
+use tracing_test::traced_test;
 
 use super::{create_test_user, user_params};
 use crate::common::test_app::spawn_app;
@@ -83,7 +84,32 @@ async fn login_missing_password() {
     assert_eq!(body.message, "Email and password are required.");
 }
 
+///////// Try this in tracing_test
+// use proc_macro::TokenStream;
+// use quote::quote;
+// use syn::{parse_macro_input, AttributeArgs, ItemFn};
+
+// #[proc_macro_attribute]
+// pub fn traced_test(attr: TokenStream, item: TokenStream) -> TokenStream {
+//     // Parse custom identifier from attribute arguments
+//     let identifier: syn::Ident = parse_macro_input!(attr as syn::Ident);
+
+//     // Parse annotated function
+//     let mut function: ItemFn = parse_macro_input!(item as ItemFn);
+
+//     // Use the custom identifier in the generated code
+//     function.block.stmts.push(quote! {
+//         println!("Custom identifier: {}", #identifier);
+//     });
+
+//     // Generate token stream
+//     TokenStream::from(quote! {
+//         #function
+//     })
+// }
+
 #[tokio::test]
+#[traced_test(login)]
 async fn login_success() {
     // Arrange
     let app = spawn_app().await;
@@ -98,8 +124,20 @@ async fn login_success() {
     // Assert
     assert!(status.is_success());
     assert!(body["token"].is_string());
-    let events = recent_login_events(user, db_pool).await.unwrap();
+    let events = recent_login_events(user.clone(), db_pool).await.unwrap();
     assert_eq!(events.len(), 1);
+
+    //let trace = format!("User {} logged in.", user.id);
+    //println!("TRACE = {}", trace);
+    logs_assert(|lines: &[&str]| {
+        println!("Log lines: {:?}", lines);
+        lines
+            .iter()
+            .for_each(|l| println!("Log line: {}", l.to_string()));
+
+        Ok(())
+    });
+    assert!(logs_contain("logged in"));
 }
 
 #[tokio::test]

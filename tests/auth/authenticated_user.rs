@@ -4,7 +4,6 @@ use chrono::Utc;
 use jsonwebtoken::Algorithm;
 use reqwest::StatusCode;
 use std::{env, str::FromStr};
-use tracing_test::traced_test;
 
 use rpsump::auth::claim::Claim;
 use rpsump::models::user::User;
