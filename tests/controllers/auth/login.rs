@@ -7,7 +7,6 @@ use rpsump::controllers::ApiResponse;
 use rpsump::database::DbPool;
 use rpsump::models::user::User;
 use rpsump::models::user_event::EventType;
-use tracing_test::traced_test;
 
 use super::{create_test_user, user_params};
 use crate::common::test_app::spawn_app;
