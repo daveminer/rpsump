@@ -61,12 +61,10 @@ pub fn listen_to_high_sensor(
         let mut deb = shared_deb.lock().unwrap();
 
         if deb.is_some() {
-            println!("UPDATING HIGH DEBOUNCER FOR {:?}", level);
             deb.as_mut().unwrap().reset_deadline(level);
             return;
         }
 
-        println!("SETTING NEW HIGH DEBOUNCER FOR {:?}", level);
         let debouncer = SensorDebouncer::new(Duration::new(2, 0), level);
         *deb = Some(debouncer);
 
@@ -76,7 +74,6 @@ pub fn listen_to_high_sensor(
         *deb = None;
         drop(deb);
 
-        println!("HIGH DEB DONE");
         rt.block_on(update_high_sensor(
             level,
             Arc::clone(&pump_control_pin),
@@ -103,12 +100,10 @@ pub fn listen_to_low_sensor(
         let mut deb = shared_deb.lock().unwrap();
 
         if deb.is_some() {
-            println!("UPDATING LOW DEBOUNCER FOR {:?}", level);
             deb.as_mut().unwrap().reset_deadline(level);
             return;
         }
 
-        println!("SETTING NEW LOW DEBOUNCER FOR {:?}", level);
         let debouncer = SensorDebouncer::new(Duration::new(2, 0), level);
         *deb = Some(debouncer);
 
@@ -118,7 +113,6 @@ pub fn listen_to_low_sensor(
         *deb = None;
         drop(deb);
 
-        println!("LOW DEB DONE");
         rt.block_on(update_low_sensor(
             level,
             Arc::clone(&pump_control_pin),

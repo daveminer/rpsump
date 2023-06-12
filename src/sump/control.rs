@@ -19,6 +19,7 @@ pub async fn update_high_sensor(
     if level == Level::High {
         let mut pin = pump_control_pin.lock().unwrap();
         pin.set_high();
+        tracing::info!("Sump pump turned on.");
 
         SumpEvent::create("pump on".to_string(), "reservoir full".to_string(), db)
             .await
@@ -49,6 +50,7 @@ pub async fn update_low_sensor(
 
         let mut pin = pump_control_pin.lock().unwrap();
         pin.set_low();
+        tracing::info!("Sump pump turned off");
 
         SumpEvent::create("pump off".to_string(), "reservoir empty".to_string(), db)
             .await

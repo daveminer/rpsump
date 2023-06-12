@@ -8,7 +8,7 @@ use std::sync::Arc;
 
 use crate::config::Settings;
 
-use crate::controllers::{auth::auth_routes, info::info};
+use crate::controllers::{auth::auth_routes, info::info, sump_event::sump_event};
 use crate::database::DbPool;
 use crate::sump::sensor::{listen_to_high_sensor, listen_to_low_sensor};
 use crate::sump::{spawn_reporting_thread, Sump};
@@ -23,7 +23,10 @@ impl Application {
         let address = format!("{}:{}", settings.server.host, settings.server.port);
         let listener =
             std::net::TcpListener::bind(address).expect("Could not bind server address.");
-        let port = listener.local_addr().unwrap().port();
+        let port = listener
+            .local_addr()
+            .expect("Could not get server address.")
+            .port();
         let delay = match settings.clone().sump {
             Some(sump) => sump.pump_shutoff_delay,
             None => 0,
@@ -72,7 +75,7 @@ impl Application {
                 ))
                 // HTTP API Routes
                 .service(info)
-                //.service(sump_event)
+                .service(sump_event)
                 .service(web::scope("/auth").configure(auth_routes))
                 // Application configuration
                 .app_data(Self::json_cfg())

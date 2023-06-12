@@ -53,6 +53,7 @@ pub async fn signup(
                 return Ok(ApiResponse::bad_request(e.to_string()));
             }
         };
+    let new_user_id = new_user.id;
 
     // Send email verification
     match new_user
@@ -64,7 +65,10 @@ pub async fn signup(
         )
         .await
     {
-        Ok(_) => Ok(ApiResponse::ok("User created.".to_string())),
+        Ok(_) => {
+            tracing::info!("User created: {:?}", new_user_id);
+            Ok(ApiResponse::ok("User created.".to_string()))
+        }
         Err(_e) => Ok(ApiResponse::internal_server_error()),
     }
 }

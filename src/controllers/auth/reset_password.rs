@@ -48,6 +48,7 @@ async fn request_password_reset(
     };
 
     let user_clone = user.clone();
+    let user_id = user.id;
     let conn_info = req.peer_addr().expect("Could not get IP address.");
     let ip_addr = conn_info.ip().to_string();
     UserEvent::create(user_clone, ip_addr, EventType::PasswordReset, db_clone)
@@ -62,6 +63,8 @@ async fn request_password_reset(
     )
     .await
     .expect("Could not send password reset email");
+
+    tracing::info!("Password reset email sent to {}", user_id);
 
     Ok(ApiResponse::ok(
         "A password reset email will be sent if the email address is valid.".to_string(),
@@ -87,11 +90,14 @@ async fn reset_password(
         Ok(user) => user,
         Err(_) => return Ok(invalid_token_response()),
     };
+    let user_id = user.id;
 
     if user.password_reset_token_expires_at > Some(Utc::now().naive_utc()) {
         user.set_password(&params.new_password, db_clone)
             .await
             .expect("Could not set password.");
+
+        tracing::info!("Password reset for user {}", user_id);
 
         return Ok(ApiResponse::ok("Password reset successfully.".to_string()));
     }

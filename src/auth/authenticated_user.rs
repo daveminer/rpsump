@@ -40,9 +40,9 @@ fn user_from_token(
     };
 
     let encoded_token = auth_header
-        .expect("Could not convert token to string")
-        .to_str()
         .unwrap()
+        .to_str()
+        .expect("Could not convert token to string")
         .replace("Bearer ", "");
 
     parse_token(encoded_token, settings)

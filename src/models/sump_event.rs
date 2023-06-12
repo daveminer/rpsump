@@ -10,7 +10,7 @@ use crate::database::DbPool;
 use crate::schema::sump_event;
 use crate::schema::sump_event::*;
 
-#[derive(Clone, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
 #[diesel(table_name = sump_event)]
 pub struct SumpEvent {
     pub id: i32,

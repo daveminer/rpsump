@@ -1,4 +1,3 @@
-// TODO: needs Raspberry Pi environment
 // #[cfg(test)]
 // mod tests {
 //     use rppal::gpio::{Gpio, Level, OutputPin};
