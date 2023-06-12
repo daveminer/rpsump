@@ -1,5 +1,4 @@
-use actix_identity::Identity;
-use actix_web::{post, web, web::Data, HttpMessage, HttpRequest, HttpResponse, Responder, Result};
+use actix_web::{post, web, web::Data, HttpRequest, HttpResponse, Responder, Result};
 use anyhow::{anyhow, Error};
 use bcrypt::verify;
 use diesel::prelude::*;
@@ -39,19 +38,6 @@ pub async fn login(
         Err(e) => return Ok(ApiResponse::bad_request(e.to_string())),
     };
 
-    // Check if user is allowed to login
-    let ip_addr = super::ip_address(&request);
-    if let Err(e) = UserEvent::check_allowed_status(
-        Some(user.clone()),
-        ip_addr.to_string(),
-        settings.auth_attempts_allowed,
-        db.clone(),
-    )
-    .await
-    {
-        return Ok(ApiResponse::unauthorized(e.to_string()));
-    }
-
     // Check if password is correct
     match spawn_blocking_with_tracing(move || {
         // Resist timing attacks by always hashing the password
@@ -73,10 +59,6 @@ pub async fn login(
         }
     };
 
-    // Log user in
-    Identity::login(&request.extensions(), user.id.to_string()).expect("Could not log identity in");
-    tracing::info!("User {} logged in.", user.id);
-
     // Create user event
     let mut conn = db.get().expect("Could not get a db connection.");
     let _user_event = conn.transaction::<_, Error, _>(|conn| {
@@ -84,7 +66,7 @@ pub async fn login(
             .values((
                 user_event::user_id.eq(user.id),
                 user_event::event_type.eq(EventType::Login.to_string()),
-                user_event::ip_address.eq(ip_addr.clone()),
+                user_event::ip_address.eq(super::ip_address(&request)),
             ))
             .get_result(conn)?;
 
@@ -94,6 +76,8 @@ pub async fn login(
     // Create token
     let token = create_token(user.id, settings.jwt_secret.clone())
         .expect("Could not create token for user.");
+
+    tracing::info!("User logged in: {}", user.id);
 
     Ok(HttpResponse::Ok().json(Response { token }))
 }

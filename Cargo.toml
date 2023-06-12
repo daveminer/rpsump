@@ -10,10 +10,8 @@ edition = "2021"
 anyhow = "1.0"
 bcrypt = "0.14.0"
 chrono = { version = "0.4.24", features = ["serde"] }
-clippy = "0.0.302"
 ctrlc = "3.2.5"
 dotenv = "0.15.0"
-env_logger = "0.10.0"
 futures = "0.3.28"
 jsonwebtoken = "8.3.0"
 rand = "0.8.5"
@@ -28,7 +26,6 @@ url = "2.2.0"
 uuid = { version = "1", features = ["v4", "serde"] }
 
 # HTTP server
-actix-governor = "0.4.0"
 actix-identity = "0.5.2"
 actix-session = { version = "0.7.2", features = ["cookie-session"] }
 actix-web = "4.3.1"
@@ -52,6 +49,8 @@ tracing-opentelemetry = "0.18"
 tracing-subscriber = { version = "0.3.17", features = ["env-filter", "registry"] }
 
 [dev-dependencies]
+clippy = "0.0.302"
+env_logger = "0.10.0"
 lazy_static = "1.4.0"
 linkify = "0.9.0"
 once_cell = "1.17.1"

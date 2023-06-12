@@ -51,9 +51,14 @@ async fn send(auth_token: &str, email: Email, mailer_url: &str) -> Result<(), Er
         .await?;
 
     if response.status().is_success() {
+        tracing::info!("Email sent.");
         Ok(())
     } else {
-        Err(anyhow::anyhow!("Failed to send email"))
+        Err(anyhow::anyhow!(
+            "Failed to send email. Status: {}, Details: {:?}",
+            response.status(),
+            response.text().await?
+        ))
     }
 }
 

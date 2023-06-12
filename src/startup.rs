@@ -23,7 +23,10 @@ impl Application {
         let address = format!("{}:{}", settings.server.host, settings.server.port);
         let listener =
             std::net::TcpListener::bind(address).expect("Could not bind server address.");
-        let port = listener.local_addr().unwrap().port();
+        let port = listener
+            .local_addr()
+            .expect("Could not get server address.")
+            .port();
         let delay = match settings.clone().sump {
             Some(sump) => sump.pump_shutoff_delay,
             None => 0,

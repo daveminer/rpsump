@@ -70,7 +70,7 @@ impl User {
                         DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
                             anyhow!("Email already exists.")
                         }
-                        _e => anyhow!("Internal server error when creating user."),
+                        e => anyhow!("Internal server error when creating user: {}", e),
                     })?;
 
                 let _user_event: UserEvent = diesel::insert_into(user_event::table)
@@ -103,7 +103,7 @@ impl User {
                 .execute(&mut conn)
         })
         .await?
-        .map_err(|_| anyhow!("Internal server error when creating user."))?;
+        .map_err(|e| anyhow!("Internal server error when creating user: {}", e))?;
 
         Ok(())
     }
@@ -122,7 +122,7 @@ impl User {
                 .execute(&mut conn)
         })
         .await?
-        .map_err(|_| anyhow!("Internal server error when creating user."))?;
+        .map_err(|e| anyhow!("Internal server error when creating user: {}", e))?;
 
         Ok(())
     }
@@ -145,7 +145,12 @@ impl User {
                 .execute(&mut conn)
         })
         .await?
-        .map_err(|_| anyhow!("Internal server error when saving email verification token."))?;
+        .map_err(|e| {
+            anyhow!(
+                "Internal server error when saving email verification token: {}",
+                e
+            )
+        })?;
 
         Ok(())
     }
@@ -161,8 +166,8 @@ impl User {
                     Err(DieselError::NotFound) => {
                         return Err(anyhow!("Invalid token."));
                     }
-                    Err(_e) => {
-                        return Err(anyhow!("Internal server error when verifying email."));
+                    Err(e) => {
+                        return Err(anyhow!("Internal server error when verifying email: {}", e));
                     }
                 };
 
