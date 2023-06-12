@@ -1,18 +1,17 @@
-use std::{env, str::FromStr};
-
 use actix_web::http::header::{HeaderName, HeaderValue};
 use actix_web::web::Data;
 use chrono::Utc;
 use jsonwebtoken::Algorithm;
-
 use reqwest::StatusCode;
+use std::{env, str::FromStr};
+
 use rpsump::auth::claim::Claim;
 use rpsump::models::user::User;
 
 use crate::common::test_app::spawn_app;
 use crate::controllers::auth::create_test_user;
 
-fn create_auth_header(token: &str) -> (HeaderName, HeaderValue) {
+pub fn create_auth_header(token: &str) -> (HeaderName, HeaderValue) {
     (
         HeaderName::from_str("Authorization").unwrap(),
         HeaderValue::from_str(&format!("Bearer {}", token)).unwrap(),

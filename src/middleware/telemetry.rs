@@ -4,7 +4,6 @@ use opentelemetry::KeyValue;
 use opentelemetry::{global, sdk::propagation::TraceContextPropagator};
 use opentelemetry_otlp::WithExportConfig;
 use std::str::FromStr;
-use tokio::task::JoinHandle;
 use tonic::metadata::{MetadataKey, MetadataMap};
 use tracing_subscriber::{prelude::*, EnvFilter, Registry};
 
@@ -32,6 +31,7 @@ pub fn init_tracer(settings: &Settings) -> Result<(), Error> {
         .with_exporter(otlp_exporter)
         .install_batch(opentelemetry::runtime::Tokio)?;
 
+    // TODO: remove add_directive
     let env_filter = EnvFilter::new("info").add_directive("my_crate::internal=off".parse()?);
 
     Registry::default()
@@ -54,13 +54,4 @@ fn headers(settings: &Settings) -> MetadataMap {
     );
 
     metadata
-}
-
-pub fn spawn_blocking_with_tracing<F, R>(f: F) -> JoinHandle<R>
-where
-    F: FnOnce() -> R + Send + 'static,
-    R: Send + 'static,
-{
-    let current_span = tracing::Span::current();
-    actix_web::rt::task::spawn_blocking(move || current_span.in_scope(f))
 }

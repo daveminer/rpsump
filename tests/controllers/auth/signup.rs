@@ -1,4 +1,4 @@
-use actix_web::{web, web::Data};
+use actix_web::web::Data;
 use anyhow::Error;
 use diesel::RunQueryDsl;
 

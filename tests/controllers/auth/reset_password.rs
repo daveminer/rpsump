@@ -1,8 +1,6 @@
 use actix_web::web;
-use anyhow::Error;
 use chrono::{Duration, Utc};
 use diesel::RunQueryDsl;
-use rpsump::database::DbPool;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
 

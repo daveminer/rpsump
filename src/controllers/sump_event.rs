@@ -1,30 +1,40 @@
+use actix_web::{error, get, web::Data, HttpResponse, Responder, Result};
+use anyhow::{anyhow, Error};
+use diesel::{QueryDsl, RunQueryDsl};
+
 use crate::auth::authenticated_user::AuthenticatedUser;
+use crate::controllers::spawn_blocking_with_tracing;
 use crate::database::{self, DbPool};
 use crate::models::sump_event::SumpEvent;
-use actix_web::error;
-use actix_web::{get, web, web::Data, HttpResponse, Responder, Result};
-use diesel::{QueryDsl, RunQueryDsl};
 
 #[get("/sump_event")]
 #[tracing::instrument(skip(_req_body, db, _user))]
-async fn sump_event(
+pub async fn sump_event(
     _req_body: String,
     db: Data<DbPool>,
     // TODO: check if needed
     _user: AuthenticatedUser,
 ) -> Result<impl Responder> {
-    let _events = web::block(move || {
-        let mut conn = database::conn(db);
-        SumpEvent::all().limit(100).load::<SumpEvent>(&mut conn)
-    })
-    .await?
-    .map_err(error::ErrorInternalServerError)?;
+    let sump_events = spawn_blocking_with_tracing(move || sump_events(db))
+        .await
+        .map_err(|e| {
+            tracing::error!("Error while spawning a blocking task: {:?}", e);
+            error::ErrorInternalServerError("Internal server error.")
+        })?
+        .map_err(|e| {
+            tracing::error!("Error while getting sump events: {:?}", e);
+            error::ErrorInternalServerError("Internal server error.")
+        })?;
 
-    //Ok(HttpResponse::Ok().body(format!("{:?}", events)))
-    Ok(HttpResponse::Ok().body(""))
+    Ok(HttpResponse::Ok().json(sump_events))
 }
 
-// #[get("/pump_runs")]
-// async fn pump_runs() -> Result<impl Responder> {
-//     Ok(HttpResponse::Ok().body("Pump runs"))
-// }
+fn sump_events(db: Data<DbPool>) -> Result<Vec<SumpEvent>, Error> {
+    let mut conn = database::conn(db)?;
+    let sump_events: Vec<SumpEvent> = SumpEvent::all()
+        .limit(100)
+        .load::<SumpEvent>(&mut conn)
+        .map_err(|e| anyhow!(e))?;
+
+    Ok(sump_events)
+}

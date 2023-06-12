@@ -1,11 +1,34 @@
+use actix_web::web::Data;
 use linkify::{LinkFinder, LinkKind};
 use reqwest::Url;
+use rpsump::models::sump_event::SumpEvent;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockGuard, ResponseTemplate};
 
 use crate::common::test_app::TestApp;
 
+use rpsump::auth::password::Password;
+use rpsump::database::DbPool;
+use rpsump::models::user::User;
+use serde_json::{Map, Value};
+
 pub mod auth;
+pub mod info;
+pub mod sump_event;
+
+const TEST_EMAIL: &str = "test_acct@test.local";
+const TEST_PASSWORD: &str = "testing87_*Password";
+
+pub async fn create_test_user(db_pool: Data<DbPool>) -> User {
+    User::create(
+        TEST_EMAIL.into(),
+        Password::new(TEST_PASSWORD.into()).hash().unwrap(),
+        "127.0.0.1".into(),
+        db_pool,
+    )
+    .await
+    .unwrap()
+}
 
 pub fn link_from_email_text<'a>(text: &str) -> Vec<String> {
     let finder = LinkFinder::new();
@@ -56,6 +79,24 @@ async fn email_link_from_mock_server(app: &TestApp) -> String {
     link[0].clone()
 }
 
+async fn insert_sump_events(db: DbPool) {
+    SumpEvent::create("sump pump".to_string(), "pump on".to_string(), db.clone())
+        .await
+        .unwrap();
+
+    SumpEvent::create("sump pump".to_string(), "pump off".to_string(), db.clone())
+        .await
+        .unwrap();
+
+    SumpEvent::create("sump pump".to_string(), "pump on".to_string(), db.clone())
+        .await
+        .unwrap();
+
+    SumpEvent::create("sump pump".to_string(), "pump off".to_string(), db)
+        .await
+        .unwrap();
+}
+
 async fn mock_email_verification_send(app: &TestApp) -> MockGuard {
     Mock::given(path("/"))
         .and(method("POST"))
@@ -64,4 +105,12 @@ async fn mock_email_verification_send(app: &TestApp) -> MockGuard {
         .expect(1)
         .mount_as_scoped(&app.email_server)
         .await
+}
+
+pub fn user_params() -> Map<String, Value> {
+    let mut map = serde_json::Map::new();
+    map.insert("email".into(), TEST_EMAIL.into());
+    map.insert("password".into(), TEST_PASSWORD.into());
+
+    map
 }

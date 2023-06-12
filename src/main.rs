@@ -10,7 +10,7 @@ async fn main() -> std::io::Result<()> {
     init_exit_handler();
 
     let settings = Settings::new();
-    let db_pool = new_pool(&settings.database_url);
+    let db_pool = new_pool(&settings.database_url).expect("Could not create database pool.");
     telemetry::init_tracer(&settings).expect("Could not initialize telemetry.");
     let application = Application::build(settings, db_pool);
 

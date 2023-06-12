@@ -1,12 +1,13 @@
-use crate::auth::claim::Claim;
-use crate::config::Settings;
-
-use actix_web::{dev, error, http::header::HeaderValue, web, Error, FromRequest, HttpRequest};
+use actix_web::{dev, error, web, Error, FromRequest, HttpRequest};
+use anyhow::anyhow;
 use futures::future::err;
 use jsonwebtoken::{decode, DecodingKey, TokenData, Validation};
 use std::future::Future;
 use std::pin::Pin;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+use crate::auth::claim::Claim;
+use crate::config::Settings;
 
 #[derive(Debug)]
 pub struct AuthenticatedUser {
@@ -21,45 +22,66 @@ impl FromRequest for AuthenticatedUser {
 
     #[tracing::instrument(skip(req, _payload))]
     fn from_request(req: &HttpRequest, _payload: &mut dev::Payload) -> Self::Future {
-        let auth_header = req.headers().get("Authorization");
-        let user = match user_from_token(auth_header, settings(req)) {
+        let token = match auth_token_from_request(req) {
+            Ok(token) => token,
+            Err(e) => {
+                return unauthorized_err(&e.to_string());
+            }
+        };
+
+        if let None = settings(req) {
+            tracing::error!("Configuration error; settings are None.");
+            return internal_server_error();
+        }
+
+        let user = match parse_token(token, settings(req).unwrap()) {
             Ok(user) => user,
-            Err(_e) => return unauthorized_err("Invalid token".to_string()),
+            Err(e) => {
+                return unauthorized_err(&e.to_string());
+            }
         };
 
         Box::pin(async move { Ok(AuthenticatedUser { id: user.id }) })
     }
 }
 
-fn user_from_token(
-    auth_header: Option<&HeaderValue>,
-    settings: &Settings,
-) -> Result<AuthenticatedUser, Error> {
+fn auth_token_from_request(req: &HttpRequest) -> Result<String, anyhow::Error> {
+    let auth_header = req.headers().get("Authorization");
     if auth_header.is_none() {
-        return Err(error::ErrorUnauthorized("Missing authentication"));
+        return Err(anyhow!("Missing authentication."));
     };
 
-    let encoded_token = auth_header
-        .expect("Could not convert token to string")
-        .to_str()
-        .unwrap()
-        .replace("Bearer ", "");
+    let token = match auth_header.unwrap().to_str() {
+        Ok(token) => token.replace("Bearer ", ""),
+        Err(e) => {
+            tracing::error!("Could not parse token: {:?}", e);
+            return Err(anyhow!("Invalid authentication."));
+        }
+    };
 
-    parse_token(encoded_token, settings)
+    Ok(token)
 }
 
 fn parse_token(token: String, settings: &Settings) -> Result<AuthenticatedUser, Error> {
     match decode::<Claim>(&token, &decoding_key(settings), &Validation::default()) {
         Ok(token) => {
-            if token_expired(&token) {
-                return Err(error::ErrorUnauthorized("Token expired"));
+            match token_expired(&token) {
+                Ok(true) => return Err(error::ErrorUnauthorized("Token expired")),
+                Ok(false) => (),
+                Err(e) => {
+                    tracing::error!("Error while checking token expiry: {:?}", e);
+                    return Err(error::ErrorInternalServerError("Internal server error."));
+                }
             }
 
             Ok(AuthenticatedUser {
                 id: token.claims.sub.parse().unwrap(),
             })
         }
-        Err(_) => Err(error::ErrorUnauthorized("Invalid token")),
+        Err(e) => {
+            tracing::error!("Could not get user from token: {:?}", e);
+            Err(error::ErrorUnauthorized("Invalid token"))
+        }
     }
 }
 
@@ -67,21 +89,33 @@ fn decoding_key(settings: &Settings) -> DecodingKey {
     DecodingKey::from_secret(settings.jwt_secret.as_ref())
 }
 
-fn settings(req: &HttpRequest) -> &Settings {
-    req.app_data::<web::Data<Settings>>()
-        .expect("Could not get settings")
-        .get_ref()
+fn settings(req: &HttpRequest) -> Option<&Settings> {
+    match req.app_data::<web::Data<Settings>>() {
+        Some(settings) => Some(settings.get_ref()),
+        None => None,
+    }
 }
 
-fn token_expired(token_expiry: &TokenData<Claim>) -> bool {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("Could not get current time")
-        .as_secs();
+fn token_expired(token_expiry: &TokenData<Claim>) -> Result<bool, anyhow::Error> {
+    let now = match SystemTime::now().duration_since(UNIX_EPOCH) {
+        Ok(dur) => dur.as_secs(),
+        Err(e) => {
+            tracing::error!("Error while finding duration: {:?}", e);
+            return Err(anyhow!("Could not get current time."));
+        }
+    };
 
-    token_expiry.claims.exp < now
+    Ok(token_expiry.claims.exp < now)
 }
 
-fn unauthorized_err(message: String) -> AuthFuture {
-    Box::pin(err(actix_web::error::ErrorUnauthorized(message)))
+fn internal_server_error() -> AuthFuture {
+    Box::pin(err(actix_web::error::ErrorInternalServerError(
+        "Internal server error.",
+    )))
+}
+
+fn unauthorized_err(message: &str) -> AuthFuture {
+    Box::pin(err(actix_web::error::ErrorUnauthorized(
+        message.to_string(),
+    )))
 }

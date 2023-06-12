@@ -2,12 +2,13 @@ use actix_web::{get, HttpResponse, Responder};
 use actix_web::{web::Data, Result};
 
 use crate::auth::authenticated_user::AuthenticatedUser;
+use crate::controllers::ApiResponse;
 use crate::sump::Sump;
 
 #[get("/info")]
 async fn info(sump: Option<Data<Sump>>, _user: AuthenticatedUser) -> Result<impl Responder> {
     if sump.is_none() {
-        return Ok(HttpResponse::Ok().body("Sump disabled."));
+        return Ok(ApiResponse::ok("Sump disabled.".to_string()));
     }
 
     let sump = sump.unwrap();
