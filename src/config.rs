@@ -4,12 +4,10 @@ use std::env;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Settings {
-    pub auth_attempts_allowed: i64,
     pub console: ConsoleConfig,
     pub database_url: String,
     pub jwt_secret: String,
     pub mailer: MailerConfig,
-    pub rate_limiter: ThrottleConfig,
     pub server: ServerConfig,
     pub sump: Option<SumpConfig>,
     pub telemetry: TelemetryConfig,
@@ -46,12 +44,6 @@ pub struct TelemetryConfig {
     pub receiver_url: String,
 }
 
-#[derive(Clone, Debug, Deserialize)]
-pub struct ThrottleConfig {
-    pub per_second: u64,
-    pub burst_size: u32,
-}
-
 impl Settings {
     pub fn new() -> Self {
         set_application_environment();
@@ -64,10 +56,6 @@ impl Settings {
             .expect("SERVER_PORT must be a 16-bit unsigned integer.");
 
         Settings {
-            auth_attempts_allowed: env::var("AUTH_ATTEMPTS_ALLOWED")
-                .unwrap_or_else(|_| "3".to_string())
-                .parse()
-                .expect("AUTH_ATTEMPTS_ALLOWED must be a number."),
             console: ConsoleConfig {
                 report_freq_secs: env::var("CONSOLE_REPORT_FREQ_SECS")
                     .unwrap_or_else(|_| "5".to_string())
@@ -79,16 +67,6 @@ impl Settings {
             mailer: MailerConfig {
                 auth_token: load_system_var("MAILER_AUTH_TOKEN"),
                 server_url: load_system_var("MAILER_SERVER_URL"),
-            },
-            rate_limiter: ThrottleConfig {
-                per_second: env::var("RATE_LIMIT_PER_SECOND")
-                    .unwrap_or_else(|_| "2".to_string())
-                    .parse()
-                    .expect("PER_SECOND must be a number."),
-                burst_size: env::var("RATE_LIMIT_BURST_SIZE")
-                    .unwrap_or_else(|_| "5".to_string())
-                    .parse()
-                    .expect("BURST_SIZE must be a number."),
             },
             server: ServerConfig {
                 host: server_host,

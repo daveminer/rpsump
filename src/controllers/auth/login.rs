@@ -39,19 +39,6 @@ pub async fn login(
         Err(e) => return Ok(ApiResponse::bad_request(e.to_string())),
     };
 
-    // Check if user is allowed to login
-    let ip_addr = super::ip_address(&request);
-    if let Err(e) = UserEvent::check_allowed_status(
-        Some(user.clone()),
-        ip_addr.to_string(),
-        settings.auth_attempts_allowed,
-        db.clone(),
-    )
-    .await
-    {
-        return Ok(ApiResponse::unauthorized(e.to_string()));
-    }
-
     // Check if password is correct
     match spawn_blocking_with_tracing(move || {
         // Resist timing attacks by always hashing the password
@@ -83,7 +70,7 @@ pub async fn login(
             .values((
                 user_event::user_id.eq(user.id),
                 user_event::event_type.eq(EventType::Login.to_string()),
-                user_event::ip_address.eq(ip_addr.clone()),
+                user_event::ip_address.eq(super::ip_address(&request)),
             ))
             .get_result(conn)?;
 

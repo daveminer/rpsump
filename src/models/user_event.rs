@@ -28,7 +28,6 @@ pub struct UserEvent {
 #[diesel(sql_type = diesel::sql_types::Text)]
 pub enum EventType {
     FailedLogin,
-    LockedLogin,
     Login,
     Logout,
     PasswordReset,
@@ -39,7 +38,6 @@ impl Display for EventType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             EventType::FailedLogin => write!(f, "failed_login"),
-            EventType::LockedLogin => write!(f, "locked_login"),
             EventType::Login => write!(f, "login"),
             EventType::Logout => write!(f, "logout"),
             EventType::PasswordReset => write!(f, "password_reset"),

@@ -102,23 +102,6 @@ async fn login_success() {
     assert_eq!(events.len(), 1);
 }
 
-#[tokio::test]
-async fn login_user_blocked() {
-    // Arrange
-    let app = spawn_app().await;
-    let db_pool = app.db_pool.clone();
-    let _user = create_test_user(Data::new(db_pool.clone())).await;
-
-    // Act
-    let response = app.post_login(&user_params()).await;
-    let status = response.status();
-    let body: Value = response.json().await.unwrap();
-
-    // Assert
-    assert!(status.is_success());
-    assert!(body["token"].is_string());
-}
-
 async fn recent_login_events(record: User, db_pool: DbPool) -> Result<Vec<UserEvent>, Error> {
     UserEvent::recent_events(
         Some(record),
