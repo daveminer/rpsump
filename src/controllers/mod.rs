@@ -1,4 +1,6 @@
+use actix_web::rt::task::{spawn_blocking, JoinHandle};
 use actix_web::HttpResponse;
+
 use serde::{Deserialize, Serialize};
 
 pub mod auth;
@@ -28,6 +30,18 @@ impl ApiResponse {
     pub fn unauthorized(message: String) -> HttpResponse {
         HttpResponse::Unauthorized().json(Self { message })
     }
+}
+
+// Long-running calls to blocking functions need to be spawned on Actix's
+// blocking thread pool or the main event loop will be blocked.
+// This includes all calls to the database as Diesel has a synchronous API.
+pub fn spawn_blocking_with_tracing<F, R>(f: F) -> JoinHandle<R>
+where
+    F: FnOnce() -> R + Send + 'static,
+    R: Send + 'static,
+{
+    let current_span = tracing::Span::current();
+    spawn_blocking(move || current_span.in_scope(f))
 }
 
 #[macro_export]

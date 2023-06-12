@@ -98,7 +98,7 @@ async fn login_success() {
     // Assert
     assert!(status.is_success());
     assert!(body["token"].is_string());
-    let events = recent_login_events(user, db_pool).await.unwrap();
+    let events = recent_login_events(user.clone(), db_pool).await.unwrap();
     assert_eq!(events.len(), 1);
 }
 

@@ -5,14 +5,12 @@ use diesel::sqlite::SqliteConnection;
 pub type DbPool = Pool<ConnectionManager<SqliteConnection>>;
 pub type DbConn = PooledConnection<ConnectionManager<SqliteConnection>>;
 
-pub fn new_pool(path: &String) -> DbPool {
+pub fn new_pool(path: &String) -> Result<DbPool, anyhow::Error> {
     let manager = ConnectionManager::<SqliteConnection>::new(path);
 
-    Pool::builder()
-        .build(manager)
-        .expect("Could not create database pool.")
+    Pool::builder().build(manager).map_err(|e| e.into())
 }
 
-pub fn conn(db: web::Data<DbPool>) -> DbConn {
-    db.get().expect("Could not acquire db lock.")
+pub fn conn(db: web::Data<DbPool>) -> Result<DbConn, anyhow::Error> {
+    db.get().map_err(|e| e.into())
 }

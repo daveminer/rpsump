@@ -1,17 +1,17 @@
-mod email_verification;
-mod login;
-mod reset_password;
-mod signup;
-
 use actix_web::web::Data;
 use serde_json::{Map, Value};
 
+use super::{TEST_EMAIL, TEST_PASSWORD};
 use rpsump::auth::password::Password;
 use rpsump::database::DbPool;
 use rpsump::models::user::User;
 
-const TEST_EMAIL: &str = "test_acct@test.local";
-const TEST_PASSWORD: &str = "testing87_*Password";
+use crate::controllers::user_params;
+
+mod email_verification;
+mod login;
+mod reset_password;
+mod signup;
 
 pub async fn create_test_user(db_pool: Data<DbPool>) -> User {
     User::create(
@@ -35,13 +35,5 @@ fn password_reset_params(token: String, new_password: String) -> Map<String, Val
 fn signup_params() -> Map<String, Value> {
     let mut map = user_params();
     map.insert("confirm_password".into(), TEST_PASSWORD.into());
-    map
-}
-
-fn user_params() -> Map<String, Value> {
-    let mut map = serde_json::Map::new();
-    map.insert("email".into(), TEST_EMAIL.into());
-    map.insert("password".into(), TEST_PASSWORD.into());
-
     map
 }
