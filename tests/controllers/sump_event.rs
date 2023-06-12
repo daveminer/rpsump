@@ -1,11 +1,10 @@
 use actix_web::web::Data;
 use serde_json::Value;
 
-use rpsump::database::DbPool;
 use rpsump::models::sump_event::SumpEvent;
 
 use crate::common::test_app::spawn_app;
-use crate::controllers::{create_test_user, user_params};
+use crate::controllers::{create_test_user, insert_sump_events, user_params};
 
 #[tokio::test]
 async fn sump_event_success() {
@@ -33,22 +32,4 @@ async fn sump_event_failed_no_auth() {
     let app = spawn_app().await;
     let sump_event_response = app.get_sump_event("invalid-token".to_string()).await;
     assert!(sump_event_response.status().is_client_error());
-}
-
-async fn insert_sump_events(db: DbPool) {
-    SumpEvent::create("sump pump".to_string(), "pump on".to_string(), db.clone())
-        .await
-        .unwrap();
-
-    SumpEvent::create("sump pump".to_string(), "pump off".to_string(), db.clone())
-        .await
-        .unwrap();
-
-    SumpEvent::create("sump pump".to_string(), "pump on".to_string(), db.clone())
-        .await
-        .unwrap();
-
-    SumpEvent::create("sump pump".to_string(), "pump off".to_string(), db)
-        .await
-        .unwrap();
 }

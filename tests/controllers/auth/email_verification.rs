@@ -41,14 +41,6 @@ async fn email_verification_token_expired() {
     // Assert
     assert!(email_verif_status.is_client_error());
     assert!(body.message == "Token expired.");
-        // logs_assert(|lines: &[&str]| {
-    //     println!("Log lines: {:?}", lines);
-    //     lines
-    //         .iter()
-    //         .for_each(|l| println!("Log line: {}", l.to_string()));
-
-    //     Ok(())
-    // });
 }
 
 #[tokio::test]

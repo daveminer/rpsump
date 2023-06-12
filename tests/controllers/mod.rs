@@ -1,6 +1,7 @@
 use actix_web::web::Data;
 use linkify::{LinkFinder, LinkKind};
 use reqwest::Url;
+use rpsump::models::sump_event::SumpEvent;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockGuard, ResponseTemplate};
 
@@ -76,6 +77,24 @@ async fn email_link_from_mock_server(app: &TestApp) -> String {
     let link = link_from_email_text(body);
 
     link[0].clone()
+}
+
+async fn insert_sump_events(db: DbPool) {
+    SumpEvent::create("sump pump".to_string(), "pump on".to_string(), db.clone())
+        .await
+        .unwrap();
+
+    SumpEvent::create("sump pump".to_string(), "pump off".to_string(), db.clone())
+        .await
+        .unwrap();
+
+    SumpEvent::create("sump pump".to_string(), "pump on".to_string(), db.clone())
+        .await
+        .unwrap();
+
+    SumpEvent::create("sump pump".to_string(), "pump off".to_string(), db)
+        .await
+        .unwrap();
 }
 
 async fn mock_email_verification_send(app: &TestApp) -> MockGuard {
