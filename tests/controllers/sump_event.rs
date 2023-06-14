@@ -12,7 +12,7 @@ async fn sump_event_success() {
     let app = spawn_app().await;
     let db_pool = app.db_pool.clone();
     let _user = create_test_user(Data::new(db_pool.clone())).await;
-    let _sump_events = insert_sump_events(db_pool.clone()).await;
+    insert_sump_events(db_pool.clone()).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
