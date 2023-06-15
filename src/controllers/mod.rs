@@ -1,6 +1,5 @@
 use actix_web::rt::task::{spawn_blocking, JoinHandle};
 use actix_web::HttpResponse;
-
 use serde::{Deserialize, Serialize};
 
 pub mod auth;
@@ -12,6 +11,7 @@ pub struct ApiResponse {
     pub message: String,
 }
 
+/// Helper methods for api JSON responses that return no data.
 impl ApiResponse {
     pub fn bad_request(message: String) -> HttpResponse {
         HttpResponse::BadRequest().json(Self { message })
@@ -32,9 +32,9 @@ impl ApiResponse {
     }
 }
 
-// Long-running calls to blocking functions need to be spawned on Actix's
-// blocking thread pool or the main event loop will be blocked.
-// This includes all calls to the database as Diesel has a synchronous API.
+/// Long-running calls to blocking functions need to be spawned on Actix's
+/// blocking thread pool or the main event loop will be blocked.
+/// This includes all calls to the database as Diesel has a synchronous API.
 pub fn spawn_blocking_with_tracing<F, R>(f: F) -> JoinHandle<R>
 where
     F: FnOnce() -> R + Send + 'static,
@@ -44,6 +44,7 @@ where
     spawn_blocking(move || current_span.in_scope(f))
 }
 
+/// Convenience method for database connections during an api request.
 #[macro_export]
 macro_rules! new_conn {
     ($db:expr) => {

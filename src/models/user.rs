@@ -57,7 +57,7 @@ impl User {
         db: Data<DbPool>,
     ) -> Result<User, Error> {
         let new_user: User = web::block(move || {
-            let mut conn = db.get().expect("Could not get a db connection.");
+            let mut conn = db.get()?;
 
             let user = conn.transaction::<_, Error, _>(|conn| {
                 let user: User = diesel::insert_into(user::table)
@@ -95,15 +95,16 @@ impl User {
     pub async fn set_password(self, password: &Password, db: Data<DbPool>) -> Result<(), Error> {
         let hash = password.hash()?;
         let _row_updated = web::block(move || {
-            let mut conn = db.get().expect("Could not get a db connection.");
+            let mut conn = db.get()?;
 
             diesel::update(user::table)
                 .filter(user::email.eq(self.email))
                 .set(user::password_hash.eq(hash))
                 .execute(&mut conn)
+                .map_err(|e| anyhow!(e))
         })
         .await?
-        .map_err(|e| anyhow!("Internal server error when creating user: {}", e))?;
+        .map_err(|e| anyhow!("Error when updating user password: {}", e))?;
 
         Ok(())
     }
@@ -111,7 +112,7 @@ impl User {
     #[tracing::instrument(skip(self, token, db))]
     pub async fn save_reset_token(self, token: Token, db: Data<DbPool>) -> Result<(), Error> {
         let _row_updated = web::block(move || {
-            let mut conn = db.get().expect("Could not get a db connection.");
+            let mut conn = db.get()?;
 
             diesel::update(user::table)
                 .filter(user::email.eq(self.email))
@@ -120,9 +121,10 @@ impl User {
                     user::password_reset_token_expires_at.eq(token.expires_at.to_string()),
                 ))
                 .execute(&mut conn)
+                .map_err(|e| anyhow!(e))
         })
         .await?
-        .map_err(|e| anyhow!("Internal server error when creating user: {}", e))?;
+        .map_err(|e| anyhow!("Error when saving new reset token: {}", e))?;
 
         Ok(())
     }
@@ -134,7 +136,7 @@ impl User {
         db: web::Data<DbPool>,
     ) -> Result<(), Error> {
         let _row_updated = web::block(move || {
-            let mut conn = db.get().expect("Could not get a db connection.");
+            let mut conn = db.get()?;
 
             diesel::update(user::table)
                 .filter(user::email.eq(user_email))
@@ -143,14 +145,10 @@ impl User {
                     user::email_verification_token_expires_at.eq(Some(token.expires_at)),
                 ))
                 .execute(&mut conn)
+                .map_err(|e| anyhow!(e))
         })
         .await?
-        .map_err(|e| {
-            anyhow!(
-                "Internal server error when saving email verification token: {}",
-                e
-            )
-        })?;
+        .map_err(|e| anyhow!("Error when saving email verification token: {}", e))?;
 
         Ok(())
     }
@@ -158,7 +156,7 @@ impl User {
     #[tracing::instrument(skip(token, db))]
     pub async fn verify_email(token: String, db: web::Data<DbPool>) -> Result<(), Error> {
         let _result = web::block(move || {
-            let mut conn = db.get().expect("Could not get a db connection.");
+            let mut conn = db.get()?;
 
             let user_from_token =
                 match Self::by_email_verification_token(token.clone()).first::<User>(&mut conn) {

@@ -7,8 +7,10 @@ use diesel_derive_enum::DbEnum;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
+use crate::controllers::ApiResponse;
 use crate::database::DbPool;
 use crate::models::user::User;
+use crate::new_conn;
 use crate::schema::user_event;
 use crate::schema::user_event::dsl::*;
 
