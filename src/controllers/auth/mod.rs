@@ -14,9 +14,9 @@ pub fn auth_routes(cfg: &mut ServiceConfig) {
     cfg.service(signup::signup);
 }
 
-pub fn ip_address(req: &HttpRequest) -> String {
-    req.connection_info()
-        .peer_addr()
-        .expect("Could not get IP address.")
-        .to_string()
+pub fn ip_address(req: &HttpRequest) -> Result<String, anyhow::Error> {
+    match req.connection_info().peer_addr() {
+        Some(ip) => Ok(ip.to_string()),
+        None => return Err(anyhow::anyhow!("Could not get IP address from request.")),
+    }
 }

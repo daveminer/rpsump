@@ -45,14 +45,21 @@ pub async fn signup(
         }
     };
 
+    let ip_addr: String = match ip_address(&req) {
+        Ok(ip) => ip,
+        Err(e) => {
+            tracing::error!("User signup failed: {}", e);
+            return Ok(ApiResponse::internal_server_error());
+        }
+    };
+
     // Create user
-    let new_user =
-        match User::create(params.email.to_string(), hash, ip_address(&req), db.clone()).await {
-            Ok(user) => user,
-            Err(e) => {
-                return Ok(ApiResponse::bad_request(e.to_string()));
-            }
-        };
+    let new_user = match User::create(params.email.to_string(), hash, ip_addr, db.clone()).await {
+        Ok(user) => user,
+        Err(e) => {
+            return Ok(ApiResponse::bad_request(e.to_string()));
+        }
+    };
     let new_user_id = new_user.id;
 
     // Send email verification
@@ -65,10 +72,7 @@ pub async fn signup(
         )
         .await
     {
-        Ok(_) => {
-            tracing::info!("User created: {:?}", new_user_id);
-            Ok(ApiResponse::ok("User created.".to_string()))
-        }
+        Ok(_) => Ok(ApiResponse::ok("User created.".to_string())),
         Err(_e) => Ok(ApiResponse::internal_server_error()),
     }
 }

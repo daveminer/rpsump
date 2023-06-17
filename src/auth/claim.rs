@@ -11,17 +11,12 @@ pub struct Claim {
     pub exp: u64,
 }
 
-pub fn create_token(
-    user_id: i32,
-    private_key: String,
-) -> Result<String, jsonwebtoken::errors::Error> {
-    let exp_time = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("Could not get current time")
-        .as_secs()
-        + TOKEN_EXPIRATION_TIME_SECONDS;
+pub fn create_token(user_id: i32, private_key: String) -> Result<String, anyhow::Error> {
+    let duration = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
 
-    encode(
+    let exp_time = duration.as_secs() + TOKEN_EXPIRATION_TIME_SECONDS;
+
+    Ok(encode(
         &Header::default(),
         &Claim {
             sub: user_id.to_string(),
@@ -29,5 +24,5 @@ pub fn create_token(
             iat: Utc::now().timestamp_millis() as u64,
         },
         &EncodingKey::from_secret(private_key.as_bytes()),
-    )
+    )?)
 }

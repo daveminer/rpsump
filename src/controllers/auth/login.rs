@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use super::super::spawn_blocking_with_tracing;
 use crate::auth::{claim::create_token, validate_credentials, AuthParams};
 use crate::config::Settings;
-use crate::controllers::ApiResponse;
+use crate::controllers::{auth::ip_address, ApiResponse};
 use crate::database::DbPool;
 use crate::models::user_event::*;
 use crate::new_conn;
@@ -59,14 +59,22 @@ pub async fn login(
         }
     };
 
+    let ip_addr: String = match ip_address(&request) {
+        Ok(ip) => ip,
+        Err(e) => {
+            tracing::error!("User signup failed: {}", e);
+            return Ok(ApiResponse::internal_server_error());
+        }
+    };
+
     // Create user event
-    let mut conn = db.get().expect("Could not get a db connection.");
+    let mut conn = new_conn!(db);
     let _user_event = conn.transaction::<_, Error, _>(|conn| {
         let user_event: UserEvent = diesel::insert_into(user_event::table)
             .values((
                 user_event::user_id.eq(user.id),
                 user_event::event_type.eq(EventType::Login.to_string()),
-                user_event::ip_address.eq(super::ip_address(&request)),
+                user_event::ip_address.eq(ip_addr),
             ))
             .get_result(conn)?;
 
@@ -74,8 +82,13 @@ pub async fn login(
     });
 
     // Create token
-    let token = create_token(user.id, settings.jwt_secret.clone())
-        .expect("Could not create token for user.");
+    let token = match create_token(user.id, settings.jwt_secret.clone()) {
+        Ok(token) => token,
+        Err(e) => {
+            tracing::error!("Could not create token for user: {}", e);
+            return Ok(ApiResponse::internal_server_error());
+        }
+    };
 
     tracing::info!("User logged in: {}", user.id);
 

@@ -81,7 +81,7 @@ pub fn listen_to_high_sensor(
             db.clone(),
         ));
     })
-    .expect("Could not not listen on high water level sump pin");
+    .expect("Could not not listen on high water level sump pin.");
 }
 
 #[tracing::instrument(skip(db))]
@@ -121,5 +121,5 @@ pub fn listen_to_low_sensor(
             db.clone(),
         ));
     })
-    .expect("Could not not listen on low water level sump pin");
+    .expect("Could not not listen on low water level sump pin.");
 }

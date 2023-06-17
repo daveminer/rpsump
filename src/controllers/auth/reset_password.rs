@@ -6,7 +6,7 @@ use validator::Validate;
 
 use crate::auth::{password::Password, validate_password};
 use crate::config::Settings;
-use crate::controllers::ApiResponse;
+use crate::controllers::{auth::ip_address, ApiResponse};
 use crate::database::DbPool;
 use crate::models::user::User;
 use crate::models::user_event::{EventType, UserEvent};
@@ -29,8 +29,8 @@ pub struct RequestPasswordResetParams {
     pub email: String,
 }
 
-// Request a password reset by sending an email with a reset link to the
-// provided email address.
+/// Request a password reset by sending an email with a reset link to the
+/// provided email address.
 #[post("/request_password_reset")]
 #[tracing::instrument(skip(req, params, db, settings))]
 async fn request_password_reset(
@@ -49,11 +49,18 @@ async fn request_password_reset(
 
     let user_clone = user.clone();
     let user_id = user.id;
-    let conn_info = req.peer_addr().expect("Could not get IP address.");
-    let ip_addr = conn_info.ip().to_string();
+    let ip_addr: String = match ip_address(&req) {
+        Ok(ip) => ip,
+        Err(e) => {
+            return Ok(internal_server_error_response(e));
+        }
+    };
+
     UserEvent::create(user_clone, ip_addr, EventType::PasswordReset, db_clone)
         .await
-        .expect("Could not create user event.");
+        .map_err(|e| {
+            return internal_server_error_response(e);
+        });
 
     user.send_password_reset(
         db.clone(),
@@ -62,16 +69,16 @@ async fn request_password_reset(
         &settings.mailer.auth_token.clone(),
     )
     .await
-    .expect("Could not send password reset email");
-
-    tracing::info!("Password reset email sent to {}", user_id);
+    .map_err(|e| {
+        return internal_server_error_response(e);
+    });
 
     Ok(ApiResponse::ok(
         "A password reset email will be sent if the email address is valid.".to_string(),
     ))
 }
 
-// Use a token provided in an email to reset a user's password.
+/// Use a token provided in an email to reset a user's password.
 #[post("/reset_password")]
 #[tracing::instrument(skip(params, db))]
 async fn reset_password(
@@ -95,7 +102,10 @@ async fn reset_password(
     if user.password_reset_token_expires_at > Some(Utc::now().naive_utc()) {
         user.set_password(&params.new_password, db_clone)
             .await
-            .expect("Could not set password.");
+            .map_err(|e| {
+                tracing::error!("Password reset failed: {}", e);
+                ApiResponse::internal_server_error()
+            });
 
         tracing::info!("Password reset for user {}", user_id);
 
@@ -107,4 +117,9 @@ async fn reset_password(
 
 fn invalid_token_response() -> HttpResponse {
     ApiResponse::bad_request("Invalid token.".to_string())
+}
+
+fn internal_server_error_response(e: anyhow::Error) -> HttpResponse {
+    tracing::error!("Password reset request failed: {}", e);
+    ApiResponse::internal_server_error()
 }
