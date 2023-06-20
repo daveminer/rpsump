@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::auth::{password::Password, token::Token};
 use crate::database::DbPool;
-use crate::models::user_event::{EventType, UserEvent};
+use crate::models::user_event::EventType;
 use crate::schema::{user, user_event};
 
 #[derive(Clone, Debug, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
@@ -60,12 +60,12 @@ impl User {
             let mut conn = db.get()?;
 
             let user = conn.transaction::<_, Error, _>(|conn| {
-                let user: User = diesel::insert_into(user::table)
+                let _row_inserted = diesel::insert_into(user::table)
                     .values((
                         user::email.eq(new_email.clone()),
                         user::password_hash.eq(new_password),
                     ))
-                    .get_result(conn)
+                    .execute(conn)
                     .map_err(|e| match e {
                         DieselError::DatabaseError(DatabaseErrorKind::UniqueViolation, _) => {
                             anyhow!("Email already exists.")
@@ -73,13 +73,18 @@ impl User {
                         e => anyhow!("Internal server error when creating user: {}", e),
                     })?;
 
-                let _user_event: UserEvent = diesel::insert_into(user_event::table)
+                let user = user::table
+                    .filter(user::email.eq(new_email))
+                    .first::<User>(conn)
+                    .map_err(|e| anyhow!("Error when fetching user: {}", e))?;
+
+                let _user_event_row_inserted = diesel::insert_into(user_event::table)
                     .values((
                         user_event::user_id.eq(user.id),
                         user_event::event_type.eq(EventType::Signup.to_string()),
                         user_event::ip_address.eq(req_ip_address.clone()),
                     ))
-                    .get_result(conn)?;
+                    .execute(conn)?;
 
                 Ok(user)
             });
