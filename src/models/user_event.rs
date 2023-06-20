@@ -7,10 +7,8 @@ use diesel_derive_enum::DbEnum;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-use crate::controllers::ApiResponse;
 use crate::database::DbPool;
 use crate::models::user::User;
-use crate::new_conn;
 use crate::schema::user_event;
 use crate::schema::user_event::dsl::*;
 
@@ -92,7 +90,7 @@ impl UserEvent {
         request_ip_address: String,
         user_event_type: EventType,
         db: Data<DbPool>,
-    ) -> Result<UserEvent, Error> {
+    ) -> Result<usize, Error> {
         let new_user_event = web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 
@@ -102,7 +100,7 @@ impl UserEvent {
                     event_type.eq(user_event_type.to_string()),
                     ip_address.eq(request_ip_address),
                 ))
-                .get_result(&mut conn)
+                .execute(&mut conn)
         })
         .await?
         .map_err(|e| anyhow!("Internal server error when creating user event: {}", e))?;

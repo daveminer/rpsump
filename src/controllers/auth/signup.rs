@@ -60,7 +60,6 @@ pub async fn signup(
             return Ok(ApiResponse::bad_request(e.to_string()));
         }
     };
-    let new_user_id = new_user.id;
 
     // Send email verification
     match new_user

@@ -69,17 +69,25 @@ pub async fn login(
 
     // Create user event
     let mut conn = new_conn!(db);
-    let _user_event = conn.transaction::<_, Error, _>(|conn| {
-        let user_event: UserEvent = diesel::insert_into(user_event::table)
+    let user_event = conn.transaction::<_, Error, _>(|conn| {
+        diesel::insert_into(user_event::table)
             .values((
                 user_event::user_id.eq(user.id),
                 user_event::event_type.eq(EventType::Login.to_string()),
                 user_event::ip_address.eq(ip_addr),
             ))
-            .get_result(conn)?;
+            .execute(conn)?;
 
-        Ok(user_event)
+        Ok(())
     });
+
+    match user_event {
+        Ok(_) => (),
+        Err(e) => {
+            tracing::error!("Could not insert user event during signup: {}", e);
+            return Ok(ApiResponse::internal_server_error());
+        }
+    };
 
     // Create token
     let token = match create_token(user.id, settings.jwt_secret.clone()) {
