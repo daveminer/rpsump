@@ -12,4 +12,4 @@ docker run -d \
   -p 80:80 \
   -v /deploy/config:/config \
   --restart unless-stopped \
-  lscr.io/linuxserver/swag:arm64v7-latest
+  lscr.io/linuxserver/swag:arm32v7-2.6.0
