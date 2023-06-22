@@ -9,3 +9,6 @@
 
 # Coverage artifacts
 lcov.info
+
+# Production secrets for reverse proxy
+deploy/.env.swag

@@ -1,15 +1,40 @@
-docker run -d \
-  --name=swag \
+#!/bin/bash
+
+project_root=$(git rev-parse --show-toplevel)
+
+# Load the env file to ensure required vars are set.
+source $project_root/deploy/.env.swag
+
+if [[ -z "${URL}" ]]; then
+  echo "The URL env var is not set; set it and try again."
+  exit 1
+fi
+
+if [[ "$(docker ps -aq -f name=swag)" ]]; then
+    docker stop swag &>/dev/null
+  if [[ "$(docker ps -aq -f name=swag)" ]]; then
+    docker rm swag &>/dev/null
+  fi
+fi
+
+base_docker_run="docker run -d \
   --cap-add=NET_ADMIN \
+  --name=swag \
+  --network host \
+  --restart unless-stopped \
   -e PUID=1000 \
   -e PGID=1000 \
   -e TZ=US/Eastern \
-  -e URL=serverurl.com \
   -e VALIDATION=http \
-  -e SUBDOMAINS=change-or-remove, \
-  -e EMAIL=change-or-remove@no-reply.com \
-  -p 443:443 \
-  -p 80:80 \
-  -v /deploy/config:/config \
-  --restart unless-stopped \
-  lscr.io/linuxserver/swag:arm32v7-2.6.0
+  -e FILE__URL=$project_root/deploy/.env.swag"
+
+if [[ -n "${SUBDOMAINS}" ]]; then
+  base_docker_run+=" -e FILE__SUBDOMAINS=$project_root/deploy/.env.swag"
+fi
+
+base_docker_run+=" -v $project_root/deploy/config:/config"
+base_docker_run+=" lscr.io/linuxserver/swag:arm32v7-2.6.0"
+
+eval "${docker_command}"
+
+echo "Swag container started."
