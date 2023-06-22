@@ -17,7 +17,7 @@ if [[ "$(docker ps -aq -f name=swag)" ]]; then
   fi
 fi
 
-base_docker_run="docker run -d \
+docker_run="docker run -d \
   --cap-add=NET_ADMIN \
   --name=swag \
   --network host \
@@ -29,12 +29,12 @@ base_docker_run="docker run -d \
   -e FILE__URL=$project_root/deploy/.env.swag"
 
 if [[ -n "${SUBDOMAINS}" ]]; then
-  base_docker_run+=" -e FILE__SUBDOMAINS=$project_root/deploy/.env.swag"
+  docker_run+=" -e FILE__SUBDOMAINS=$project_root/deploy/.env.swag"
 fi
 
-base_docker_run+=" -v $project_root/deploy/config:/config"
-base_docker_run+=" lscr.io/linuxserver/swag:arm32v7-2.6.0"
+docker_run+=" -v $project_root/deploy/config:/config"
+docker_run+=" lscr.io/linuxserver/swag:arm32v7-2.6.0"
 
-eval "${docker_command}"
+eval "${docker_run}"
 
 echo "Swag container started."
