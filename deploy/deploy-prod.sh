@@ -2,14 +2,6 @@
 
 project_root=$(git rev-parse --show-toplevel)
 
-# Load the env file to ensure required vars are set.
-source $project_root/deploy/.env.swag
-
-if [[ -z "${URL}" ]]; then
-  echo "The URL env var is not set; set it and try again."
-  exit 1
-fi
-
 if [[ "$(docker ps -aq -f name=swag)" ]]; then
     docker stop swag &>/dev/null
   if [[ "$(docker ps -aq -f name=swag)" ]]; then
@@ -26,10 +18,10 @@ docker_run="docker run -d \
   -e PGID=1000 \
   -e TZ=US/Eastern \
   -e VALIDATION=http \
-  -e FILE__URL=$project_root/deploy/.env.swag"
+  -e FILE__URL=/config/url-secret"
 
-if [[ -n "${SUBDOMAINS}" ]]; then
-  docker_run+=" -e FILE__SUBDOMAINS=$project_root/deploy/.env.swag"
+if [[ -f "$project_root/deploy/config/subdomains-secret" ]]; then
+  docker_run+=" -e FILE__SUBDOMAINS=/config/subdomains-secret"
 fi
 
 docker_run+=" -v $project_root/deploy/config:/config"
