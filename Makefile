@@ -1,3 +1,7 @@
+build:
+	diesel migration run
+	cargo build --release
+
 coverage:
 	cargo llvm-cov --ignore-filename-regex 'main.rs'
 	cargo llvm-cov report --lcov --ignore-filename-regex 'main.rs' --output-path lcov.info
