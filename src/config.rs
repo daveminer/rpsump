@@ -103,7 +103,26 @@ impl Settings {
 
         if pump_shutoff_delay >= 5 {
             panic!("SUMP_SHUTOFF_DELAY must be 5 seconds or less.");
-        }
+        } // listen_to_high_sensor(
+          //     Arc::clone(&sump_clone.high_sensor_pin),
+          //     Arc::clone(&sump_clone.pump_control_pin),
+          //     Arc::clone(&sump_clone.sensor_state),
+          //     db_pool.clone(),
+          // );
+
+        // listen_to_low_sensor(
+        //     Arc::clone(&sump_clone.low_sensor_pin),
+        //     Arc::clone(&sump_clone.pump_control_pin),
+        //     Arc::clone(&sump_clone.sensor_state),
+        //     delay,
+        //     db_pool.clone(),
+        // );
+        // if settings.console.report_freq_secs > 0 {
+        //     spawn_reporting_thread(
+        //         Arc::clone(&sump_clone.sensor_state),
+        //         settings.console.report_freq_secs,
+        //     );
+        // }
 
         Some(SumpConfig {
             high_sensor_pin,

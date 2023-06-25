@@ -3,6 +3,7 @@ pub mod debounce;
 pub mod sensor;
 
 use anyhow::Error;
+use once_cell::sync::Lazy;
 use rppal::gpio::{Gpio, InputPin, OutputPin};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -36,6 +37,19 @@ pub struct Sump {
     pub low_sensor_pin: SharedInputPin,
     pub pump_control_pin: SharedOutputPin,
     pub sensor_state: SharedPinState,
+}
+
+#[derive(Clone, Debug)]
+pub struct TestSump {
+    pub test: String,
+}
+
+impl TestSump {
+    pub fn new() -> Self {
+        TestSump {
+            test: String::from("testt"),
+        }
+    }
 }
 
 impl Sump {
@@ -90,6 +104,13 @@ impl Sump {
         })
     }
 }
+
+// pub static SUMP: Lazy<Option<Sump>> = Lazy::new(|| {
+//     let config = SumpConfig::new().expect("Failed to load config");
+//     let db_pool = DbPool::new(&config.database_url).expect("Failed to create db pool");
+//     let sump = Sump::new(db_pool, &config).expect("Failed to create sump");
+//     Some(sump)
+// });
 
 #[tracing::instrument]
 pub fn spawn_reporting_thread(

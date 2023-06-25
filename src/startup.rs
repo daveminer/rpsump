@@ -11,7 +11,7 @@ use crate::config::Settings;
 use crate::controllers::{auth::auth_routes, info::info, sump_event::sump_event};
 use crate::database::DbPool;
 use crate::sump::sensor::{listen_to_high_sensor, listen_to_low_sensor};
-use crate::sump::{spawn_reporting_thread, Sump};
+use crate::sump::{spawn_reporting_thread, Sump, TestSump};
 
 pub struct Application {
     port: u16,
@@ -32,38 +32,45 @@ impl Application {
             None => 0,
         };
 
-        let sump = match settings.clone().sump {
-            None => None,
-            Some(sump_config) => Some(
-                Sump::new(db_pool.clone(), &sump_config).expect("Could not create sump object"),
-            ),
-        };
+        // let sump = match settings.clone().sump {
+        //     None => None,
+        //     Some(sump_config) => Some(
+        //         TestSump::new(),
+        //         //Sump::new(db_pool.clone(), &sump_config).expect("Could not create sump object"),
+        //     ),
+        // };
+
+        //let sump = Some(TestSump::new());
+        let sump: Option<Sump> = None;
+
+        println!("SUMPIS: {:?}", sump);
 
         let sump_clone = sump.clone();
 
         if sump_clone.is_some() {
-            let sump_clone = sump_clone.unwrap();
+            //let sump_clone = sump_clone.unwrap();
+            println!("Sump is enabled.")
 
-            listen_to_high_sensor(
-                Arc::clone(&sump_clone.high_sensor_pin),
-                Arc::clone(&sump_clone.pump_control_pin),
-                Arc::clone(&sump_clone.sensor_state),
-                db_pool.clone(),
-            );
+            // listen_to_high_sensor(
+            //     Arc::clone(&sump_clone.high_sensor_pin),
+            //     Arc::clone(&sump_clone.pump_control_pin),
+            //     Arc::clone(&sump_clone.sensor_state),
+            //     db_pool.clone(),
+            // );
 
-            listen_to_low_sensor(
-                Arc::clone(&sump_clone.low_sensor_pin),
-                Arc::clone(&sump_clone.pump_control_pin),
-                Arc::clone(&sump_clone.sensor_state),
-                delay,
-                db_pool.clone(),
-            );
-            if settings.console.report_freq_secs > 0 {
-                spawn_reporting_thread(
-                    Arc::clone(&sump_clone.sensor_state),
-                    settings.console.report_freq_secs,
-                );
-            }
+            // listen_to_low_sensor(
+            //     Arc::clone(&sump_clone.low_sensor_pin),
+            //     Arc::clone(&sump_clone.pump_control_pin),
+            //     Arc::clone(&sump_clone.sensor_state),
+            //     delay,
+            //     db_pool.clone(),
+            // );
+            // if settings.console.report_freq_secs > 0 {
+            //     spawn_reporting_thread(
+            //         Arc::clone(&sump_clone.sensor_state),
+            //         settings.console.report_freq_secs,
+            //     );
+            // }
         }
 
         let server = HttpServer::new(move || {
