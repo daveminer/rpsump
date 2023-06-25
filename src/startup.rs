@@ -58,10 +58,12 @@ impl Application {
                 delay,
                 db_pool.clone(),
             );
-            spawn_reporting_thread(
-                Arc::clone(&sump_clone.sensor_state),
-                settings.console.report_freq_secs,
-            );
+            if settings.console.report_freq_secs > 0 {
+                spawn_reporting_thread(
+                    Arc::clone(&sump_clone.sensor_state),
+                    settings.console.report_freq_secs,
+                );
+            }
         }
 
         let server = HttpServer::new(move || {
