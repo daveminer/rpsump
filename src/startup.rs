@@ -86,7 +86,7 @@ impl Application {
 
             // Initialize the sump if enabled in configuration
             if sump.is_some() {
-                app = app.app_data(Data::new(Some(sump.clone())));
+                app = app.app_data(Data::new(sump.clone()));
             }
 
             app

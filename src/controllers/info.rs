@@ -1,4 +1,4 @@
-use actix_web::{get, HttpRequest, Responder};
+use actix_web::{get, HttpRequest, HttpResponse, Responder};
 use actix_web::{web::Data, Result};
 
 use crate::auth::authenticated_user::AuthenticatedUser;
@@ -31,13 +31,5 @@ async fn info(req: HttpRequest, _user: AuthenticatedUser) -> Result<impl Respond
         }
     };
 
-    let body = match serde_json::to_string(&sensor_state) {
-        Ok(body) => body,
-        Err(e) => {
-            tracing::error!("Could not serialize sensor state: {}", e);
-            return Ok(ApiResponse::internal_server_error());
-        }
-    };
-
-    Ok(ApiResponse::ok(body))
+    Ok(HttpResponse::Ok().json(&sensor_state))
 }
