@@ -39,5 +39,6 @@ impl SumpEvent {
         DB: Backend,
     {
         sump_event::table.select(SumpEvent::as_select())
+            .limit(100)
     }
 }
