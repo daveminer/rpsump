@@ -10,7 +10,7 @@ use crate::database::DbPool;
 use crate::schema::irrigation_event;
 use crate::schema::irrigation_event::*;
 
-#[derive(Clone, Debug, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum IrrigationEventStatus {
     InProgress,
 }
@@ -27,7 +27,7 @@ pub struct IrrigationEvent {
 }
 
 impl IrrigationEvent {
-    pub async fn create(hose_id: i32, schedule_id: i32, db: DbPool) -> Result<(), Error> {
+    pub async fn create(hose: i32, schedule: i32, db: DbPool) -> Result<(), Error> {
         web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 
@@ -40,7 +40,7 @@ impl IrrigationEvent {
             if existing_event.is_some() {
                 return Err(anyhow!(
                     "Irrigation event {} is already in progress.",
-                    existing_event.id
+                    existing_event.unwrap().id
                 ));
             }
 
@@ -58,7 +58,7 @@ impl IrrigationEvent {
         Ok(())
     }
 
-    pub async fn finish() -> Result<(), Error> {
+    pub async fn finish(db: DbPool) -> Result<(), Error> {
         web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 
@@ -76,7 +76,7 @@ impl IrrigationEvent {
         Ok(())
     }
 
-    pub fn all<DB>() -> Select<sump_event::table, AsSelect<IrrigationEvent, DB>>
+    pub fn all<DB>() -> Select<irrigation_event::table, AsSelect<IrrigationEvent, DB>>
     where
         DB: Backend,
     {
@@ -85,7 +85,7 @@ impl IrrigationEvent {
             .limit(100)
     }
 
-    pub fn in_progress<DB>() -> Select<sump_event::table, AsSelect<IrrigationEvent, DB>>
+    pub fn in_progress<DB>() -> Select<irrigation_event::table, AsSelect<IrrigationEvent, DB>>
     where
         DB: Backend,
     {
@@ -94,7 +94,7 @@ impl IrrigationEvent {
         // Return the first event if only one, else return an error.
         match event.len() {
             0 => Ok(()),
-            1 => Ok(events[0]),
+            1 => Ok(event[0]),
             _ => Err("Multiple events found."),
         }
     }

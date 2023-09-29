@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod auth;
 pub mod info;
+pub mod irrigation;
 pub mod sump_event;
 
 #[derive(Debug, Serialize, Deserialize)]

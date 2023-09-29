@@ -10,7 +10,7 @@ use crate::database::DbPool;
 use crate::schema::irrigation_schedule;
 use crate::schema::irrigation_schedule::*;
 
-enum DayOfWeek {
+pub enum DayOfWeek {
     Monday,
     Tuesday,
     Wednesday,
@@ -34,19 +34,19 @@ pub struct IrrigationSchedule {
 
 impl IrrigationSchedule {
     pub async fn create(
-        name: String,
-        start_time: NaiveDateTime,
-        days_of_week: Vec<DayOfWeek>,
+        schedule_name: String,
+        schedule_start_time: NaiveDateTime,
+        schedule_days_of_week: Vec<DayOfWeek>,
         db: DbPool,
     ) -> Result<(), Error> {
         web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 
-            diesel::insert_into(irrigation_event::table)
-                .values((
-                    hose_id.eq(hose_id),
-                    status.eq(IrrigationEventStatus::InProgress),
-                ))
+            diesel::insert_into(irrigation_schedule::table)
+                .values(
+                    name.eq(schedule_name), //hose_id.eq(hose_id),
+                                            //status.eq(IrrigationEventStatus::InProgress),
+                )
                 .execute(&mut conn)
         })
         .await?
@@ -55,11 +55,11 @@ impl IrrigationSchedule {
         Ok(())
     }
 
-    pub async fn delete() -> Result<(), Error> {
+    pub async fn delete(id: i32, db: DbPool) -> Result<(), Error> {
         web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 
-            diesel::delete(irrigation_schedules::table)
+            diesel::delete(irrigation_schedule::table)
                 .execute(&mut conn)
                 .map_err(|e| anyhow!("Error deleting irrigation schedules: {}", e))
         })
@@ -70,30 +70,30 @@ impl IrrigationSchedule {
     }
 
     pub async fn edit(
-        id: i32,
-        name: Option<String>,
-        start_time: Option<NaiveDateTime>,
-        days_of_week: Option<Vec<DayOfWeek>>,
+        schedule_id: i32,
+        schedule_name: String,
+        schedule_start_time: NaiveDateTime,
+        schedule_days_of_week: Vec<DayOfWeek>,
         db: DbPool,
     ) -> Result<(), Error> {
         web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 
-            let existing_event = irrigation_event::table
+            let existing_event = irrigation_schedule::table
                 .find(id)
-                .first::<IrrigationEvent>(&mut conn)
+                .first::<IrrigationSchedule>(&mut conn)
                 .optional()
                 .map_err(|e| anyhow!("Error checking for existing irrigation event: {}", e))?;
 
             if let Some(event) = existing_event {
-                let updated_event = IrrigationEvent {
+                let updated_event = IrrigationSchedule {
                     name: name.unwrap_or_else(|| event.name),
                     start_time: start_time.unwrap_or_else(|| event.start_time),
                     days_of_week: days_of_week.unwrap_or_else(|| event.days_of_week),
                     ..event
                 };
 
-                diesel::update(irrigation_event::table.find(id))
+                diesel::update(irrigation_schedule::table.find(id))
                     .set(&updated_event)
                     .execute(&mut conn)
                     .map_err(|e| anyhow!("Error updating irrigation event: {}", e))?;
@@ -109,30 +109,12 @@ impl IrrigationSchedule {
         Ok(())
     }
 
-    pub fn all<DB>() -> Select<sump_event::table, AsSelect<IrrigationEvent, DB>>
+    pub fn all<DB>() -> Select<irrigation_schedule::table, AsSelect<IrrigationSchedule, DB>>
     where
         DB: Backend,
     {
-        irrigation_event::table
-            .select(IrrigationEvent::as_select())
+        irrigation_schedule::table
+            .select(IrrigationSchedule::as_select())
             .limit(100)
-    }
-
-    pub fn in_progress<DB>(
-        conn: &DB::Connection,
-        schedule_id: i32,
-    ) -> Result<bool, diesel::result::Error>
-    where
-        DB: diesel::backend::Backend,
-    {
-        use diesel::dsl::exists;
-
-        let result = irrigation_event::table
-            .filter(irrigation_event::schedule_id.eq(schedule_id))
-            .filter(irrigation_event::status.eq(IrrigationEventStatus::InProgress))
-            .select(exists(irrigation_event::table))
-            .get_result(conn)?;
-
-        Ok(result)
     }
 }
