@@ -16,13 +16,35 @@ pub struct IrrigationScheduleParams {
     pub start_time: NaiveDateTime,
 }
 
-#[get("/schedule/{id}")]
+#[get("/schedule")]
 #[tracing::instrument(skip(_req_body, db, _user))]
-pub async fn irrigation_schedule(
+pub async fn irrigation_schedules(
     _req_body: String,
     db: Data<DbPool>,
     _user: AuthenticatedUser,
+) -> Result<impl Responder> {s
+    let schedules = spawn_blocking_with_tracing(move || fetch_irrigation_schedule(db))
+        .await
+        .map_err(|e| {
+            tracing::error!("Error while spawning a blocking task: {:?}", e);
+            error::ErrorInternalServerError("Internal server error.")
+        })?
+        .map_err(|e| {
+            tracing::error!("Error while getting sump events: {:?}", e);
+            error::ErrorInternalServerError("Internal server error.")
+        })?;
+
+    Ok(HttpResponse::Ok().json(schedules))
+}
+
+#[get("/schedule/{id}")]
+#[tracing::instrument(skip(db, _user))]
+pub async fn irrigation_schedule(
+    path: web::Path<i32>,
+    db: Data<DbPool>,
+    _user: AuthenticatedUser,
 ) -> Result<impl Responder> {
+    let id = path.into_inner();
     let irrigation_schedule = spawn_blocking_with_tracing(move || fetch_irrigation_schedule(db))
         .await
         .map_err(|e| {
@@ -56,7 +78,7 @@ pub async fn delete_irrigation_schedule(
     Ok(HttpResponse::Ok().json(id))
 }
 
-#[patch("/irrigation_schedule/{id}")]
+#[patch("/schedule/{id}")]
 //#[tracing::instrument(skip(_req_body, db, _user))]
 pub async fn edit_irrigation_schedule(
     path: web::Path<i32>,
@@ -67,22 +89,20 @@ pub async fn edit_irrigation_schedule(
     let id = path.into_inner();
 
     // Create an irrigation schedule entry.
-    let updated_irrigation_schedule = match IrrigationSchedule::edit(
+    let updated_irrigation_schedule = IrrigationSchedule::edit(
         id,
-        "req_body_name".into(),
+        req_body.name.clone(),
         req_body.start_time.clone(),
         req_body.days_of_week.clone(),
         db.clone(),
     )
-    .await
-    {
-        Ok(schedule) => schedule,
-        Err(e) => {
-            return Ok(ApiResponse::bad_request(e.to_string()));
-        }
-    };
+    .await;
 
-    Ok(HttpResponse::Ok().json(updated_irrigation_schedule))
+    // return match updated_irrigation_schedule {
+    //     Ok(schedule) => Ok(HttpResponse::Ok().json(updated_irrigation_schedule)),
+    //     Err(e) => Err(anyhow!("Error while updating irrigation schedule.")),
+    // };
+    Ok(HttpResponse::Ok().json(updated_irrigation_schedule.unwrap()))
 }
 
 #[post("/schedule")]
@@ -109,14 +129,4 @@ pub async fn new_irrigation_schedule(
     };
 
     Ok(HttpResponse::Ok().json(response))
-}
-
-fn fetch_irrigation_schedule(db: Data<DbPool>) -> Result<Vec<IrrigationSchedule>, Error> {
-    let mut conn = database::conn(db)?;
-    let irrigation_events: Vec<IrrigationSchedule> = IrrigationSchedule::all()
-        .limit(100)
-        .load::<IrrigationSchedule>(&mut conn)
-        .map_err(|e| anyhow!(e))?;
-
-    Ok(irrigation_events)
 }

@@ -4,10 +4,12 @@ use anyhow::{anyhow, Error};
 use chrono::NaiveDateTime;
 use diesel::backend::Backend;
 use diesel::dsl::*;
+use diesel::internal::table_macro::BoxedSelectStatement;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+use crate::database;
 use crate::database::DbPool;
 use crate::schema::irrigation_schedule;
 use crate::schema::irrigation_schedule::*;
@@ -108,8 +110,8 @@ impl IrrigationSchedule {
         schedule_start_time: NaiveDateTime,
         schedule_days_of_week: Vec<DayOfWeek>,
         db: Data<DbPool>,
-    ) -> Result<(), Error> {
-        web::block(move || {
+    ) -> Result<IrrigationSchedule, Error> {
+        let updated_schedule = web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 
             let existing_schedule = irrigation_schedule::table
@@ -118,42 +120,40 @@ impl IrrigationSchedule {
                 .optional()
                 .map_err(|e| anyhow!("Error checking for existing irrigation schedule: {}", e))?;
 
-            if let Some(schedule) = existing_schedule {
-                let days_of_week_string = schedule_days_of_week
-                    .iter()
-                    .map(|day| match day {
-                        DayOfWeek::Monday => "Monday",
-                        DayOfWeek::Tuesday => "Tuesday",
-                        DayOfWeek::Wednesday => "Wednesday",
-                        DayOfWeek::Thursday => "Thursday",
-                        DayOfWeek::Friday => "Friday",
-                        DayOfWeek::Saturday => "Saturday",
-                        DayOfWeek::Sunday => "Sunday",
-                    })
-                    .collect::<Vec<&str>>()
-                    .join(",");
-
-                let updated_schedule = IrrigationSchedule {
-                    name: schedule_name,
-                    start_time: schedule_start_time,
-                    days_of_week: days_of_week_string,
-                    ..schedule
-                };
-
-                diesel::update(irrigation_schedule::table.find(schedule_id))
-                    .set(updated_schedule)
-                    .execute(&mut conn)
-                    .map_err(|e| anyhow!("Error updating irrigation event: {}", e))?;
-            } else {
+            if existing_schedule.is_none() {
                 return Err(anyhow!("No irrigation event found with ID {}", schedule_id));
             }
 
-            Ok(())
+            let days_of_week_string = schedule_days_of_week
+                .iter()
+                .map(|day| match day {
+                    DayOfWeek::Monday => "Monday",
+                    DayOfWeek::Tuesday => "Tuesday",
+                    DayOfWeek::Wednesday => "Wednesday",
+                    DayOfWeek::Thursday => "Thursday",
+                    DayOfWeek::Friday => "Friday",
+                    DayOfWeek::Saturday => "Saturday",
+                    DayOfWeek::Sunday => "Sunday",
+                })
+                .collect::<Vec<&str>>()
+                .join(",");
+
+            let updated_schedule = IrrigationSchedule {
+                name: schedule_name,
+                start_time: schedule_start_time,
+                days_of_week: days_of_week_string,
+                ..existing_schedule.unwrap()
+            };
+
+            return diesel::update(irrigation_schedule::table.find(schedule_id))
+                .set(updated_schedule)
+                .get_result::<IrrigationSchedule>(&mut conn)
+                .map_err(|e| anyhow!("Error updating irrigation event: {}", e));
         })
         .await?
         .map_err(|e| anyhow!("Internal server error when editing irrigation schedule: {e}"))?;
 
-        Ok(())
+        Ok(updated_schedule)
     }
 
     pub fn all<DB>() -> Select<irrigation_schedule::table, AsSelect<IrrigationSchedule, DB>>
@@ -161,5 +161,25 @@ impl IrrigationSchedule {
         DB: Backend,
     {
         irrigation_schedule::table.select(IrrigationSchedule::as_select())
+    }
+
+    pub fn fetch_irrigation_schedule(
+        db: Data<DbPool>,
+        schedule_id: Option<i32>,
+    ) -> Result<Vec<IrrigationSchedule>, Error> {
+        let mut conn = database::conn(db)?;
+        let query: BoxedQuery<'static> = if schedule_id.is_some() {
+            irrigation_schedule::table
+                .find(schedule_id.unwrap())
+                .into_boxed()
+        } else {
+            irrigation_schedule::table.limit(100).into_boxed()
+        };
+
+        let irrigation_events: Vec<IrrigationSchedule> = query
+            .load::<IrrigationSchedule>(&mut conn)
+            .map_err(|e| anyhow!(e))?;
+
+        Ok(irrigation_events)
     }
 }
