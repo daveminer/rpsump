@@ -1,8 +1,8 @@
+use std::fmt;
+
 use actix_web::web;
 use anyhow::{anyhow, Error};
 use chrono::NaiveDateTime;
-use diesel::backend::Backend;
-use diesel::dsl::*;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -12,7 +12,10 @@ use crate::schema::irrigation_event::*;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum IrrigationEventStatus {
+    Cancelled,
+    Completed,
     InProgress,
+    Scheduled,
 }
 
 #[derive(Clone, Debug, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
@@ -22,8 +25,19 @@ pub struct IrrigationEvent {
     pub hose_id: i32,
     pub created_at: NaiveDateTime,
     pub end_time: Option<NaiveDateTime>,
-    pub status: IrrigationEventStatus,
+    pub status: String,
     pub schedule_id: i32,
+}
+
+impl fmt::Display for IrrigationEventStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            IrrigationEventStatus::Scheduled => write!(f, "scheduled"),
+            IrrigationEventStatus::InProgress => write!(f, "in_progress"),
+            IrrigationEventStatus::Completed => write!(f, "completed"),
+            IrrigationEventStatus::Cancelled => write!(f, "cancelled"),
+        }
+    }
 }
 
 impl IrrigationEvent {
@@ -32,22 +46,22 @@ impl IrrigationEvent {
             let mut conn = db.get().expect("Could not get a db connection.");
 
             let existing_event = irrigation_event::table
-                .filter(status.eq(IrrigationEventStatus::InProgress))
+                .filter(status.eq("in_progress"))
                 .first::<IrrigationEvent>(&mut conn)
                 .optional()
                 .map_err(|e| anyhow!("Error checking for existing irrigation event: {}", e))?;
 
-            if existing_event.is_some() {
-                return Err(anyhow!(
-                    "Irrigation event {} is already in progress.",
-                    existing_event.unwrap().id
-                ));
-            }
+            let new_event_status = if existing_event.is_some() {
+                IrrigationEventStatus::Scheduled
+            } else {
+                IrrigationEventStatus::InProgress
+            };
 
             diesel::insert_into(irrigation_event::table)
                 .values((
-                    hose_id.eq(hose_id),
-                    status.eq(IrrigationEventStatus::InProgress),
+                    schedule_id.eq(schedule),
+                    hose_id.eq(hose),
+                    status.eq(new_event_status.to_string()),
                 ))
                 .execute(&mut conn)
                 .map_err(|e| anyhow!("Error creating irrigation event: {}", e))
@@ -58,44 +72,31 @@ impl IrrigationEvent {
         Ok(())
     }
 
-    pub async fn finish(db: DbPool) -> Result<(), Error> {
-        web::block(move || {
-            let mut conn = db.get().expect("Could not get a db connection.");
+    pub async fn finish(db: DbPool) -> Result<bool, Error> {
+        let mut conn = db.get().expect("Could not get a db connection.");
 
-            irrigation_event::table
-                .filter(status.eq(IrrigationEventStatus::InProgress))
-                .values((
-                    hose_id.eq(hose_id),
-                    status.eq(IrrigationEventStatus::InProgress),
-                ))
-                .execute(&mut conn)
+        web::block(move || {
+            let events: Vec<IrrigationEvent> = irrigation_event::table
+                .filter(status.eq(IrrigationEventStatus::InProgress.to_string()))
+                .select(IrrigationEvent::as_select())
+                .load(&mut conn)
+                .expect("Error loading in_progress irrigation events.");
+
+            let event = match events.len() {
+                0 => return Ok(false),
+                1 => events.first().unwrap(),
+                _ => return Err(anyhow!("Multiple in_progress events found.")),
+            };
+
+            let status_result = diesel::update(irrigation_event::table.find(event.id))
+                .set(status.eq(IrrigationEventStatus::InProgress.to_string()))
+                .execute(&mut conn);
+
+            match status_result {
+                Ok(_) => Ok(true),
+                Err(e) => Err(anyhow!("Error updating irrigation event: {}", e)),
+            }
         })
         .await?
-        .map_err(|e| anyhow!("Internal server error when finishing irrigation event: {e}"))?;
-
-        Ok(())
-    }
-
-    pub fn all<DB>() -> Select<irrigation_event::table, AsSelect<IrrigationEvent, DB>>
-    where
-        DB: Backend,
-    {
-        irrigation_event::table
-            .select(IrrigationEvent::as_select())
-            .limit(100)
-    }
-
-    pub fn in_progress<DB>() -> Select<irrigation_event::table, AsSelect<IrrigationEvent, DB>>
-    where
-        DB: Backend,
-    {
-        let event = irrigation_event::table.filter(status.eq(IrrigationEventStatus::InProgress));
-
-        // Return the first event if only one, else return an error.
-        match event.len() {
-            0 => Ok(()),
-            1 => Ok(event[0]),
-            _ => Err("Multiple events found."),
-        }
     }
 }

@@ -8,7 +8,15 @@ use crate::controllers::{spawn_blocking_with_tracing, ApiResponse};
 use crate::database::{self, DbPool};
 use crate::models::irrigation_schedule::{DayOfWeek, IrrigationSchedule};
 
-#[get("/irrigation_schedule/{id}")]
+#[derive(Debug, serde::Deserialize)]
+pub struct IrrigationScheduleParams {
+    pub days_of_week: Vec<DayOfWeek>,
+    pub hoses: Vec<i32>,
+    pub name: String,
+    pub start_time: NaiveDateTime,
+}
+
+#[get("/schedule/{id}")]
 #[tracing::instrument(skip(_req_body, db, _user))]
 pub async fn irrigation_schedule(
     _req_body: String,
@@ -29,15 +37,13 @@ pub async fn irrigation_schedule(
     Ok(HttpResponse::Ok().json(irrigation_schedule))
 }
 
-#[delete("/irrigation_schedule/{id}")]
-#[tracing::instrument(skip(req_body, db, _user))]
+#[delete("/schedule/{id}")]
+#[tracing::instrument(skip(db, _user))]
 pub async fn delete_irrigation_schedule(
     path: web::Path<i32>,
-    req_body: String,
     db: Data<DbPool>,
     _user: AuthenticatedUser,
 ) -> Result<impl Responder> {
-    println!("req_body: {:?}", req_body);
     let id = path.into_inner();
 
     let id = match IrrigationSchedule::delete(id, db).await {
@@ -54,22 +60,18 @@ pub async fn delete_irrigation_schedule(
 //#[tracing::instrument(skip(_req_body, db, _user))]
 pub async fn edit_irrigation_schedule(
     path: web::Path<i32>,
-    req_body: String,
+    req_body: web::Json<IrrigationScheduleParams>,
     db: Data<DbPool>,
     _user: AuthenticatedUser,
 ) -> Result<impl Responder> {
     let id = path.into_inner();
 
-    let start_time: NaiveDateTime =
-        NaiveDateTime::parse_from_str("2021-01-01 00:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
-
-    let days_of_week: Vec<DayOfWeek> = vec![DayOfWeek::Monday, DayOfWeek::Tuesday];
     // Create an irrigation schedule entry.
     let updated_irrigation_schedule = match IrrigationSchedule::edit(
         id,
-        Some("req_body_name".into()),
-        Some(start_time),
-        Some(days_of_week),
+        "req_body_name".into(),
+        req_body.start_time.clone(),
+        req_body.days_of_week.clone(),
         db.clone(),
     )
     .await
@@ -83,35 +85,30 @@ pub async fn edit_irrigation_schedule(
     Ok(HttpResponse::Ok().json(updated_irrigation_schedule))
 }
 
-#[post("/irrigation_schedule")]
+#[post("/schedule")]
 #[tracing::instrument(skip(req_body, db, _user))]
 pub async fn new_irrigation_schedule(
-    req_body: String,
+    req_body: web::Json<IrrigationScheduleParams>,
     db: Data<DbPool>,
     _user: AuthenticatedUser,
 ) -> Result<impl Responder> {
-    println!("req_body: {:?}", req_body);
-
-    let start_time: NaiveDateTime =
-        NaiveDateTime::parse_from_str("2021-01-01 00:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
-
-    let days_of_week: Vec<DayOfWeek> = vec![DayOfWeek::Monday, DayOfWeek::Tuesday];
-    // Create an irrigation schedule entry.
-    let new_irrigation_schedule = match IrrigationSchedule::create(
-        "req_body_name".into(),
-        start_time,
-        days_of_week,
+    let new_irrigation_schedule = IrrigationSchedule::create(
+        req_body.hoses.clone(),
+        req_body.name.clone(),
+        req_body.start_time,
+        req_body.days_of_week.clone(),
         db.clone(),
     )
-    .await
-    {
+    .await;
+
+    let response = match new_irrigation_schedule {
         Ok(schedule) => schedule,
         Err(e) => {
             return Ok(ApiResponse::bad_request(e.to_string()));
         }
     };
 
-    Ok(HttpResponse::Ok().json(new_irrigation_schedule))
+    Ok(HttpResponse::Ok().json(response))
 }
 
 fn fetch_irrigation_schedule(db: Data<DbPool>) -> Result<Vec<IrrigationSchedule>, Error> {
