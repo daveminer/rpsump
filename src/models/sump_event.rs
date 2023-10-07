@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::database::DbPool;
 use crate::schema::sump_event;
+use crate::schema::sump_event::dsl::*;
 use crate::schema::sump_event::*;
 
 #[derive(Clone, Debug, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
@@ -38,6 +39,11 @@ impl SumpEvent {
     where
         DB: Backend,
     {
-        sump_event::table.select(SumpEvent::as_select())
+        sump_event.select(SumpEvent::as_select())
+
+        //sump_event.select(SumpEvent::as_select()).limit(100)
+        //     SumpEvent::table()
+        // .take(100)
+        // .load(conn)
     }
 }

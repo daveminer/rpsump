@@ -1,6 +1,29 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
+    irrigation_event (id) {
+        id -> Integer,
+        hose_id -> Integer,
+        created_at -> Timestamp,
+        end_time -> Nullable<Timestamp>,
+        status -> Text,
+        schedule_id -> Integer,
+    }
+}
+
+diesel::table! {
+    irrigation_schedule (id) {
+        id -> Integer,
+        name -> Text,
+        start_time -> Timestamp,
+        days_of_week -> Text,
+        hoses -> Text,
+        created_at -> Timestamp,
+        updated_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     sump_event (id) {
         id -> Integer,
         kind -> Text,
@@ -34,9 +57,12 @@ diesel::table! {
     }
 }
 
+diesel::joinable!(irrigation_event -> irrigation_schedule (schedule_id));
 diesel::joinable!(user_event -> user (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
+    irrigation_event,
+    irrigation_schedule,
     sump_event,
     user,
     user_event,

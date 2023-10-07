@@ -8,7 +8,9 @@ use std::sync::Arc;
 
 use crate::config::Settings;
 
-use crate::controllers::{auth::auth_routes, info::info, sump_event::sump_event};
+use crate::controllers::{
+    auth::auth_routes, info::info, irrigation::irrigation_routes, sump_event::sump_event,
+};
 use crate::database::DbPool;
 use crate::sump::sensor::{listen_to_high_sensor, listen_to_low_sensor};
 use crate::sump::{spawn_reporting_thread, Sump};
@@ -79,6 +81,7 @@ impl Application {
                 .service(info)
                 .service(sump_event)
                 .service(web::scope("/auth").configure(auth_routes))
+                .service(web::scope("/irrigation").configure(irrigation_routes))
                 // Application configuration
                 .app_data(Self::json_cfg())
                 .app_data(Data::new(settings.clone()))

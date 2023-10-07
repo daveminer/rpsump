@@ -69,19 +69,21 @@ pub async fn login(
 
     // Create user event
     let mut conn = new_conn!(db);
-    let user_event = conn.transaction::<_, Error, _>(|conn| {
-        diesel::insert_into(user_event::table)
-            .values((
-                user_event::user_id.eq(user.id),
-                user_event::event_type.eq(EventType::Login.to_string()),
-                user_event::ip_address.eq(ip_addr),
-            ))
-            .execute(conn)?;
+    let user_event = web::block(move || {
+        return conn.transaction::<_, Error, _>(|conn| {
+            diesel::insert_into(user_event::table)
+                .values((
+                    user_event::user_id.eq(user.id),
+                    user_event::event_type.eq(EventType::Login.to_string()),
+                    user_event::ip_address.eq(ip_addr),
+                ))
+                .execute(conn)?;
 
-        Ok(())
+            Ok(())
+        });
     });
 
-    match user_event {
+    match user_event.await {
         Ok(_) => (),
         Err(e) => {
             tracing::error!("Could not insert user event during signup: {}", e);
