@@ -4,6 +4,7 @@ use actix_web::web;
 use anyhow::{anyhow, Error};
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
+use diesel::sqlite::Sqlite;
 use serde::{Deserialize, Serialize};
 
 use crate::database::DbPool;
@@ -29,6 +30,8 @@ pub struct IrrigationEvent {
     pub schedule_id: i32,
 }
 
+type BoxedQuery<'a> = irrigation_event::BoxedQuery<'a, Sqlite, irrigation_event::SqlType>;
+
 impl fmt::Display for IrrigationEventStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -41,6 +44,35 @@ impl fmt::Display for IrrigationEventStatus {
 }
 
 impl IrrigationEvent {
+    // Composable queries
+    pub fn all() -> BoxedQuery<'static> {
+        irrigation_event::table.limit(100).into_boxed()
+    }
+
+    pub fn for_schedule(sched_id: i32) -> BoxedQuery<'static> {
+        irrigation_event::table
+            .filter(irrigation_event::schedule_id.eq(sched_id))
+            .into_boxed()
+    }
+
+    pub fn in_progress() -> BoxedQuery<'static> {
+        irrigation_event::table
+            .filter(status.eq("in_progress"))
+            .into_boxed()
+    }
+
+    pub fn finished() -> BoxedQuery<'static> {
+        irrigation_event::table
+            .filter(status.eq("completed"))
+            .into_boxed()
+    }
+
+    pub fn by_id(event_id: i32) -> BoxedQuery<'static> {
+        irrigation_event::table
+            .filter(irrigation_event::id.eq(event_id))
+            .into_boxed()
+    }
+
     pub async fn create(hose: i32, schedule: i32, db: DbPool) -> Result<(), Error> {
         web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");

@@ -1,19 +1,18 @@
 use actix_web::{delete, error, get, patch, post, web, web::Data, HttpResponse, Responder, Result};
-use anyhow::{anyhow, Error};
 use chrono::NaiveDateTime;
-use diesel::{QueryDsl, RunQueryDsl};
+use diesel::RunQueryDsl;
 
 use crate::auth::authenticated_user::AuthenticatedUser;
 use crate::controllers::{spawn_blocking_with_tracing, ApiResponse};
-use crate::database::{self, DbPool};
+use crate::database::DbPool;
 use crate::models::irrigation_schedule::{DayOfWeek, IrrigationSchedule};
 
 #[derive(Debug, serde::Deserialize)]
 pub struct IrrigationScheduleParams {
-    pub days_of_week: Vec<DayOfWeek>,
-    pub hoses: Vec<i32>,
-    pub name: String,
-    pub start_time: NaiveDateTime,
+    pub days_of_week: Option<Vec<DayOfWeek>>,
+    pub hoses: Option<Vec<i32>>,
+    pub name: Option<String>,
+    pub start_time: Option<NaiveDateTime>,
 }
 
 #[get("/schedule")]
@@ -22,17 +21,20 @@ pub async fn irrigation_schedules(
     _req_body: String,
     db: Data<DbPool>,
     _user: AuthenticatedUser,
-) -> Result<impl Responder> {s
-    let schedules = spawn_blocking_with_tracing(move || fetch_irrigation_schedule(db))
-        .await
-        .map_err(|e| {
-            tracing::error!("Error while spawning a blocking task: {:?}", e);
-            error::ErrorInternalServerError("Internal server error.")
-        })?
-        .map_err(|e| {
-            tracing::error!("Error while getting sump events: {:?}", e);
-            error::ErrorInternalServerError("Internal server error.")
-        })?;
+) -> Result<impl Responder> {
+    let schedules = spawn_blocking_with_tracing(move || {
+        let mut conn = db.get().expect("Could not get a db connection.");
+        IrrigationSchedule::all().get_results::<IrrigationSchedule>(&mut conn)
+    })
+    .await
+    .map_err(|e| {
+        tracing::error!("Error while spawning a blocking task: {:?}", e);
+        error::ErrorInternalServerError("Internal server error.")
+    })?
+    .map_err(|e| {
+        tracing::error!("Error while getting irrigation schedules: {:?}", e);
+        error::ErrorInternalServerError("Internal server error.")
+    })?;
 
     Ok(HttpResponse::Ok().json(schedules))
 }
@@ -45,16 +47,19 @@ pub async fn irrigation_schedule(
     _user: AuthenticatedUser,
 ) -> Result<impl Responder> {
     let id = path.into_inner();
-    let irrigation_schedule = spawn_blocking_with_tracing(move || fetch_irrigation_schedule(db))
-        .await
-        .map_err(|e| {
-            tracing::error!("Error while spawning a blocking task: {:?}", e);
-            error::ErrorInternalServerError("Internal server error.")
-        })?
-        .map_err(|e| {
-            tracing::error!("Error while getting sump events: {:?}", e);
-            error::ErrorInternalServerError("Internal server error.")
-        })?;
+    let irrigation_schedule = spawn_blocking_with_tracing(move || {
+        let mut conn = db.get().expect("Could not get a db connection.");
+        return IrrigationSchedule::by_id(id).first::<IrrigationSchedule>(&mut conn);
+    })
+    .await
+    .map_err(|e| {
+        tracing::error!("Error while spawning a blocking task: {:?}", e);
+        error::ErrorInternalServerError("Internal server error.")
+    })?
+    .map_err(|e| {
+        tracing::error!("Error while getting irrigation schedules: {:?}", e);
+        error::ErrorInternalServerError("Internal server error.")
+    })?;
 
     Ok(HttpResponse::Ok().json(irrigation_schedule))
 }
@@ -91,6 +96,7 @@ pub async fn edit_irrigation_schedule(
     // Create an irrigation schedule entry.
     let updated_irrigation_schedule = IrrigationSchedule::edit(
         id,
+        req_body.hoses.clone(),
         req_body.name.clone(),
         req_body.start_time.clone(),
         req_body.days_of_week.clone(),
@@ -113,10 +119,10 @@ pub async fn new_irrigation_schedule(
     _user: AuthenticatedUser,
 ) -> Result<impl Responder> {
     let new_irrigation_schedule = IrrigationSchedule::create(
-        req_body.hoses.clone(),
-        req_body.name.clone(),
-        req_body.start_time,
-        req_body.days_of_week.clone(),
+        req_body.hoses.clone().unwrap(),
+        req_body.name.clone().unwrap(),
+        req_body.start_time.unwrap(),
+        req_body.days_of_week.clone().unwrap(),
         db.clone(),
     )
     .await;

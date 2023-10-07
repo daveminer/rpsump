@@ -2,10 +2,8 @@ use actix_web::web;
 use actix_web::web::Data;
 use anyhow::{anyhow, Error};
 use chrono::NaiveDateTime;
-use diesel::backend::Backend;
-use diesel::dsl::*;
-use diesel::internal::table_macro::BoxedSelectStatement;
 use diesel::prelude::*;
+use diesel::sqlite::Sqlite;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -37,6 +35,8 @@ pub struct IrrigationSchedule {
     pub updated_at: NaiveDateTime,
 }
 
+type BoxedQuery<'a> = irrigation_schedule::BoxedQuery<'a, Sqlite, irrigation_schedule::SqlType>;
+
 impl fmt::Display for DayOfWeek {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -52,6 +52,17 @@ impl fmt::Display for DayOfWeek {
 }
 
 impl IrrigationSchedule {
+    // Composable queries
+    pub fn all() -> BoxedQuery<'static> {
+        irrigation_schedule::table.limit(100).into_boxed()
+    }
+
+    pub fn by_id(user_id: i32) -> BoxedQuery<'static> {
+        irrigation_schedule::table
+            .filter(irrigation_schedule::id.eq(user_id))
+            .into_boxed()
+    }
+
     pub async fn create(
         schedule_hoses: Vec<i32>,
         schedule_name: String,
@@ -106,9 +117,10 @@ impl IrrigationSchedule {
 
     pub async fn edit(
         schedule_id: i32,
-        schedule_name: String,
-        schedule_start_time: NaiveDateTime,
-        schedule_days_of_week: Vec<DayOfWeek>,
+        schedule_hoses: Option<Vec<i32>>,
+        schedule_name: Option<String>,
+        schedule_start_time: Option<NaiveDateTime>,
+        schedule_days_of_week: Option<Vec<DayOfWeek>>,
         db: Data<DbPool>,
     ) -> Result<IrrigationSchedule, Error> {
         let updated_schedule = web::block(move || {
@@ -124,26 +136,27 @@ impl IrrigationSchedule {
                 return Err(anyhow!("No irrigation event found with ID {}", schedule_id));
             }
 
-            let days_of_week_string = schedule_days_of_week
-                .iter()
-                .map(|day| match day {
-                    DayOfWeek::Monday => "Monday",
-                    DayOfWeek::Tuesday => "Tuesday",
-                    DayOfWeek::Wednesday => "Wednesday",
-                    DayOfWeek::Thursday => "Thursday",
-                    DayOfWeek::Friday => "Friday",
-                    DayOfWeek::Saturday => "Saturday",
-                    DayOfWeek::Sunday => "Sunday",
-                })
-                .collect::<Vec<&str>>()
-                .join(",");
+            let mut updated_schedule = existing_schedule.unwrap().clone();
 
-            let updated_schedule = IrrigationSchedule {
-                name: schedule_name,
-                start_time: schedule_start_time,
-                days_of_week: days_of_week_string,
-                ..existing_schedule.unwrap()
-            };
+            if let Some(schedule_hoses) = schedule_hoses {
+                updated_schedule.hoses = schedule_hoses
+                    .iter()
+                    .map(|hose| hose.to_string())
+                    .collect::<Vec<String>>()
+                    .join(",");
+            }
+
+            if let Some(schedule_name) = schedule_name {
+                updated_schedule.name = schedule_name;
+            }
+
+            if let Some(schedule_start_time) = schedule_start_time {
+                updated_schedule.start_time = schedule_start_time;
+            }
+
+            if let Some(schedule_days_of_week) = schedule_days_of_week {
+                updated_schedule.days_of_week = day_of_week_string(schedule_days_of_week);
+            }
 
             return diesel::update(irrigation_schedule::table.find(schedule_id))
                 .set(updated_schedule)
@@ -154,13 +167,6 @@ impl IrrigationSchedule {
         .map_err(|e| anyhow!("Internal server error when editing irrigation schedule: {e}"))?;
 
         Ok(updated_schedule)
-    }
-
-    pub fn all<DB>() -> Select<irrigation_schedule::table, AsSelect<IrrigationSchedule, DB>>
-    where
-        DB: Backend,
-    {
-        irrigation_schedule::table.select(IrrigationSchedule::as_select())
     }
 
     pub fn fetch_irrigation_schedule(
@@ -182,4 +188,20 @@ impl IrrigationSchedule {
 
         Ok(irrigation_events)
     }
+}
+
+fn day_of_week_string(days: Vec<DayOfWeek>) -> String {
+    return days
+        .iter()
+        .map(|day| match day {
+            DayOfWeek::Monday => "Monday",
+            DayOfWeek::Tuesday => "Tuesday",
+            DayOfWeek::Wednesday => "Wednesday",
+            DayOfWeek::Thursday => "Thursday",
+            DayOfWeek::Friday => "Friday",
+            DayOfWeek::Saturday => "Saturday",
+            DayOfWeek::Sunday => "Sunday",
+        })
+        .collect::<Vec<&str>>()
+        .join(",");
 }
