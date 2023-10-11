@@ -13,7 +13,7 @@ use crate::controllers::{
 };
 use crate::database::DbPool;
 use crate::sump::sensor::{listen_to_high_sensor, listen_to_low_sensor};
-use crate::sump::{spawn_reporting_thread, Sump};
+use crate::sump::{schedule, spawn_reporting_thread, Sump};
 
 pub struct Application {
     port: u16,
@@ -67,6 +67,8 @@ impl Application {
                 );
             }
         }
+
+        schedule::start(db_pool.clone());
 
         let server = HttpServer::new(move || {
             let mut app = App::new()

@@ -27,6 +27,7 @@ pub enum DayOfWeek {
 #[diesel(table_name = irrigation_schedule)]
 pub struct IrrigationSchedule {
     pub id: i32,
+    pub active: bool,
     pub name: String,
     pub start_time: NaiveDateTime,
     pub days_of_week: String,
@@ -53,6 +54,10 @@ impl fmt::Display for DayOfWeek {
 
 impl IrrigationSchedule {
     // Composable queries
+    pub fn active() -> BoxedQuery<'static> {
+        IrrigationSchedule::all().filter(irrigation_schedule::active.eq(true))
+    }
+
     pub fn all() -> BoxedQuery<'static> {
         irrigation_schedule::table.limit(100).into_boxed()
     }
@@ -88,6 +93,7 @@ impl IrrigationSchedule {
 
             return diesel::insert_into(irrigation_schedule::table)
                 .values((
+                    active.eq(true),
                     hoses.eq(hose_str),
                     name.eq(schedule_name),
                     start_time.eq(schedule_start_time),

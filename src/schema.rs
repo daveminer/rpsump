@@ -14,6 +14,7 @@ diesel::table! {
 diesel::table! {
     irrigation_schedule (id) {
         id -> Integer,
+        active -> Bool,
         name -> Text,
         start_time -> Timestamp,
         days_of_week -> Text,

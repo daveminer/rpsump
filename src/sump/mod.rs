@@ -1,5 +1,6 @@
 pub mod control;
 pub mod debounce;
+pub mod schedule;
 pub mod sensor;
 
 use anyhow::Error;
