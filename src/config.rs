@@ -7,6 +7,7 @@ pub struct Settings {
     pub console: ConsoleConfig,
     pub database_url: String,
     pub jwt_secret: String,
+    pub irrigation: IrrigationConfig,
     pub mailer: MailerConfig,
     pub server: ServerConfig,
     pub sump: Option<SumpConfig>,
@@ -16,6 +17,12 @@ pub struct Settings {
 #[derive(Clone, Debug, Deserialize)]
 pub struct ConsoleConfig {
     pub report_freq_secs: u64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct IrrigationConfig {
+    pub enabled: bool,
+    pub max_seconds_runtime: u8,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -64,6 +71,14 @@ impl Settings {
             },
             database_url,
             jwt_secret,
+            irrigation: IrrigationConfig {
+                enabled: load_system_var("IRRIGATION_ENABLED")
+                    .parse()
+                    .expect("IRRIGATION_ENABLED must be a boolean."),
+                max_seconds_runtime: load_system_var("IRRIGATION_MAX_RUNTIME")
+                    .parse()
+                    .expect("IRRIGATION_MAX_RUNTIME must be a number"),
+            },
             mailer: MailerConfig {
                 auth_token: load_system_var("MAILER_AUTH_TOKEN"),
                 server_url: load_system_var("MAILER_SERVER_URL"),

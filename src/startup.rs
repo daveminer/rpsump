@@ -34,6 +34,12 @@ impl Application {
             None => 0,
         };
 
+        let irrigation = settings.clone().irrigation;
+
+        if irrigation.enabled {
+            schedule::start(db_pool.clone());
+        }
+
         let sump = match settings.clone().sump {
             None => None,
             Some(sump_config) => Some(
@@ -67,8 +73,6 @@ impl Application {
                 );
             }
         }
-
-        schedule::start(db_pool.clone());
 
         let server = HttpServer::new(move || {
             let mut app = App::new()
