@@ -1,5 +1,3 @@
-use crate::models::irrigation_event::IrrigationEventStatus;
-use crate::{database::DbPool, models::irrigation_event::IrrigationEvent};
 use anyhow::{anyhow, Error};
 use chrono::{Datelike, Duration, NaiveDateTime};
 use diesel::prelude::*;
@@ -7,6 +5,9 @@ use diesel::sql_types::{Bool, Integer, Text};
 use diesel::RunQueryDsl;
 use std::thread::{self, sleep, JoinHandle};
 use std::time::Duration as StdDuration;
+
+use crate::models::irrigation_event::IrrigationEventStatus;
+use crate::{database::DbPool, models::irrigation_event::IrrigationEvent};
 
 #[derive(Clone, Debug, Queryable, QueryableByName)]
 pub struct Status {
@@ -63,7 +64,7 @@ fn poll_irrigation_events(db: DbPool) {
             [] => continue,
             schedules => {
                 // Run a schedule
-                match create_irrigation_event(db.clone(), schedules[0]) {
+                match IrrigationEvent::create_irrigation_event(db.clone(), schedules[0].clone()) {
                     Ok(()) => (),
                     Err(e) => (), // TODO: report error
                 }
