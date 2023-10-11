@@ -36,6 +36,11 @@ pub struct IrrigationEvent {
     pub schedule_id: i32,
 }
 
+pub enum IrrigationEventRunError {
+    DatabaseError(DieselError),
+    InProgress,
+}
+
 impl fmt::Display for IrrigationEventStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -43,6 +48,12 @@ impl fmt::Display for IrrigationEventStatus {
             IrrigationEventStatus::Completed => write!(f, "completed"),
             IrrigationEventStatus::Cancelled => write!(f, "cancelled"),
         }
+    }
+}
+
+impl From<DieselError> for IrrigationEventRunError {
+    fn from(error: DieselError) -> Self {
+        IrrigationEventRunError::DatabaseError(error)
     }
 }
 
@@ -84,7 +95,14 @@ impl IrrigationEvent {
 
     pub fn status_query() -> SqlQuery {
         sql_query(
-            "SELECT schedule.id, schedule.status, schedule.start_time, event.id, event.status, event.created_at, event.end_time
+            "SELECT schedule.id,
+            schedule.status,
+            schedule.start_time,
+            event.id,
+            event.hose_id,
+            event.status,
+            event.created_at,
+            event.end_time
             FROM irrigation_schedule AS schedule
             LEFT JOIN (
                 SELECT *
@@ -131,12 +149,15 @@ impl IrrigationEvent {
         Ok(())
     }
 
-    pub fn create_irrigation_event(db: DbPool, status_to_run: Status) -> Result<(), Error> {
+    pub fn create_irrigation_event(
+        db: DbPool,
+        status_to_run: Status,
+    ) -> Result<usize, IrrigationEventRunError> {
         let mut conn: diesel::r2d2::PooledConnection<
             diesel::r2d2::ConnectionManager<SqliteConnection>,
         > = db.get().expect("Could not get a db connection.");
         // Check if there is an in-progress event for this schedule
-        let result = conn.transaction(|conn| {
+        conn.transaction(|conn| {
             let in_progress_events =
                 IrrigationEvent::in_progress().get_results::<IrrigationEvent>(conn);
 
@@ -144,24 +165,23 @@ impl IrrigationEvent {
                 Ok(events) => {
                     if events.len() > 0 {
                         // An in-progress event already exists, so roll back the transaction
-                        return Err(DieselError::RollbackTransaction);
+                        //return Err(DieselError::RollbackTransaction);
+                        return Err(IrrigationEventRunError::InProgress);
                     }
                 }
-                Err(e) => return Err(DieselError::RollbackTransaction),
+                Err(e) => return Err(IrrigationEventRunError::DatabaseError(e)),
             };
 
-            // diesel::insert_into(irrigation_event::table)
-            //     .values((
-            //         hose_id.eq(status.hose_id),
-            //         schedule_id.eq(sched_id),
-            //         status.eq(IrrigationEventStatus::InProgress.to_string()),
-            //     ))
-            //     .execute(conn)?;
-
-            Ok(())
-        });
-
-        Ok(())
+            let rows_updated = diesel::insert_into(irrigation_event::table)
+                .values((
+                    hose_id.eq(status_to_run.event_hose_id),
+                    schedule_id.eq(status_to_run.schedule_id),
+                    status.eq(IrrigationEventStatus::InProgress.to_string()),
+                ))
+                .execute(conn)
+                .map_err(|e| IrrigationEventRunError::DatabaseError(e))?;
+            Ok(rows_updated)
+        })
     }
 
     pub async fn finish(db: DbPool) -> Result<bool, Error> {

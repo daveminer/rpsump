@@ -12,21 +12,23 @@ use crate::{database::DbPool, models::irrigation_event::IrrigationEvent};
 #[derive(Clone, Debug, Queryable, QueryableByName)]
 pub struct Status {
     #[diesel(sql_type = Integer)]
-    schedule_id: i32,
+    pub schedule_id: i32,
     #[diesel(sql_type = Text)]
-    schedule_days_of_week: String,
+    pub schedule_days_of_week: String,
     #[diesel(sql_type = Text)]
-    schedule_start_time: String,
+    pub schedule_start_time: String,
     #[diesel(sql_type = Bool)]
-    schedule_status: bool,
+    pub schedule_status: bool,
     #[diesel(sql_type = Integer)]
-    event_id: i32,
+    pub event_id: i32,
+    #[diesel(sql_type = Integer)]
+    pub event_hose_id: i32,
     #[diesel(sql_type = Text)]
-    event_status: String,
+    pub event_status: String,
     #[diesel(sql_type = Text)]
-    event_created_at: String,
+    pub event_created_at: String,
     #[diesel(sql_type = Text)]
-    event_end_time: String,
+    pub event_end_time: String,
 }
 
 pub fn start(db: DbPool) -> JoinHandle<()> {
@@ -65,7 +67,7 @@ fn poll_irrigation_events(db: DbPool) {
             schedules => {
                 // Run a schedule
                 match IrrigationEvent::create_irrigation_event(db.clone(), schedules[0].clone()) {
-                    Ok(()) => (),
+                    Ok(_usize) => (),
                     Err(e) => (), // TODO: report error
                 }
                 //schedule_run(schedules[0], db.clone())
