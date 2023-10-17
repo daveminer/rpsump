@@ -104,7 +104,6 @@ pub fn spawn_reporting_thread(
         loop {
             // Report to console
             let sensor_reading = *sensors.lock().unwrap();
-            println!("{:?}", sensor_reading);
 
             // Wait for N seconds
             let elapsed_time = start_time.elapsed();

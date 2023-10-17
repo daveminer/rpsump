@@ -24,7 +24,7 @@ pub enum IrrigationEventStatus {
     InProgress,
 }
 
-#[derive(Clone, Debug, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
+#[derive(Clone, Debug, Insertable, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
 #[diesel(belongs_to(IrrigationSchedule))]
 #[diesel(table_name = irrigation_event)]
 pub struct IrrigationEvent {

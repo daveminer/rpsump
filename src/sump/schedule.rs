@@ -68,7 +68,7 @@ fn poll_irrigation_events(db: DbPool) {
                 // Run a schedule
                 match IrrigationEvent::create_irrigation_event(db.clone(), schedules[0].clone()) {
                     Ok(_usize) => (),
-                    Err(e) => (), // TODO: report error
+                    Err(_e) => (), // TODO: report error
                 }
                 //schedule_run(schedules[0], db.clone())
             }

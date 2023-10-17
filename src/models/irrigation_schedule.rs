@@ -1,8 +1,9 @@
-use actix_web::web;
+use actix_web::{web, error};
 use actix_web::web::Data;
 use anyhow::{anyhow, Error};
-use chrono::NaiveDateTime;
+use chrono::{NaiveDateTime, NaiveTime};
 use diesel::prelude::*;
+use diesel::result::Error::NotFound;
 use diesel::sqlite::Sqlite;
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -29,7 +30,7 @@ pub struct IrrigationSchedule {
     pub id: i32,
     pub active: bool,
     pub name: String,
-    pub start_time: NaiveDateTime,
+    pub start_time: NaiveTime,
     pub days_of_week: String,
     pub hoses: String,
     pub created_at: NaiveDateTime,
@@ -52,6 +53,7 @@ impl fmt::Display for DayOfWeek {
     }
 }
 
+
 impl IrrigationSchedule {
     // Composable queries
     pub fn active() -> BoxedQuery<'static> {
@@ -71,7 +73,7 @@ impl IrrigationSchedule {
     pub async fn create(
         schedule_hoses: Vec<i32>,
         schedule_name: String,
-        schedule_start_time: NaiveDateTime,
+        schedule_start_time: NaiveTime,
         schedule_days_of_week: Vec<DayOfWeek>,
         db: Data<DbPool>,
     ) -> Result<IrrigationSchedule, Error> {
@@ -101,8 +103,10 @@ impl IrrigationSchedule {
                 ))
                 .get_result::<IrrigationSchedule>(&mut conn);
         })
-        .await?
+        .await
+        .map_err(|e| anyhow!("Error: {e}"))?
         .map_err(|e| anyhow!("Internal server error when creating irrigation schedule: {e}"))?;
+
 
         Ok(new_schedule)
     }
@@ -115,8 +119,7 @@ impl IrrigationSchedule {
                 .get_result::<IrrigationSchedule>(&mut conn)
                 .map_err(|e| anyhow!("Error deleting irrigation schedules: {}", e))
         })
-        .await?
-        .map_err(|e| anyhow!("Internal server error when deleting irrigation schedule: {e}"))?;
+        .await??;
 
         Ok(result)
     }
@@ -125,10 +128,10 @@ impl IrrigationSchedule {
         schedule_id: i32,
         schedule_hoses: Option<Vec<i32>>,
         schedule_name: Option<String>,
-        schedule_start_time: Option<NaiveDateTime>,
+        schedule_start_time: Option<NaiveTime>,
         schedule_days_of_week: Option<Vec<DayOfWeek>>,
         db: Data<DbPool>,
-    ) -> Result<IrrigationSchedule, Error> {
+    ) -> Result<Option<IrrigationSchedule>, Error> {
         let updated_schedule = web::block(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 
@@ -138,12 +141,15 @@ impl IrrigationSchedule {
                 .optional()
                 .map_err(|e| anyhow!("Error checking for existing irrigation schedule: {}", e))?;
 
+            println!("EXISTING: {:?}", existing_schedule);
             if existing_schedule.is_none() {
-                return Err(anyhow!("No irrigation event found with ID {}", schedule_id));
+                println!("HERE");
+                return Ok(None);
             }
 
             let mut updated_schedule = existing_schedule.unwrap().clone();
 
+            println!("UPDATED");
             if let Some(schedule_hoses) = schedule_hoses {
                 updated_schedule.hoses = schedule_hoses
                     .iter()
@@ -161,18 +167,39 @@ impl IrrigationSchedule {
             }
 
             if let Some(schedule_days_of_week) = schedule_days_of_week {
-                updated_schedule.days_of_week = day_of_week_string(schedule_days_of_week);
+                updated_schedule.days_of_week = schedule_days_of_week.iter().map(|day| {
+                    day.to_string()
+                }).collect::<Vec<String>>().join(",");
             }
 
-            return diesel::update(irrigation_schedule::table.find(schedule_id))
-                .set(updated_schedule)
-                .get_result::<IrrigationSchedule>(&mut conn)
-                .map_err(|e| anyhow!("Error updating irrigation event: {}", e));
-        })
-        .await?
-        .map_err(|e| anyhow!("Internal server error when editing irrigation schedule: {e}"))?;
+            let result = diesel::update(irrigation_schedule::table.find(schedule_id))
+                        .set(updated_schedule)
+                        .get_result::<IrrigationSchedule>(&mut conn)
+                        .map_err(|e| anyhow!("Error updating irrigation event: {}", e));
 
-        Ok(updated_schedule)
+            match result {
+                Ok(schedule) => Ok(Some(schedule)),
+                Err(e) => Err(anyhow!("Error updating irrigation event: {}", e))
+            }
+        })
+        .await
+        .map_err(|e| {
+            println!("EEeeeEESS: {}", e);
+            tracing::error!("Error while spawning a blocking task: {:?}", e);
+            error::ErrorInternalServerError("Internal server error.")
+        })
+        .map_err(|e| {
+            println!("EEEESS: {}", e);
+
+            tracing::error!("Error while getting irrigation schedules: {:?}", e);
+            error::ErrorInternalServerError("Internal server error.")
+        });
+
+        println!("UPDSSS: {:?}", updated_schedule);
+        match updated_schedule {
+            Ok(schedule) => schedule,
+            Err(e) => Err(anyhow!("Error while updating irrigation schedule: {}", e))
+        }
     }
 
     pub fn fetch_irrigation_schedule(
@@ -194,20 +221,4 @@ impl IrrigationSchedule {
 
         Ok(irrigation_events)
     }
-}
-
-fn day_of_week_string(days: Vec<DayOfWeek>) -> String {
-    return days
-        .iter()
-        .map(|day| match day {
-            DayOfWeek::Monday => "Monday",
-            DayOfWeek::Tuesday => "Tuesday",
-            DayOfWeek::Wednesday => "Wednesday",
-            DayOfWeek::Thursday => "Thursday",
-            DayOfWeek::Friday => "Friday",
-            DayOfWeek::Saturday => "Saturday",
-            DayOfWeek::Sunday => "Sunday",
-        })
-        .collect::<Vec<&str>>()
-        .join(",");
 }

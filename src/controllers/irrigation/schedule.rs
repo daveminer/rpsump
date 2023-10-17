@@ -1,6 +1,7 @@
 use actix_web::{delete, error, get, patch, post, web, web::Data, HttpResponse, Responder, Result};
-use chrono::NaiveDateTime;
+use chrono::NaiveTime;
 use diesel::RunQueryDsl;
+use diesel::result::Error::NotFound;
 
 use crate::auth::authenticated_user::AuthenticatedUser;
 use crate::controllers::{spawn_blocking_with_tracing, ApiResponse};
@@ -12,7 +13,8 @@ pub struct IrrigationScheduleParams {
     pub days_of_week: Option<Vec<DayOfWeek>>,
     pub hoses: Option<Vec<i32>>,
     pub name: Option<String>,
-    pub start_time: Option<NaiveDateTime>,
+
+    pub start_time: Option<NaiveTime>,
 }
 
 #[get("/schedule")]
@@ -57,6 +59,12 @@ pub async fn irrigation_schedule(
         error::ErrorInternalServerError("Internal server error.")
     })?
     .map_err(|e| {
+        if e == NotFound {
+            return error::ErrorNotFound(serde_json::json!({
+                "message": "Irrigation schedule not found."
+            }));
+        };
+
         tracing::error!("Error while getting irrigation schedules: {:?}", e);
         error::ErrorInternalServerError("Internal server error.")
     })?;
@@ -84,7 +92,7 @@ pub async fn delete_irrigation_schedule(
 }
 
 #[patch("/schedule/{id}")]
-//#[tracing::instrument(skip(_req_body, db, _user))]
+#[tracing::instrument(skip(req_body, db, _user))]
 pub async fn edit_irrigation_schedule(
     path: web::Path<i32>,
     req_body: web::Json<IrrigationScheduleParams>,
@@ -104,11 +112,14 @@ pub async fn edit_irrigation_schedule(
     )
     .await;
 
-    // return match updated_irrigation_schedule {
-    //     Ok(schedule) => Ok(HttpResponse::Ok().json(updated_irrigation_schedule)),
-    //     Err(e) => Err(anyhow!("Error while updating irrigation schedule.")),
-    // };
-    Ok(HttpResponse::Ok().json(updated_irrigation_schedule.unwrap()))
+    return match updated_irrigation_schedule {
+        Ok(schedule) => Ok(HttpResponse::Ok().json(schedule)),
+        Err(e) => {
+            tracing::error!("Error while updating irrigation schedule: {:?}", e);
+            Ok(HttpResponse::InternalServerError().into())
+        }
+    };
+
 }
 
 #[post("/schedule")]
