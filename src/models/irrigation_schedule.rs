@@ -1,15 +1,13 @@
-use actix_web::{web, error};
 use actix_web::web::Data;
 use anyhow::{anyhow, Error};
 use chrono::{NaiveDateTime, NaiveTime};
 use diesel::prelude::*;
-use diesel::result::Error::NotFound;
 use diesel::sqlite::Sqlite;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-use crate::database;
-use crate::database::DbPool;
+use crate::controllers::spawn_blocking_with_tracing;
+use crate::database::{DbConn, DbPool};
 use crate::schema::irrigation_schedule;
 use crate::schema::irrigation_schedule::*;
 
@@ -53,7 +51,6 @@ impl fmt::Display for DayOfWeek {
     }
 }
 
-
 impl IrrigationSchedule {
     // Composable queries
     pub fn active() -> BoxedQuery<'static> {
@@ -64,7 +61,11 @@ impl IrrigationSchedule {
         irrigation_schedule::table.limit(100).into_boxed()
     }
 
-    pub fn by_id(user_id: i32) -> BoxedQuery<'static> {
+    pub fn by_id(sched_id: i32) -> BoxedQuery<'static> {
+        irrigation_schedule::table.find(sched_id).into_boxed()
+    }
+
+    pub fn by_user_id(user_id: i32) -> BoxedQuery<'static> {
         irrigation_schedule::table
             .filter(irrigation_schedule::id.eq(user_id))
             .into_boxed()
@@ -77,21 +78,20 @@ impl IrrigationSchedule {
         schedule_days_of_week: Vec<DayOfWeek>,
         db: Data<DbPool>,
     ) -> Result<IrrigationSchedule, Error> {
-        // TODO: block with tracing
-        let new_schedule = web::block(move || {
+        let hose_str = schedule_hoses
+            .iter()
+            .map(|hose| hose.to_string())
+            .collect::<Vec<String>>()
+            .join(",");
+
+        let day_of_week_str = schedule_days_of_week
+            .iter()
+            .map(|day| day.to_string())
+            .collect::<Vec<String>>()
+            .join(",");
+
+        let new_schedule = spawn_blocking_with_tracing(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
-
-            let hose_str = schedule_hoses
-                .iter()
-                .map(|hose| hose.to_string())
-                .collect::<Vec<String>>()
-                .join(",");
-
-            let day_of_week_str = schedule_days_of_week
-                .iter()
-                .map(|day| day.to_string())
-                .collect::<Vec<String>>()
-                .join(",");
 
             return diesel::insert_into(irrigation_schedule::table)
                 .values((
@@ -107,14 +107,13 @@ impl IrrigationSchedule {
         .map_err(|e| anyhow!("Error: {e}"))?
         .map_err(|e| anyhow!("Internal server error when creating irrigation schedule: {e}"))?;
 
-
         Ok(new_schedule)
     }
 
     pub async fn delete(schedule_id: i32, db: Data<DbPool>) -> Result<IrrigationSchedule, Error> {
-        let result = web::block(move || {
-            let mut conn = db.get().expect("Could not get a db connection.");
+        let mut conn = db.get()?;
 
+        let result = spawn_blocking_with_tracing(move || {
             diesel::delete(irrigation_schedule::table.find(schedule_id))
                 .get_result::<IrrigationSchedule>(&mut conn)
                 .map_err(|e| anyhow!("Error deleting irrigation schedules: {}", e))
@@ -132,93 +131,81 @@ impl IrrigationSchedule {
         schedule_days_of_week: Option<Vec<DayOfWeek>>,
         db: Data<DbPool>,
     ) -> Result<Option<IrrigationSchedule>, Error> {
-        let updated_schedule = web::block(move || {
-            let mut conn = db.get().expect("Could not get a db connection.");
-
-            let existing_schedule = irrigation_schedule::table
-                .find(schedule_id)
-                .first::<IrrigationSchedule>(&mut conn)
-                .optional()
-                .map_err(|e| anyhow!("Error checking for existing irrigation schedule: {}", e))?;
-
-            println!("EXISTING: {:?}", existing_schedule);
-            if existing_schedule.is_none() {
-                println!("HERE");
-                return Ok(None);
-            }
-
-            let mut updated_schedule = existing_schedule.unwrap().clone();
-
-            println!("UPDATED");
-            if let Some(schedule_hoses) = schedule_hoses {
-                updated_schedule.hoses = schedule_hoses
-                    .iter()
-                    .map(|hose| hose.to_string())
-                    .collect::<Vec<String>>()
-                    .join(",");
-            }
-
-            if let Some(schedule_name) = schedule_name {
-                updated_schedule.name = schedule_name;
-            }
-
-            if let Some(schedule_start_time) = schedule_start_time {
-                updated_schedule.start_time = schedule_start_time;
-            }
-
-            if let Some(schedule_days_of_week) = schedule_days_of_week {
-                updated_schedule.days_of_week = schedule_days_of_week.iter().map(|day| {
-                    day.to_string()
-                }).collect::<Vec<String>>().join(",");
-            }
-
-            let result = diesel::update(irrigation_schedule::table.find(schedule_id))
-                        .set(updated_schedule)
-                        .get_result::<IrrigationSchedule>(&mut conn)
-                        .map_err(|e| anyhow!("Error updating irrigation event: {}", e));
-
-            match result {
-                Ok(schedule) => Ok(Some(schedule)),
-                Err(e) => Err(anyhow!("Error updating irrigation event: {}", e))
-            }
+        let mut conn = db.get()?;
+        spawn_blocking_with_tracing(move || {
+            conn.transaction::<_, Error, _>(|conn| {
+                update_schedule(
+                    conn,
+                    schedule_id,
+                    schedule_hoses,
+                    schedule_name,
+                    schedule_start_time,
+                    schedule_days_of_week,
+                )
+            })
         })
-        .await
-        .map_err(|e| {
-            println!("EEeeeEESS: {}", e);
-            tracing::error!("Error while spawning a blocking task: {:?}", e);
-            error::ErrorInternalServerError("Internal server error.")
-        })
-        .map_err(|e| {
-            println!("EEEESS: {}", e);
+        .await?
+    }
+}
 
-            tracing::error!("Error while getting irrigation schedules: {:?}", e);
-            error::ErrorInternalServerError("Internal server error.")
-        });
+fn update_schedule(
+    conn: &mut DbConn,
+    schedule_id: i32,
+    schedule_hoses: Option<Vec<i32>>,
+    schedule_name: Option<String>,
+    schedule_start_time: Option<NaiveTime>,
+    schedule_days_of_week: Option<Vec<DayOfWeek>>,
+) -> Result<Option<IrrigationSchedule>, Error> {
+    let existing_schedule_query = IrrigationSchedule::by_id(schedule_id)
+        .first::<IrrigationSchedule>(conn)
+        .optional();
 
-        println!("UPDSSS: {:?}", updated_schedule);
-        match updated_schedule {
-            Ok(schedule) => schedule,
-            Err(e) => Err(anyhow!("Error while updating irrigation schedule: {}", e))
+    let mut new = match existing_schedule_query {
+        Ok(Some(existing_schedule)) => existing_schedule,
+        Ok(None) => return Ok(None),
+        Err(e) => {
+            return Err(anyhow!(
+                "Could not check for existing irrigation schedule: {}",
+                e
+            ))
         }
+    };
+
+    if let Some(schedule_hoses) = schedule_hoses {
+        new.hoses = schedule_hoses
+            .iter()
+            .map(|hose| hose.to_string())
+            .collect::<Vec<String>>()
+            .join(",");
     }
 
-    pub fn fetch_irrigation_schedule(
-        db: Data<DbPool>,
-        schedule_id: Option<i32>,
-    ) -> Result<Vec<IrrigationSchedule>, Error> {
-        let mut conn = database::conn(db)?;
-        let query: BoxedQuery<'static> = if schedule_id.is_some() {
-            irrigation_schedule::table
-                .find(schedule_id.unwrap())
-                .into_boxed()
-        } else {
-            irrigation_schedule::table.limit(100).into_boxed()
-        };
+    if let Some(schedule_name) = schedule_name {
+        new.name = schedule_name;
+    }
 
-        let irrigation_events: Vec<IrrigationSchedule> = query
-            .load::<IrrigationSchedule>(&mut conn)
-            .map_err(|e| anyhow!(e))?;
+    if let Some(schedule_start_time) = schedule_start_time {
+        new.start_time = schedule_start_time;
+    }
 
-        Ok(irrigation_events)
+    if let Some(schedule_days_of_week) = schedule_days_of_week {
+        new.days_of_week = schedule_days_of_week
+            .iter()
+            .map(|day| day.to_string())
+            .collect::<Vec<String>>()
+            .join(",");
+    }
+
+    let result: Result<Option<IrrigationSchedule>, Error> =
+        diesel::update(irrigation_schedule::table.find(schedule_id))
+            .set(new)
+            .get_result::<IrrigationSchedule>(conn)
+            .optional()
+            .map_err(|e| anyhow!("Error updating irrigation event: {}", e));
+
+    println!("RESULT: {:?}", result);
+    match result {
+        Ok(None) => return Err(anyhow!("Irrigation schedule not found.")),
+        Ok(schedule) => Ok(schedule),
+        Err(e) => Err(anyhow!("Error updating irrigation event: {}", e)),
     }
 }

@@ -1,4 +1,3 @@
-use actix_web::web;
 use anyhow::{anyhow, Error};
 use chrono::NaiveDateTime;
 use diesel::backend::Backend;
@@ -6,6 +5,7 @@ use diesel::dsl::*;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 
+use crate::controllers::spawn_blocking_with_tracing;
 use crate::database::DbPool;
 use crate::schema::sump_event;
 use crate::schema::sump_event::dsl::*;
@@ -22,7 +22,7 @@ pub struct SumpEvent {
 
 impl SumpEvent {
     pub async fn create(event_kind: String, event_info: String, db: DbPool) -> Result<(), Error> {
-        web::block(move || {
+        spawn_blocking_with_tracing(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 
             diesel::insert_into(sump_event::table)

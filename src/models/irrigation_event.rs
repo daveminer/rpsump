@@ -1,6 +1,5 @@
 use std::fmt;
 
-use actix_web::web;
 use anyhow::{anyhow, Error};
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
@@ -10,6 +9,7 @@ use diesel::sql_query;
 use diesel::sqlite::Sqlite;
 use serde::{Deserialize, Serialize};
 
+use crate::controllers::spawn_blocking_with_tracing;
 use crate::database::DbPool;
 use crate::schema::irrigation_event;
 use crate::schema::irrigation_event::*;
@@ -121,7 +121,7 @@ impl IrrigationEvent {
     }
 
     pub async fn create(hose: i32, schedule: i32, db: DbPool) -> Result<(), Error> {
-        web::block(move || {
+        spawn_blocking_with_tracing(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 
             let existing_event = irrigation_event::table
@@ -187,7 +187,7 @@ impl IrrigationEvent {
     pub async fn finish(db: DbPool) -> Result<bool, Error> {
         let mut conn = db.get().expect("Could not get a db connection.");
 
-        web::block(move || {
+        spawn_blocking_with_tracing(move || {
             let events: Vec<IrrigationEvent> = irrigation_event::table
                 .filter(status.eq(IrrigationEventStatus::InProgress.to_string()))
                 .select(IrrigationEvent::as_select())

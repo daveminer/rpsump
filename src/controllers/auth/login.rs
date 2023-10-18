@@ -69,7 +69,7 @@ pub async fn login(
 
     // Create user event
     let mut conn = new_conn!(db);
-    let user_event = web::block(move || {
+    let user_event = spawn_blocking_with_tracing(move || {
         return conn.transaction::<_, Error, _>(|conn| {
             diesel::insert_into(user_event::table)
                 .values((

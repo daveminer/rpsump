@@ -35,7 +35,7 @@ impl ApiResponse {
 
 /// Long-running calls to blocking functions need to be spawned on Actix's
 /// blocking thread pool or the main event loop will be blocked.
-/// This includes all calls to the database as Diesel has a synchronous API.
+/// This includes all calls to the database, as Diesel has a synchronous API.
 pub fn spawn_blocking_with_tracing<F, R>(f: F) -> JoinHandle<R>
 where
     F: FnOnce() -> R + Send + 'static,

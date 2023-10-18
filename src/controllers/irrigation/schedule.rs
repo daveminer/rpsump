@@ -1,7 +1,7 @@
 use actix_web::{delete, error, get, patch, post, web, web::Data, HttpResponse, Responder, Result};
 use chrono::NaiveTime;
-use diesel::RunQueryDsl;
 use diesel::result::Error::NotFound;
+use diesel::RunQueryDsl;
 
 use crate::auth::authenticated_user::AuthenticatedUser;
 use crate::controllers::{spawn_blocking_with_tracing, ApiResponse};
@@ -51,7 +51,7 @@ pub async fn irrigation_schedule(
     let id = path.into_inner();
     let irrigation_schedule = spawn_blocking_with_tracing(move || {
         let mut conn = db.get().expect("Could not get a db connection.");
-        return IrrigationSchedule::by_id(id).first::<IrrigationSchedule>(&mut conn);
+        return IrrigationSchedule::by_user_id(id).first::<IrrigationSchedule>(&mut conn);
     })
     .await
     .map_err(|e| {
@@ -113,13 +113,13 @@ pub async fn edit_irrigation_schedule(
     .await;
 
     return match updated_irrigation_schedule {
+        Ok(None) => Ok(HttpResponse::NotFound().finish()),
         Ok(schedule) => Ok(HttpResponse::Ok().json(schedule)),
         Err(e) => {
             tracing::error!("Error while updating irrigation schedule: {:?}", e);
             Ok(HttpResponse::InternalServerError().into())
         }
     };
-
 }
 
 #[post("/schedule")]

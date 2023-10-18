@@ -6,6 +6,7 @@ use diesel::{prelude::*, sqlite::Sqlite};
 use serde::{Deserialize, Serialize};
 
 use crate::auth::{password::Password, token::Token};
+use crate::controllers::spawn_blocking_with_tracing;
 use crate::database::DbPool;
 use crate::models::user_event::EventType;
 use crate::schema::{user, user_event};
@@ -56,7 +57,7 @@ impl User {
         req_ip_address: String,
         db: Data<DbPool>,
     ) -> Result<User, Error> {
-        let new_user: User = web::block(move || {
+        let new_user: User = spawn_blocking_with_tracing(move || {
             let mut conn = db.get()?;
 
             let user = conn.transaction::<_, Error, _>(|conn| {
@@ -99,7 +100,7 @@ impl User {
     #[tracing::instrument(skip(self, password, db))]
     pub async fn set_password(self, password: &Password, db: Data<DbPool>) -> Result<(), Error> {
         let hash = password.hash()?;
-        let _row_updated = web::block(move || {
+        let _row_updated = spawn_blocking_with_tracing(move || {
             let mut conn = db.get()?;
 
             diesel::update(user::table)
@@ -116,7 +117,7 @@ impl User {
 
     #[tracing::instrument(skip(self, token, db))]
     pub async fn save_reset_token(self, token: Token, db: Data<DbPool>) -> Result<(), Error> {
-        let _row_updated = web::block(move || {
+        let _row_updated = spawn_blocking_with_tracing(move || {
             let mut conn = db.get()?;
 
             diesel::update(user::table)
@@ -140,7 +141,7 @@ impl User {
         token: Token,
         db: web::Data<DbPool>,
     ) -> Result<(), Error> {
-        let _row_updated = web::block(move || {
+        let _row_updated = spawn_blocking_with_tracing(move || {
             let mut conn = db.get()?;
 
             diesel::update(user::table)
@@ -160,7 +161,7 @@ impl User {
 
     #[tracing::instrument(skip(token, db))]
     pub async fn verify_email(token: String, db: web::Data<DbPool>) -> Result<(), Error> {
-        let _result = web::block(move || {
+        let _result = spawn_blocking_with_tracing(move || {
             let mut conn = db.get()?;
 
             let user_from_token =
