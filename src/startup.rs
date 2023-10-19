@@ -37,7 +37,12 @@ impl Application {
         let irrigation = settings.clone().irrigation;
 
         if irrigation.enabled {
-            schedule::start(db_pool.clone());
+            schedule::start(
+                db_pool.clone(),
+                &settings.mailer.server_url,
+                &settings.mailer.error_contact,
+                &settings.mailer.auth_token,
+            );
         }
 
         let sump = match settings.clone().sump {

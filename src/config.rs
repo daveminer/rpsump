@@ -28,6 +28,7 @@ pub struct IrrigationConfig {
 #[derive(Clone, Debug, Deserialize)]
 pub struct MailerConfig {
     pub auth_token: String,
+    pub error_contact: String,
     pub server_url: String,
 }
 
@@ -81,6 +82,7 @@ impl Settings {
             },
             mailer: MailerConfig {
                 auth_token: load_system_var("MAILER_AUTH_TOKEN"),
+                error_contact: load_system_var("MAILER_ERROR_CONTACT"),
                 server_url: load_system_var("MAILER_SERVER_URL"),
             },
             server: ServerConfig {

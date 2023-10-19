@@ -139,7 +139,7 @@ impl User {
     pub async fn save_email_verification_token(
         user_email: String,
         token: Token,
-        db: web::Data<DbPool>,
+        db: Data<DbPool>,
     ) -> Result<(), Error> {
         let _row_updated = spawn_blocking_with_tracing(move || {
             let mut conn = db.get()?;
@@ -160,7 +160,7 @@ impl User {
     }
 
     #[tracing::instrument(skip(token, db))]
-    pub async fn verify_email(token: String, db: web::Data<DbPool>) -> Result<(), Error> {
+    pub async fn verify_email(token: String, db: Data<DbPool>) -> Result<(), Error> {
         let _result = spawn_blocking_with_tracing(move || {
             let mut conn = db.get()?;
 
