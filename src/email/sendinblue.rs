@@ -2,6 +2,7 @@ use actix_web::web::Data;
 use anyhow::Error;
 
 use crate::auth::token::Token;
+use crate::config::MailerConfig;
 use crate::database::DbPool;
 use crate::email::{Contact, Email};
 use crate::models::user::User;
@@ -9,27 +10,20 @@ use crate::models::user::User;
 pub async fn send_email_verification(
     user: User,
     db: Data<DbPool>,
-    mailer_url: &str,
-    server_url: &str,
-    auth_token: &str,
+    mailer: MailerConfig,
+    app_server_url: &str,
 ) -> Result<(), Error> {
     let token = Token::new_email_verification(user.id);
 
     User::save_email_verification_token(user.email.clone(), token.clone(), db).await?;
 
-    let email = new_email_verification_email(user.email, server_url.to_string(), token);
-    send(auth_token, email, mailer_url).await
+    let email = new_email_verification_email(&user.email, &mailer.server_url, token);
+    send(&mailer.auth_token, email, app_server_url).await
 }
 
-pub async fn send_error_email(
-    db: DbPool,
-    mailer_url: &str,
-    contact_email: &str,
-    auth_token: &str,
-    error_msg: &str,
-) -> Result<(), Error> {
-    let email = new_error_email(contact_email, error_msg);
-    send(auth_token, email, mailer_url).await
+pub async fn send_error_email(mailer: &MailerConfig, error_msg: &str) -> Result<(), Error> {
+    let email = new_error_email(&mailer.error_contact, &error_msg);
+    send(&mailer.auth_token, email, &mailer.server_url).await
 }
 
 pub async fn send_password_reset(
@@ -75,8 +69,8 @@ async fn send(auth_token: &str, email: Email, mailer_url: &str) -> Result<(), Er
 }
 
 fn new_email_verification_email(
-    contact_email: String,
-    server_url: String,
+    contact_email: &str,
+    server_url: &str,
     verification_token: Token,
 ) -> Email {
     let link = format!(
@@ -85,7 +79,7 @@ fn new_email_verification_email(
     );
 
     Email {
-        to: vec![Contact{ email: contact_email.clone(), name: Some(contact_email)}],
+        to: vec![Contact{ email: contact_email.to_string(), name: Some(contact_email.to_string())}],
         sender: Contact {
             name: Some("RPSump".to_string()),
             email: "robo@halyard.systems".to_string()

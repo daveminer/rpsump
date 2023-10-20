@@ -34,17 +34,6 @@ impl Application {
             None => 0,
         };
 
-        let irrigation = settings.clone().irrigation;
-
-        if irrigation.enabled {
-            schedule::start(
-                db_pool.clone(),
-                &settings.mailer.server_url,
-                &settings.mailer.error_contact,
-                &settings.mailer.auth_token,
-            );
-        }
-
         let sump = match settings.clone().sump {
             None => None,
             Some(sump_config) => Some(
@@ -76,6 +65,10 @@ impl Application {
                     Arc::clone(&sump_clone.sensor_state),
                     settings.console.report_freq_secs,
                 );
+            }
+
+            if sump_clone.irrigation_enabled {
+                schedule::start(db_pool.clone(), settings.clone(), sump_clone);
             }
         }
 

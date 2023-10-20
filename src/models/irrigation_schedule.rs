@@ -28,6 +28,7 @@ pub struct IrrigationSchedule {
     pub id: i32,
     pub active: bool,
     pub name: String,
+    pub duration: i32,
     pub start_time: NaiveTime,
     pub days_of_week: String,
     pub hoses: String,

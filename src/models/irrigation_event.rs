@@ -36,6 +36,7 @@ pub struct IrrigationEvent {
     pub schedule_id: i32,
 }
 
+#[derive(Debug)]
 pub enum IrrigationEventRunError {
     DatabaseError(DieselError),
     InProgress,

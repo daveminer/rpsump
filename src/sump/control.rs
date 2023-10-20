@@ -61,3 +61,14 @@ pub async fn update_low_sensor(
 
     sensors.low_sensor = level;
 }
+
+#[tracing::instrument()]
+pub async fn update_irrigation_low_sensor(
+    level: Level,
+    irrigation_pump_control_pin: Arc<Mutex<OutputPin>>,
+    sensor_state: Arc<Mutex<PinState>>,
+    delay: u64,
+) {
+    let mut sensors = sensor_state.lock().unwrap();
+    sensors.irrigation_low_sensor = level;
+}

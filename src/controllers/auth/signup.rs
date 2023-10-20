@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use actix_web::{post, web, web::Data, HttpRequest, Responder, Result};
 use serde::Deserialize;
 use validator::Validate;
@@ -61,14 +63,11 @@ pub async fn signup(
         }
     };
 
+    let mailer_settings = Arc::clone(&settings).mailer.clone();
+
     // Send email verification
     match new_user
-        .send_email_verification(
-            db.clone(),
-            &settings.mailer.server_url,
-            req.connection_info().host(),
-            &settings.mailer.auth_token.clone(),
-        )
+        .send_email_verification(db.clone(), mailer_settings, req.connection_info().host())
         .await
     {
         Ok(_) => Ok(ApiResponse::ok("User created.".to_string())),

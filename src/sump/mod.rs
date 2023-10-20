@@ -13,7 +13,7 @@ use crate::config::SumpConfig;
 use crate::database::DbPool;
 use crate::sump::sensor::PinState;
 
-use self::sensor::{listen_to_high_sensor, listen_to_low_sensor};
+use self::sensor::{listen_to_high_sensor, listen_to_irrigation_low_sensor, listen_to_low_sensor};
 
 /// Threads spawned from sensor state changes will share one of these per sensor
 pub type SharedSensorDebouncer = Arc<Mutex<Option<debounce::SensorDebouncer>>>;
@@ -35,6 +35,14 @@ pub struct Sump {
     pub high_sensor_pin: SharedInputPin,
     pub low_sensor_debounce: SharedSensorDebouncer,
     pub low_sensor_pin: SharedInputPin,
+    pub irrigation_enabled: bool,
+    pub irrigation_low_sensor_debounce: SharedSensorDebouncer,
+    pub irrigation_low_sensor_pin: SharedInputPin,
+    pub irrigation_pump_control_pin: SharedOutputPin,
+    pub irrigation_valve_1_control_pin: SharedOutputPin,
+    pub irrigation_valve_2_control_pin: SharedOutputPin,
+    pub irrigation_valve_3_control_pin: SharedOutputPin,
+    pub irrigation_valve_4_control_pin: SharedOutputPin,
     pub pump_control_pin: SharedOutputPin,
     pub sensor_state: SharedPinState,
 }
@@ -55,14 +63,42 @@ impl Sump {
         let low_sensor_pin = Arc::from(Mutex::new(low_sensor_pin_io));
         let low_debounce = Arc::from(Mutex::new(None));
 
+        let irrigation_low_sensor_pin_io = gpio.get(config.low_sensor_pin)?.into_input_pullup();
+        let irrigation_low_sensor_reading = irrigation_low_sensor_pin_io.read();
+        let irrigation_low_sensor_pin = Arc::from(Mutex::new(irrigation_low_sensor_pin_io));
+        let irrigation_low_debounce = Arc::from(Mutex::new(None));
+
         let pump_control_pin: Arc<Mutex<OutputPin>> = Arc::from(Mutex::new(
             gpio.get(config.pump_control_pin)?.into_output_low(),
+        ));
+
+        let irrigation_pump_control_pin: Arc<Mutex<OutputPin>> = Arc::from(Mutex::new(
+            gpio.get(config.irrigation.pump_control_pin)?
+                .into_output_low(),
+        ));
+
+        let irrigation_valve_1_control_pin: Arc<Mutex<OutputPin>> = Arc::from(Mutex::new(
+            gpio.get(config.irrigation.valve_1_control_pin)?
+                .into_output_low(),
+        ));
+        let irrigation_valve_2_control_pin: Arc<Mutex<OutputPin>> = Arc::from(Mutex::new(
+            gpio.get(config.irrigation.valve_2_control_pin)?
+                .into_output_low(),
+        ));
+        let irrigation_valve_3_control_pin: Arc<Mutex<OutputPin>> = Arc::from(Mutex::new(
+            gpio.get(config.irrigation.valve_3_control_pin)?
+                .into_output_low(),
+        ));
+        let irrigation_valve_4_control_pin: Arc<Mutex<OutputPin>> = Arc::from(Mutex::new(
+            gpio.get(config.irrigation.valve_4_control_pin)?
+                .into_output_low(),
         ));
 
         // Read initial state of inputs
         let sensor_state = Arc::from(Mutex::new(PinState {
             high_sensor: high_sensor_reading,
             low_sensor: low_sensor_reading,
+            irrigation_low_sensor: irrigation_low_sensor_reading,
         }));
 
         listen_to_high_sensor(
@@ -80,12 +116,27 @@ impl Sump {
             db_pool.clone(),
         );
 
+        listen_to_irrigation_low_sensor(
+            Arc::clone(&low_sensor_pin),
+            Arc::clone(&pump_control_pin),
+            Arc::clone(&sensor_state),
+            config.pump_shutoff_delay,
+        );
+
         Ok(Sump {
             db_pool,
             high_sensor_debounce: Arc::clone(&high_debounce),
             high_sensor_pin: Arc::clone(&high_sensor_pin),
             low_sensor_debounce: Arc::clone(&low_debounce),
             low_sensor_pin: Arc::clone(&low_sensor_pin),
+            irrigation_enabled: config.irrigation.enabled,
+            irrigation_low_sensor_debounce: Arc::clone(&irrigation_low_debounce),
+            irrigation_low_sensor_pin: Arc::clone(&irrigation_low_sensor_pin),
+            irrigation_pump_control_pin: Arc::clone(&irrigation_pump_control_pin),
+            irrigation_valve_1_control_pin,
+            irrigation_valve_2_control_pin,
+            irrigation_valve_3_control_pin,
+            irrigation_valve_4_control_pin,
             pump_control_pin: Arc::clone(&pump_control_pin),
             sensor_state: Arc::clone(&sensor_state),
         })

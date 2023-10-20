@@ -1,4 +1,4 @@
-use actix_web::{web, web::Data};
+use actix_web::web::Data;
 use anyhow::{anyhow, Error};
 use chrono::{NaiveDateTime, Utc};
 use diesel::result::{DatabaseErrorKind, Error as DieselError};

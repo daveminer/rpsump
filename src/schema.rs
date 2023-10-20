@@ -16,6 +16,7 @@ diesel::table! {
         id -> Integer,
         active -> Bool,
         name -> Text,
+        duration -> Integer,
         start_time -> Time,
         days_of_week -> Text,
         hoses -> Text,
