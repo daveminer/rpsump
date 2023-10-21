@@ -151,127 +151,63 @@ fn error_email(mailer: &MailerConfig, e: Error) {
     })
 }
 
-#[tokio::test]
-async fn due_schedules_success() {
-    use chrono::Utc;
-    let default_noon =
-        NaiveDateTime::parse_from_str("2021-01-01 00:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
-    //let default_noon = "2021-01-01 00:00:00".to_string();
-    let default_all_days = "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday".to_string();
+#[cfg(test)]
+mod tests {
+    use rstest::*;
 
-    let in_the_past = test_status(
-        1,
-        default_noon.to_,
-        true,
-        default_all_days,
-        15,
-        1,
-        1,
-        Some((default_noon + Duration::seconds(15)).to_string()),
-    );
-    let in_the_past = Status {
-        schedule_id: 1,
-        schedule_days_of_week: "Monday,Tuesday,Wednesday,Thursday,Friday".to_string(),
-        schedule_duration: 10,
-        schedule_start_time: "2021-01-01 00:00:00".to_string(),
-        schedule_status: true,
-        event_id: 1,
-        event_hose_id: 1,
-        event_status: IrrigationEventStatus::InProgress.to_string(),
-        event_created_at: "2021-01-01 00:00:00".to_string(),
-        event_end_time: "2021-01-01 00:00:00".to_string(),
-    };
+    use crate::sump::schedule::Status;
+    use crate::test_fixtures::sump::status::{finished_status, running_status};
 
-    let in_the_future = Status {
-        schedule_id: 1,
-        schedule_days_of_week: "Monday,Tuesday,Wednesday,Thursday,Friday".to_string(),
-        schedule_duration: 10,
-        schedule_start_time: "2021-01-01 00:00:00".to_string(),
-        schedule_status: true,
-        event_id: 1,
-        event_hose_id: 1,
-        event_status: IrrigationEventStatus::InProgress.to_string(),
-        event_created_at: "2021-01-01 00:00:00".to_string(),
-        event_end_time: "2021-01-01 00:00:00".to_string(),
-    };
+    #[rstest]
+    fn due_schedules_success(#[from(finished_status)] status: Status) {
+        use chrono::Utc;
+        let default_noon =
+            NaiveDateTime::parse_from_str("2021-01-01 00:00:00", "%Y-%m-%d %H:%M:%S").unwrap();
 
-    let now = Utc::now().naive_utc();
-    let weekday = now.weekday();
-    let before = now - Duration::seconds(600);
-    let after = now + Duration::seconds(600);
-    println!("NAIVE: {}", now);
-    println!("NAIVE2: {}", before);
-    println!("NAIVE3: {}", after);
+        let past_one = finished_status(1, default_all_days, default_noon.to_string(), 1, 1);
+        let past_two = finished_status(2, default_all_days, default_noon.to_string(), 2, 2);
+        let past_three = finished_status(3, default_all_days, default_noon.to_string(), 3, 3);
 
-    let later_today = Status {
-        schedule_id: 1,
-        schedule_days_of_week: "Monday,Tuesday,Wednesday,Thursday,Friday".to_string(),
-        schedule_duration: 10,
-        schedule_start_time: format!("{:?}", before),
-        schedule_status: true,
-        event_id: 1,
-        event_hose_id: 1,
-        event_status: IrrigationEventStatus::InProgress.to_string(),
-        event_created_at: "2021-01-01 00:00:00".to_string(),
-        event_end_time: "2021-01-01 00:00:00".to_string(),
-    };
+        let later_today =
+        let now = Utc::now().naive_utc();
+        let weekday = now.weekday();
+        let before = now - Duration::seconds(600);
+        let after = now + Duration::seconds(600);
+        println!("NAIVE: {}", now);
+        println!("NAIVE2: {}", before);
+        println!("NAIVE3: {}", after);
 
-    let ready_to_run = Status {
-        schedule_id: 1,
-        schedule_days_of_week: "Monday,Tuesday,Wednesday,Thursday,Friday".to_string(),
-        schedule_duration: 10,
-        schedule_start_time: format!("{:?}", after),
-        schedule_status: true,
-        event_id: 1,
-        event_hose_id: 1,
-        event_status: IrrigationEventStatus::InProgress.to_string(),
-        event_created_at: "2021-01-01 00:00:00".to_string(),
-        event_end_time: "2021-01-01 00:00:00".to_string(),
-    };
+        let later_today = Status {
+            schedule_id: 1,
+            schedule_days_of_week: "Monday,Tuesday,Wednesday,Thursday,Friday".to_string(),
+            schedule_duration: 10,
+            schedule_start_time: format!("{:?}", before),
+            schedule_status: true,
+            event_id: 1,
+            event_hose_id: 1,
+            event_status: IrrigationEventStatus::InProgress.to_string(),
+            event_created_at: "2021-01-01 00:00:00".to_string(),
+            event_end_time: "2021-01-01 00:00:00".to_string(),
+        };
 
-    let result = due_schedules(
-        vec![in_the_past, in_the_future, later_today, ready_to_run],
-        now,
-    );
+        let ready_to_run = Status {
+            schedule_id: 1,
+            schedule_days_of_week: "Monday,Tuesday,Wednesday,Thursday,Friday".to_string(),
+            schedule_duration: 10,
+            schedule_start_time: format!("{:?}", after),
+            schedule_status: true,
+            event_id: 1,
+            event_hose_id: 1,
+            event_status: IrrigationEventStatus::InProgress.to_string(),
+            event_created_at: "2021-01-01 00:00:00".to_string(),
+            event_end_time: "2021-01-01 00:00:00".to_string(),
+        };
 
-    println!("RESULT: {:?}", result);
-}
+        let result = due_schedules(
+            vec![in_the_past, in_the_future, later_today, ready_to_run],
+            now,
+        );
 
-fn test_status(
-    schedule_id: i32,
-    schedule_start_time: String,
-    schedule_status: bool,
-    schedule_days_of_week: String,
-    schedule_duration: i32,
-    event_id: i32,
-    event_hose_id: i32,
-    event_end_time: Option<String>,
-) -> Status {
-    // Some time in the past
-    let created_at = "2021-01-01 00:00:00".to_string();
-    let event_status = if event_end_time.is_some() {
-        IrrigationEventStatus::Completed.to_string()
-    } else if event_end_time.is_none() {
-        IrrigationEventStatus::InProgress.to_string()
-    } else {
-        event_status.to_string()
-    };
-
-    let event_end_time = match event_end_time {
-        Some(event_end_time) => event_end_time,
-        None => "2021-01-01 00:00:15".to_string(),
-    };
-
-    Status {
-        schedule_id,
-        schedule_days_of_week,
-        schedule_duration,
-        schedule_start_time,
-        schedule_status,
-        event_id,
-        event_hose_id,
-        event_status,
-        event_created_at: created_at,
-        event_end_time,
+        println!("RESULT: {:?}", result);
     }
 }
