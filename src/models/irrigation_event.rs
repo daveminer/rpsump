@@ -6,14 +6,18 @@ use diesel::prelude::*;
 use diesel::query_builder::SqlQuery;
 use diesel::result::Error as DieselError;
 use diesel::sql_query;
+use diesel::sql_types::{Bool, Integer, Nullable, Text};
 use diesel::sqlite::Sqlite;
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
 use crate::controllers::spawn_blocking_with_tracing;
-use crate::database::DbPool;
-use crate::schema::irrigation_event;
+use crate::database::{DbConn, DbPool};
 use crate::schema::irrigation_event::*;
+use crate::schema::{irrigation_event, irrigation_schedule};
 use crate::sump::schedule::Status;
+
+use super::irrigation_schedule::IrrigationSchedule;
 
 type BoxedQuery<'a> = irrigation_event::BoxedQuery<'a, Sqlite, irrigation_event::SqlType>;
 
@@ -22,6 +26,7 @@ pub enum IrrigationEventStatus {
     Cancelled,
     Completed,
     InProgress,
+    Queued,
 }
 
 #[derive(Clone, Debug, Insertable, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
@@ -36,10 +41,38 @@ pub struct IrrigationEvent {
     pub schedule_id: i32,
 }
 
-#[derive(Debug)]
-pub enum IrrigationEventRunError {
-    DatabaseError(DieselError),
-    InProgress,
+#[derive(Debug, QueryableByName)]
+pub struct StatusQueryResult {
+    #[diesel(sql_type = Integer)]
+    pub schedule_schedule_id: i32,
+    #[diesel(sql_type = Bool)]
+    pub schedule_active: bool,
+    #[diesel(sql_type = Integer)]
+    pub schedule_duration: i32,
+    #[diesel(sql_type = Text)]
+    pub schedule_name: String,
+    #[diesel(sql_type = Text)]
+    pub schedule_status: String,
+    #[diesel(sql_type = Text)]
+    pub schedule_start_time: String,
+    #[diesel(sql_type = Text)]
+    pub schedule_days_of_week: String,
+    #[diesel(sql_type = Text)]
+    pub schedule_hoses: String,
+    #[diesel(sql_type = Text)]
+    pub schedule_created_at: String,
+    #[diesel(sql_type = Text)]
+    pub schedule_updated_at: String,
+    #[diesel(sql_type = Nullable<Integer>)]
+    pub event_id: Option<i32>,
+    #[diesel(sql_type = Nullable<Integer>)]
+    pub event_hose_id: Option<i32>,
+    #[diesel(sql_type = Nullable<Text>)]
+    pub event_status: Option<String>,
+    #[diesel(sql_type = Nullable<Text>)]
+    pub event_created_at: Option<String>,
+    #[diesel(sql_type = Nullable<Text>)]
+    pub event_end_time: Option<String>,
 }
 
 impl fmt::Display for IrrigationEventStatus {
@@ -48,13 +81,8 @@ impl fmt::Display for IrrigationEventStatus {
             IrrigationEventStatus::InProgress => write!(f, "in_progress"),
             IrrigationEventStatus::Completed => write!(f, "completed"),
             IrrigationEventStatus::Cancelled => write!(f, "cancelled"),
+            IrrigationEventStatus::Queued => write!(f, "queued"),
         }
-    }
-}
-
-impl From<DieselError> for IrrigationEventRunError {
-    fn from(error: DieselError) -> Self {
-        IrrigationEventRunError::DatabaseError(error)
     }
 }
 
@@ -82,23 +110,34 @@ impl IrrigationEvent {
             .into_boxed()
     }
 
-    pub fn finished() -> BoxedQuery<'static> {
-        irrigation_event::table
-            .filter(status.eq("completed"))
-            .into_boxed()
-    }
+    pub fn next_queued(db: DbPool) -> Result<(i32, IrrigationEvent), Error> {
+        let mut conn = match db.get() {
+            Ok(conn) => conn,
+            Err(e) => return Err(anyhow!(e)),
+        };
 
-    pub fn irrigation_running() -> BoxedQuery<'static> {
         irrigation_event::table
-            .filter(status.eq("in_progress"))
-            .into_boxed()
+            .inner_join(irrigation_schedule::table)
+            .filter(status.eq("queued"))
+            .select((irrigation_schedule::duration, irrigation_event::all_columns))
+            .order(created_at.asc())
+            .first::<(i32, IrrigationEvent)>(&mut conn)
+            .map_err(|e| anyhow!("Error getting next queued event: {}", e))
     }
 
     pub fn status_query() -> SqlQuery {
         sql_query(
-            "SELECT schedule.id,
+            "SELECT
+            schedule.id,
+            schedule.active,
+            schedule.duration,
+            schedule.name,
             schedule.status,
             schedule.start_time,
+            schedule.days_of_week,
+            schedule.hoses,
+            schedule.created_at,
+            schedule.updated_at,
             event.id,
             event.hose_id,
             event.status,
@@ -125,8 +164,7 @@ impl IrrigationEvent {
         spawn_blocking_with_tracing(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 
-            let existing_event = irrigation_event::table
-                .filter(status.eq("in_progress"))
+            let existing_event = IrrigationEvent::in_progress()
                 .first::<IrrigationEvent>(&mut conn)
                 .optional()
                 .map_err(|e| anyhow!("Error checking for existing irrigation event: {}", e))?;
@@ -150,39 +188,48 @@ impl IrrigationEvent {
         Ok(())
     }
 
-    pub fn create_irrigation_event(
+    pub async fn create_irrigation_events_for_status(
         db: DbPool,
-        status_to_run: Status,
-    ) -> Result<usize, IrrigationEventRunError> {
-        let mut conn: diesel::r2d2::PooledConnection<
-            diesel::r2d2::ConnectionManager<SqliteConnection>,
-        > = db.get().expect("Could not get a db connection.");
-        // Check if there is an in-progress event for this schedule
-        conn.transaction(|conn| {
-            let in_progress_events =
-                IrrigationEvent::in_progress().get_results::<IrrigationEvent>(conn);
+        stat: Status,
+    ) -> Result<usize, Error> {
+        let mut conn = match db.get() {
+            Ok(conn) => conn,
+            Err(e) => return Err(anyhow!(e)),
+        };
 
-            match in_progress_events {
-                Ok(events) => {
-                    if events.len() > 0 {
-                        // An in-progress event already exists, so roll back the transaction
-                        //return Err(DieselError::RollbackTransaction);
-                        return Err(IrrigationEventRunError::InProgress);
-                    }
-                }
-                Err(e) => return Err(IrrigationEventRunError::DatabaseError(e)),
-            };
+        let hoses: Vec<i32> = stat
+            .schedule
+            .hoses
+            .split(",")
+            .map(|hose| {
+                hose.parse::<i32>().unwrap_or_else(|err| {
+                    error!("Failed to parse hose: {}", err);
+                    0
+                })
+            })
+            .filter(|hose| hose > &0)
+            .collect();
 
-            let rows_updated = diesel::insert_into(irrigation_event::table)
-                .values((
-                    hose_id.eq(status_to_run.event_hose_id),
-                    schedule_id.eq(status_to_run.schedule_id),
-                    status.eq(IrrigationEventStatus::InProgress.to_string()),
-                ))
-                .execute(conn)
-                .map_err(|e| IrrigationEventRunError::DatabaseError(e))?;
-            Ok(rows_updated)
+        let events_to_queue: Vec<_> = hoses
+            .into_iter()
+            .map(|hose| {
+                (
+                    hose_id.eq(hose),
+                    schedule_id.eq(stat.schedule.id),
+                    status.eq(IrrigationEventStatus::Queued.to_string()),
+                )
+            })
+            .collect();
+
+        let rows_updated: usize = spawn_blocking_with_tracing(move || {
+            diesel::insert_into(irrigation_event::table)
+                .values(events_to_queue)
+                .execute(&mut conn)
+                .map_err(|e| anyhow!(e))
         })
+        .await??;
+
+        Ok(rows_updated)
     }
 
     pub async fn finish(db: DbPool) -> Result<bool, Error> {

@@ -10,24 +10,30 @@ use crate::database::DbPool;
 use crate::sump::schedule::IrrigationEvent;
 use crate::sump::{SharedOutputPin, Sump};
 
-use super::Status;
-
 static INVALID_HOSE_NUMBER_MSG: &str = "Invalid hose number provided";
 
-pub fn run_schedule(db: DbPool, status: Status, sump: Sump) {
-    // Create an event for the first schedule in the list
-    if let Err(e) = IrrigationEvent::create_irrigation_event(db.clone(), status.clone()) {
-        tracing::error!("Error creating irrigation event: {:?}", e);
-        return;
-    }
+pub fn run_next_event(db: DbPool, sump: Sump) {
+    // Get the next event
+    let (duration, event) = match IrrigationEvent::next_queued(db.clone()) {
+        Ok(event) => event,
+        Err(e) => {
+            tracing::error!("Error getting next irrigation event: {:?}", e);
+            return;
+        }
+    };
 
-    // Start the irrigation I/O in a new thread
-    let _irrigation_job = start_irrigation(db, status, sump);
+    // Start the irrigation
+    let _irrigation_job = start_irrigation(db, event, duration, sump);
 }
 
-fn start_irrigation(db: DbPool, status: Status, sump: Sump) -> JoinHandle<Result<(), Error>> {
+fn start_irrigation(
+    db: DbPool,
+    event: IrrigationEvent,
+    duration: i32,
+    sump: Sump,
+) -> JoinHandle<Result<(), Error>> {
     let sump = sump.clone();
-    let status = status.clone();
+    let event = event.clone();
     tokio::spawn(async move {
         let sensor_state = match sump.sensor_state.lock() {
             Ok(sensor_state) => *sensor_state,
@@ -44,7 +50,7 @@ fn start_irrigation(db: DbPool, status: Status, sump: Sump) -> JoinHandle<Result
             ()
         }
 
-        let hose_pin = match choose_irrigation_valve_pin(status.event_hose_id, sump.clone()) {
+        let hose_pin = match choose_irrigation_valve_pin(event.hose_id, sump.clone()) {
             Ok(pin) => pin,
             Err(e) => {
                 tracing::error!("Invalid pin from schedule");
@@ -72,12 +78,12 @@ fn start_irrigation(db: DbPool, status: Status, sump: Sump) -> JoinHandle<Result
         drop(pump);
 
         // Wait for the job to finish
-        if status.schedule_duration > 60 {
+        if duration > 60 {
             tracing::error!("Schedule duration is too long");
             return Err(anyhow!("Schedule duration is too long"));
         }
 
-        while !job_complete(status.schedule_duration, start_time) {
+        while !job_complete(duration, start_time) {
             block_on(sleep(StdDuration::from_secs(1)));
         }
 
