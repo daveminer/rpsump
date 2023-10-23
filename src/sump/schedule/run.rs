@@ -40,7 +40,6 @@ fn start_irrigation(
             Err(e) => {
                 tracing::error!("Could not get sensor state: {}", e);
                 // TODO: send email
-                //return Ok(ApiResponse::internal_server_error());
                 return Err(anyhow!(e.to_string()));
             }
         };

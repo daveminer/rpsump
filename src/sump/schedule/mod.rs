@@ -19,23 +19,28 @@ use self::run::run_next_event;
 
 use super::Sump;
 
+/// Represents an IrrigationSchedule and its most recent IrrigationEvent
 #[derive(Clone, Debug, PartialEq)]
 pub struct Status {
     pub schedule: IrrigationSchedule,
     pub last_event: Option<IrrigationEvent>,
 }
 
-pub fn start(db: DbPool, settings: Settings, sump: Sump) -> JoinHandle<()> {
-    let mailer_config = settings.mailer.clone();
-
-    // Schedule logic runs in a new thread
+/// Intended to be run at startup and with a static lifetime. The process created
+/// by this function will run on a synchronous tick. The tick will queue and
+/// run events in a FIFO order.
+///
+///  # Arguments
+///
+///  * `db` - Handle to the database pool\
+///  * `sump` - Instance of the Sump object for running IrrigationEvents
+///
+pub fn start(db: DbPool, sump: Sump) -> JoinHandle<()> {
+    // Schedule runs in a new thread
     spawn_blocking_with_tracing(move || {
-        // let thread_sump = sump;
-        // let thread_db = db.clone();
         loop {
             let thread_sump = sump.clone();
             let thread_db = db.clone();
-            //let db_clone = db_clone.clone();
             // Synchronously check for schedules to run
             block_on(sleep(StdDuration::from_secs(5)));
 
@@ -43,20 +48,22 @@ pub fn start(db: DbPool, settings: Settings, sump: Sump) -> JoinHandle<()> {
             let statuses = match get_schedule_statuses(thread_db.clone()) {
                 Ok(statuses) => statuses,
                 Err(e) => {
-                    error_email(&mailer_config, e);
+                    tracing::error!("Could not get schedule statuses: {}", e);
 
                     continue;
                 }
             };
 
+            // Determine which statuses are due to run
             let events_to_insert = due_statuses(statuses, chrono::Utc::now().naive_utc());
+
+            // Insert a queued event for each due status
             events_to_insert.into_iter().for_each(|status| {
-                //let event_db = thread_db.clone();
                 if let Err(e) = block_on(IrrigationEvent::create_irrigation_events_for_status(
                     thread_db.clone(),
                     status,
                 )) {
-                    error_email(&mailer_config, e);
+                    tracing::error!("Could not insert irrigation event: {}", e)
                 }
             });
 
@@ -238,25 +245,35 @@ mod tests {
 
     use crate::{
         sump::schedule::{due_statuses, Status},
-        test_fixtures::{
-            irrigation::{event_finished_today, no_event_today},
-            test_time,
-        },
+        test_fixtures::{irrigation::all_schedules_statuses, test_time},
     };
 
+    // "Test Schedule Friday" has an event that has run already; the others
+    // are deactivated or not run on Fridays. This leaves two schedules due.
     #[rstest]
-    fn due_statuses_already_run_success(
-        #[from(event_finished_today)] status: Status,
+    fn due_statuses_success(
+        #[from(all_schedules_statuses)] statuses: Vec<Status>,
         #[from(test_time)] time: NaiveDateTime,
     ) {
-        assert!(due_statuses(vec![status], time).is_empty());
+        let due = due_statuses(statuses, time);
+
+        assert!(due.len() == 2);
+        assert!(due
+            .iter()
+            .find(|s| s.schedule.name == "Test Schedule Daily")
+            .is_some());
+        assert!(due
+            .iter()
+            .find(|s| s.schedule.name == "Test Schedule Weekday")
+            .is_some());
     }
 
-    #[rstest]
-    fn due_statuses_run_needed_success(
-        #[from(no_event_today)] status: Status,
-        #[from(test_time)] time: NaiveDateTime,
-    ) {
-        assert!(due_statuses(vec![status.clone()], time).first().unwrap() == &status);
-    }
+    // #[rstest]
+    // fn due_statuses_run_needed_success(
+    //     #[from(no_event_today)] status: Status,
+    //     #[from(test_time)] time: NaiveDateTime,
+    // ) {
+    //     println!("TIME: {}", time.clone().weekday());
+    //     assert!(due_statuses(vec![status.clone()], time).first().unwrap() == &status);
+    // }
 }
