@@ -4,7 +4,6 @@ use anyhow::{anyhow, Error};
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use diesel::query_builder::SqlQuery;
-use diesel::result::Error as DieselError;
 use diesel::sql_query;
 use diesel::sql_types::{Bool, Integer, Nullable, Text};
 use diesel::sqlite::Sqlite;
@@ -12,12 +11,10 @@ use serde::{Deserialize, Serialize};
 use tracing::error;
 
 use crate::controllers::spawn_blocking_with_tracing;
-use crate::database::{DbConn, DbPool};
+use crate::database::DbPool;
 use crate::schema::irrigation_event::*;
 use crate::schema::{irrigation_event, irrigation_schedule};
 use crate::sump::schedule::Status;
-
-use super::irrigation_schedule::IrrigationSchedule;
 
 type BoxedQuery<'a> = irrigation_event::BoxedQuery<'a, Sqlite, irrigation_event::SqlType>;
 
@@ -41,7 +38,7 @@ pub struct IrrigationEvent {
     pub schedule_id: i32,
 }
 
-#[derive(Debug, QueryableByName)]
+#[derive(Clone, Debug, QueryableByName)]
 pub struct StatusQueryResult {
     #[diesel(sql_type = Integer)]
     pub schedule_schedule_id: i32,
@@ -51,8 +48,6 @@ pub struct StatusQueryResult {
     pub schedule_duration: i32,
     #[diesel(sql_type = Text)]
     pub schedule_name: String,
-    #[diesel(sql_type = Text)]
-    pub schedule_status: String,
     #[diesel(sql_type = Text)]
     pub schedule_start_time: String,
     #[diesel(sql_type = Text)]

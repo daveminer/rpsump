@@ -1,79 +1,7 @@
 use chrono::{NaiveDateTime, NaiveTime};
 use rstest::fixture;
 
-use crate::{
-    models::{
-        irrigation_event::{IrrigationEvent, IrrigationEventStatus},
-        irrigation_schedule::IrrigationSchedule,
-    },
-    sump::schedule::Status,
-};
-
-#[fixture]
-pub fn all_schedules_statuses(
-    completed_event: IrrigationEvent,
-    daily_schedule: IrrigationSchedule,
-    friday_schedule: IrrigationSchedule,
-    tues_thurs_schedule: IrrigationSchedule,
-    weekday_schedule: IrrigationSchedule,
-    weekend_schedule: IrrigationSchedule,
-    deactivated_schedule: IrrigationSchedule,
-) -> Vec<Status> {
-    vec![
-        Status {
-            schedule: daily_schedule,
-            last_event: None,
-        },
-        Status {
-            schedule: friday_schedule,
-            last_event: Some(completed_event),
-        },
-        Status {
-            schedule: tues_thurs_schedule,
-            last_event: None,
-        },
-        Status {
-            schedule: weekday_schedule,
-            last_event: None,
-        },
-        Status {
-            schedule: weekend_schedule,
-            last_event: None,
-        },
-        Status {
-            schedule: deactivated_schedule,
-            last_event: None,
-        },
-    ]
-}
-
-#[fixture]
-pub fn event_finished_today(
-    daily_schedule: IrrigationSchedule,
-    completed_event: IrrigationEvent,
-) -> Status {
-    Status {
-        schedule: daily_schedule,
-        last_event: Some(completed_event),
-    }
-}
-
-#[fixture]
-pub fn no_event_today(daily_schedule: IrrigationSchedule) -> Status {
-    Status {
-        schedule: daily_schedule,
-        last_event: None,
-    }
-}
-
-// Assumes that the current day is Friday
-#[fixture]
-pub fn not_scheduled_today(daily_schedule: IrrigationSchedule) -> Status {
-    Status {
-        schedule: daily_schedule,
-        last_event: None,
-    }
-}
+use crate::models::irrigation_schedule::IrrigationSchedule;
 
 #[fixture]
 pub fn daily_schedule(
@@ -234,26 +162,5 @@ pub fn deactivated_schedule(
         active,
         created_at,
         updated_at,
-    }
-}
-
-#[fixture]
-pub fn completed_event(
-    #[default(1)] id: i32,
-    #[default(1)] hose_id: i32,
-    #[default(NaiveDateTime::parse_from_str("2021-01-01 00:00:00", "%Y-%m-%d %H:%M:%S").unwrap())]
-    created_at: NaiveDateTime,
-    #[default(Some(NaiveDateTime::parse_from_str("2021-01-01 12:00:15", "%Y-%m-%d %H:%M:%S").unwrap()))]
-    end_time: Option<NaiveDateTime>,
-    #[default(IrrigationEventStatus::Completed)] status: IrrigationEventStatus,
-    #[default(1)] schedule_id: i32,
-) -> IrrigationEvent {
-    IrrigationEvent {
-        id,
-        hose_id,
-        created_at,
-        end_time,
-        status: status.to_string(),
-        schedule_id,
     }
 }
