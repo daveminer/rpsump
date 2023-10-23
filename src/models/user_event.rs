@@ -1,4 +1,4 @@
-use actix_web::{web, web::Data};
+use actix_web::web::Data;
 use anyhow::{anyhow, Error};
 use chrono::NaiveDateTime;
 use diesel::prelude::*;
@@ -7,6 +7,7 @@ use diesel_derive_enum::DbEnum;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
+use crate::controllers::spawn_blocking_with_tracing;
 use crate::database::DbPool;
 use crate::models::user::User;
 use crate::schema::user_event;
@@ -70,7 +71,7 @@ impl UserEvent {
             query = query.filter(ip_address.eq(ip_addr.unwrap()));
         }
 
-        web::block(move || {
+        spawn_blocking_with_tracing(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 
             query.limit(count).load(&mut conn)
@@ -91,7 +92,7 @@ impl UserEvent {
         user_event_type: EventType,
         db: Data<DbPool>,
     ) -> Result<usize, Error> {
-        let new_user_event = web::block(move || {
+        let new_user_event = spawn_blocking_with_tracing(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 
             diesel::insert_into(user_event::table)

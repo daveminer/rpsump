@@ -19,8 +19,21 @@ pub struct ConsoleConfig {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+pub struct IrrigationConfig {
+    pub enabled: bool,
+    pub low_sensor_pin: u8,
+    pub max_seconds_runtime: u8,
+    pub pump_control_pin: u8,
+    pub valve_1_control_pin: u8,
+    pub valve_2_control_pin: u8,
+    pub valve_3_control_pin: u8,
+    pub valve_4_control_pin: u8,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 pub struct MailerConfig {
     pub auth_token: String,
+    pub error_contact: String,
     pub server_url: String,
 }
 
@@ -36,6 +49,7 @@ pub struct SumpConfig {
     pub low_sensor_pin: u8,
     pub pump_control_pin: u8,
     pub pump_shutoff_delay: u64,
+    pub irrigation: IrrigationConfig,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -66,6 +80,7 @@ impl Settings {
             jwt_secret,
             mailer: MailerConfig {
                 auth_token: load_system_var("MAILER_AUTH_TOKEN"),
+                error_contact: load_system_var("MAILER_ERROR_CONTACT"),
                 server_url: load_system_var("MAILER_SERVER_URL"),
             },
             server: ServerConfig {
@@ -105,11 +120,39 @@ impl Settings {
             panic!("SUMP_SHUTOFF_DELAY must be 5 seconds or less.");
         }
 
+        let irrigation = IrrigationConfig {
+            enabled: load_system_var("IRRIGATION_ENABLED")
+                .parse()
+                .expect("IRRIGATION_ENABLED must be a boolean."),
+            low_sensor_pin: load_system_var("IRRIGATION_LOW_SENSOR_PIN")
+                .parse()
+                .expect("IRRIGATION_LOW_SENSOR_PIN must be a number."),
+            max_seconds_runtime: load_system_var("IRRIGATION_MAX_RUNTIME")
+                .parse()
+                .expect("IRRIGATION_MAX_RUNTIME must be a number"),
+            pump_control_pin: load_system_var("IRRIGATION_PUMP_CONTROL_PIN")
+                .parse()
+                .expect("IRRIGATION_PUMP_CONTROL_PIN must be a number."),
+            valve_1_control_pin: load_system_var("IRRIGATION_VALVE_1_CONTROL_PIN")
+                .parse()
+                .expect("IRRIGATION_VALVE_1_CONTROL_PIN must be a number."),
+            valve_2_control_pin: load_system_var("IRRIGATION_VALVE_2_CONTROL_PIN")
+                .parse()
+                .expect("IRRIGATION_VALVE_2_CONTROL_PIN must be a number."),
+            valve_3_control_pin: load_system_var("IRRIGATION_VALVE_3_CONTROL_PIN")
+                .parse()
+                .expect("IRRIGATION_VALVE_3_CONTROL_PIN must be a number."),
+            valve_4_control_pin: load_system_var("IRRIGATION_VALVE_4_CONTROL_PIN")
+                .parse()
+                .expect("IRRIGATION_VALVE_4_CONTROL_PIN must be a number."),
+        };
+
         Some(SumpConfig {
             high_sensor_pin,
             low_sensor_pin,
             pump_control_pin,
             pump_shutoff_delay,
+            irrigation,
         })
     }
 }

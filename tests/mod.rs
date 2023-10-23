@@ -1,4 +1,4 @@
 mod auth;
-mod common;
+pub mod common;
 mod controllers;
 mod sump;

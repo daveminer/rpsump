@@ -1,4 +1,5 @@
 use once_cell::sync::Lazy;
+use serde_json::Value;
 use std::fs::copy;
 use tempfile::TempDir;
 use uuid::Uuid;
@@ -41,6 +42,17 @@ static TEST_DB_TEMPLATE: Lazy<TempDir> = Lazy::new(|| {
 });
 
 impl TestApp {
+    pub async fn delete_irrigation_schedule(&self, token: String, id: i32) -> reqwest::Response {
+        let (header_name, header_value) = create_auth_header(&token);
+
+        self.api_client
+            .delete(&format!("{}/irrigation/schedule/{}", &self.address, id))
+            .header(header_name, header_value)
+            .send()
+            .await
+            .unwrap()
+    }
+
     pub async fn get_email_verification(&self, token: String) -> reqwest::Response {
         self.api_client
             .get(&format!(
@@ -63,6 +75,39 @@ impl TestApp {
             .unwrap()
     }
 
+    pub async fn get_irrigation_events(&self, token: String) -> reqwest::Response {
+        let (header_name, header_value) = create_auth_header(&token);
+
+        self.api_client
+            .get(&format!("{}/irrigation/event", &self.address))
+            .header(header_name, header_value)
+            .send()
+            .await
+            .unwrap()
+    }
+
+    pub async fn get_irrigation_schedule(&self, token: String, id: i32) -> reqwest::Response {
+        let (header_name, header_value) = create_auth_header(&token);
+
+        self.api_client
+            .get(&format!("{}/irrigation/schedule/{}", &self.address, id))
+            .header(header_name, header_value)
+            .send()
+            .await
+            .unwrap()
+    }
+
+    pub async fn get_irrigation_schedules(&self, token: String) -> reqwest::Response {
+        let (header_name, header_value) = create_auth_header(&token);
+
+        self.api_client
+            .get(&format!("{}/irrigation/schedule", &self.address))
+            .header(header_name, header_value)
+            .send()
+            .await
+            .unwrap()
+    }
+
     pub async fn get_sump_event(&self, token: String) -> reqwest::Response {
         let (header_name, header_value) = create_auth_header(&token);
 
@@ -73,6 +118,31 @@ impl TestApp {
             .await
             .unwrap()
     }
+
+    pub async fn patch_irrigation_schedule(&self, token: String, id: i32, body: Value) -> reqwest::Response {
+        let (header_name, header_value) = create_auth_header(&token);
+
+        self.api_client
+            .patch(&format!("{}/irrigation/schedule/{}", &self.address, id))
+            .header(header_name, header_value)
+            .json(&body)
+            .send()
+            .await
+            .unwrap()
+    }
+
+    pub async fn post_irrigation_schedule(&self, token: String, body: Value) -> reqwest::Response {
+        let (header_name, header_value) = create_auth_header(&token);
+
+        self.api_client
+            .post(&format!("{}/irrigation/schedule", &self.address))
+            .header(header_name, header_value)
+            .json(&body)
+            .send()
+            .await
+            .unwrap()
+    }
+
 
     pub async fn post_login<Body>(&self, body: &Body) -> reqwest::Response
     where

@@ -1,7 +1,9 @@
 CREATE TABLE "irrigation_schedule" (
   "id" INTEGER PRIMARY KEY NOT NULL,
+  "active" BOOLEAN NOT NULL,
   "name" TEXT NOT NULL,
-  "start_time"  DATETIME NOT NULL,
+  "duration" INTEGER NOT NULL,
+  "start_time" TIME NOT NULL,
   "days_of_week" TEXT NOT NULL,
   "hoses" TEXT NOT NULL,
   "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

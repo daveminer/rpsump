@@ -3,8 +3,9 @@ use serde_json::Value;
 
 use rpsump::controllers::ApiResponse;
 
+use crate::common::fixtures::sump_event::insert_sump_events;
 use crate::common::test_app::spawn_app;
-use crate::controllers::{create_test_user, insert_sump_events, user_params};
+use crate::controllers::{create_test_user, user_params};
 
 #[tokio::test]
 async fn info_success_sump_disabled() {

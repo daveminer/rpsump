@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
+use super::control::update_irrigation_low_sensor;
 use super::*;
 use crate::database::DbPool;
 use crate::sump::control::{update_high_sensor, update_low_sensor};
@@ -25,6 +26,11 @@ pub struct PinState {
         deserialize_with = "deserialize_level"
     )]
     pub low_sensor: Level,
+    #[serde(
+        serialize_with = "serialize_level",
+        deserialize_with = "deserialize_level"
+    )]
+    pub irrigation_low_sensor: Level,
 }
 
 fn serialize_level<S>(level: &Level, serializer: S) -> Result<S::Ok, S::Error>
@@ -119,6 +125,44 @@ pub fn listen_to_low_sensor(
             Arc::clone(&sensor_state),
             delay,
             db.clone(),
+        ));
+    })
+    .expect("Could not not listen on low water level sump pin.");
+}
+
+#[tracing::instrument()]
+pub fn listen_to_irrigation_low_sensor(
+    irrigation_low_sensor_pin: SharedInputPin,
+    irrigation_pump_control_pin: SharedOutputPin,
+    sensor_state: SharedPinState,
+    delay: u64,
+) {
+    let debouncer: Arc<Mutex<Option<SensorDebouncer>>> = Arc::from(Mutex::new(None));
+    let mut pin = irrigation_low_sensor_pin.lock().unwrap();
+
+    pin.set_async_interrupt(Trigger::Both, move |level| {
+        let shared_deb = Arc::clone(&debouncer);
+        let mut deb = shared_deb.lock().unwrap();
+
+        if deb.is_some() {
+            deb.as_mut().unwrap().reset_deadline(level);
+            return;
+        }
+
+        let debouncer = SensorDebouncer::new(Duration::new(2, 0), level);
+        *deb = Some(debouncer);
+
+        let sleep = deb.as_ref().unwrap().sleep();
+        let rt = Runtime::new().unwrap();
+        rt.block_on(sleep);
+        *deb = None;
+        drop(deb);
+
+        rt.block_on(update_irrigation_low_sensor(
+            level,
+            Arc::clone(&irrigation_pump_control_pin),
+            Arc::clone(&sensor_state),
+            delay,
         ));
     })
     .expect("Could not not listen on low water level sump pin.");

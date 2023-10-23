@@ -8,3 +8,4 @@ pub mod models;
 pub mod schema;
 pub mod startup;
 pub mod sump;
+pub mod test_fixtures;

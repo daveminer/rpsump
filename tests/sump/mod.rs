@@ -1,2 +1,1 @@
-mod control;
 mod debounce;

@@ -13,7 +13,7 @@ use crate::controllers::{
 };
 use crate::database::DbPool;
 use crate::sump::sensor::{listen_to_high_sensor, listen_to_low_sensor};
-use crate::sump::{spawn_reporting_thread, Sump};
+use crate::sump::{schedule, spawn_reporting_thread, Sump};
 
 pub struct Application {
     port: u16,
@@ -65,6 +65,10 @@ impl Application {
                     Arc::clone(&sump_clone.sensor_state),
                     settings.console.report_freq_secs,
                 );
+            }
+
+            if sump_clone.irrigation_enabled {
+                schedule::start(db_pool.clone(), sump_clone);
             }
         }
 
