@@ -119,7 +119,12 @@ impl TestApp {
             .unwrap()
     }
 
-    pub async fn patch_irrigation_schedule(&self, token: String, id: i32, body: Value) -> reqwest::Response {
+    pub async fn patch_irrigation_schedule(
+        &self,
+        token: String,
+        id: i32,
+        body: Value,
+    ) -> reqwest::Response {
         let (header_name, header_value) = create_auth_header(&token);
 
         self.api_client
@@ -142,7 +147,6 @@ impl TestApp {
             .await
             .unwrap()
     }
-
 
     pub async fn post_login<Body>(&self, body: &Body) -> reqwest::Response
     where
@@ -184,12 +188,15 @@ impl TestApp {
     where
         Body: serde::Serialize,
     {
-        self.api_client
+        let result = self
+            .api_client
             .post(&format!("{}/auth/signup", &self.address))
             .json(body)
             .send()
             .await
-            .unwrap()
+            .unwrap();
+
+        result
     }
 }
 

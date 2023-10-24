@@ -76,6 +76,7 @@ impl IrrigationSchedule {
         schedule_hoses: Vec<i32>,
         schedule_name: String,
         schedule_start_time: NaiveTime,
+        schedule_duration: i32,
         schedule_days_of_week: Vec<DayOfWeek>,
         db: Data<DbPool>,
     ) -> Result<IrrigationSchedule, Error> {
@@ -100,6 +101,7 @@ impl IrrigationSchedule {
                     hoses.eq(hose_str),
                     name.eq(schedule_name),
                     start_time.eq(schedule_start_time),
+                    duration.eq(schedule_duration),
                     days_of_week.eq(day_of_week_str),
                 ))
                 .get_result::<IrrigationSchedule>(&mut conn);
@@ -203,7 +205,6 @@ fn update_schedule(
             .optional()
             .map_err(|e| anyhow!("Error updating irrigation event: {}", e));
 
-    println!("RESULT: {:?}", result);
     match result {
         Ok(None) => return Err(anyhow!("Irrigation schedule not found.")),
         Ok(schedule) => Ok(schedule),

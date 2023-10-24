@@ -13,7 +13,7 @@ pub struct IrrigationScheduleParams {
     pub days_of_week: Option<Vec<DayOfWeek>>,
     pub hoses: Option<Vec<i32>>,
     pub name: Option<String>,
-
+    pub duration: Option<i32>,
     pub start_time: Option<NaiveTime>,
 }
 
@@ -133,6 +133,7 @@ pub async fn new_irrigation_schedule(
         req_body.hoses.clone().unwrap(),
         req_body.name.clone().unwrap(),
         req_body.start_time.unwrap(),
+        req_body.duration.unwrap(),
         req_body.days_of_week.clone().unwrap(),
         db.clone(),
     )

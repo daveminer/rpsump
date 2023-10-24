@@ -17,8 +17,8 @@ pub async fn send_email_verification(
 
     User::save_email_verification_token(user.email.clone(), token.clone(), db).await?;
 
-    let email = new_email_verification_email(&user.email, &mailer.server_url, token);
-    send(&mailer.auth_token, email, app_server_url).await
+    let email = new_email_verification_email(&user.email, &app_server_url, token);
+    send(&mailer.auth_token, email, &mailer.server_url).await
 }
 
 pub async fn send_error_email(mailer: &MailerConfig, error_msg: &str) -> Result<(), Error> {

@@ -247,6 +247,7 @@ async fn post_schedule_success() {
         "hoses": [2,3,5],
         "name": name,
         "start_time": "17:34:56",
+        "duration": 15,
         "days_of_week": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
     });
 
@@ -278,17 +279,14 @@ async fn post_schedule_invalid() {
     let body = serde_json::json!({
         "hoses": [2,3,5],
         "name": name,
-        "start_time": "17:3444:56",
+        "start_time": "27:34:56",
         "days_of_week": ["Monday"]
     });
 
     let schedule_response = app.post_irrigation_schedule(token.to_string(), body).await;
     let status = schedule_response.status();
     let body: Value = schedule_response.json().await.unwrap();
+    assert!(body["message"] == "Json deserialize error: input is out of range at line 1 column 93");
 
-    assert!(
-        body["message"]
-            == "Json deserialize error: input contains invalid characters at line 1 column 95"
-    );
     assert!(status.is_client_error());
 }

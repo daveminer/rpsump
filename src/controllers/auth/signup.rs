@@ -71,6 +71,6 @@ pub async fn signup(
         .await
     {
         Ok(_) => Ok(ApiResponse::ok("User created.".to_string())),
-        Err(_e) => Ok(ApiResponse::internal_server_error()),
+        Err(e) => Ok(ApiResponse::internal_server_error()),
     }
 }
