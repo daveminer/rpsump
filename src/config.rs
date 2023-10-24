@@ -23,6 +23,7 @@ pub struct IrrigationConfig {
     pub enabled: bool,
     pub low_sensor_pin: u8,
     pub max_seconds_runtime: u8,
+    pub process_frequency_ms: u64,
     pub pump_control_pin: u8,
     pub valve_1_control_pin: u8,
     pub valve_2_control_pin: u8,
@@ -130,6 +131,9 @@ impl Settings {
             max_seconds_runtime: load_system_var("IRRIGATION_MAX_RUNTIME")
                 .parse()
                 .expect("IRRIGATION_MAX_RUNTIME must be a number"),
+            process_frequency_ms: load_system_var("IRRIGATION_PROCESS_FREQUENCY_MS")
+                .parse()
+                .expect("IRRIGATION_PROCESS_FREQUENCY_MS must be a number."),
             pump_control_pin: load_system_var("IRRIGATION_PUMP_CONTROL_PIN")
                 .parse()
                 .expect("IRRIGATION_PUMP_CONTROL_PIN must be a number."),
