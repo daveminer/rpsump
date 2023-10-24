@@ -14,9 +14,9 @@ pub async fn insert_irrigation_schedule(
     sched_days: String,
     sched_hoses: String,
     sched_created_at: NaiveDateTime,
-) {
+) -> usize {
     let mut conn = db.get().unwrap();
-    diesel::insert_into(irrigation_schedule::table)
+    let schedule = diesel::insert_into(irrigation_schedule::table)
         .values((
             active.eq(sched_active),
             name.eq(sched_name),
@@ -27,8 +27,11 @@ pub async fn insert_irrigation_schedule(
             created_at.eq(sched_created_at),
             updated_at.eq(sched_created_at),
         ))
+        .returning(id)
         .execute(&mut conn)
         .unwrap();
+
+    return schedule;
 }
 
 pub async fn insert_irrigation_schedules(db: DbPool, count: u8) {
