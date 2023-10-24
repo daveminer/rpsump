@@ -68,7 +68,16 @@ impl Application {
             }
 
             if sump_clone.irrigation_enabled {
-                schedule::start(db_pool.clone(), sump_clone);
+                schedule::start(
+                    db_pool.clone(),
+                    sump_clone,
+                    settings
+                        .clone()
+                        .sump
+                        .unwrap()
+                        .irrigation
+                        .process_frequency_ms,
+                );
             }
         }
 

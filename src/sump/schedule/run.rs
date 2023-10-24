@@ -141,3 +141,22 @@ fn job_complete(duration: i32, start_time: SystemTime) -> bool {
 
     elapsed >= StdDuration::from_secs(dur)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, SystemTime};
+
+    #[test]
+    fn test_job_complete() {
+        // Set up test data
+        let duration = 60;
+        let start_time = SystemTime::now() - Duration::from_secs(30);
+
+        // Call the function being tested
+        let result = job_complete(duration, start_time);
+
+        // Check the result
+        assert_eq!(result, false);
+    }
+}
