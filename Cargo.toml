@@ -20,7 +20,7 @@ secrecy = { version = "0.8.0", features = ["serde"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1.27.0", features = ["rt-multi-thread", "macros"] }
-tokio-tungstenite = "0.18.0"
+tokio-tungstenite = "0.20.1"
 validator = { version = "0.16.0", features = ["derive"] }
 url = "2.2.0"
 uuid = { version = "1", features = ["v4", "serde"] }
@@ -44,17 +44,17 @@ diesel-derive-enum = { version = "2.0.1", features = ["sqlite"] }
 diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
 
 # Telemetry
-actix-web-opentelemetry = "0.13.0"
-opentelemetry = { version = "0.18.0", features = ["trace", "rt-tokio"] }
-opentelemetry-otlp = { version = "0.11.0", features = [
+actix-web-opentelemetry = "0.15.0"
+opentelemetry = { version = "0.20.0", features = ["trace", "rt-tokio"] }
+opentelemetry-otlp = { version = "0.13.0", features = [
   "tonic",
   "tls",
   "tls-roots",
 ] }
-opentelemetry_sdk = "0.18.0"
-tonic = { version = "0.8.2", features = ["tls"] }
+opentelemetry_sdk = "0.20.0"
+tonic = { version = "0.9.2", features = ["tls"] }
 tracing = "0.1.37"
-tracing-opentelemetry = "0.18"
+tracing-opentelemetry = "0.21.0"
 tracing-subscriber = { version = "0.3.17", features = [
   "env-filter",
   "registry",

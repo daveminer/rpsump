@@ -4,7 +4,7 @@ use opentelemetry::KeyValue;
 use opentelemetry::{global, sdk::propagation::TraceContextPropagator};
 use opentelemetry_otlp::WithExportConfig;
 use std::str::FromStr;
-use tonic::metadata::{MetadataKey, MetadataMap};
+use tonic::metadata::*;
 use tracing_subscriber::{prelude::*, EnvFilter, Registry};
 
 use crate::config::Settings;
