@@ -18,7 +18,10 @@ async fn info(req: HttpRequest, _user: AuthenticatedUser) -> Result<impl Respond
     let sump = match maybe_sump {
         Some(sump) => sump,
         None => {
-            tracing::error!("Sump AppData was found but Sump was None");
+            tracing::error!(
+                target = module_path!(),
+                "Sump AppData was found but Sump was None"
+            );
             return Ok(ApiResponse::internal_server_error());
         }
     };
@@ -26,7 +29,11 @@ async fn info(req: HttpRequest, _user: AuthenticatedUser) -> Result<impl Respond
     let sensor_state = match sump.sensor_state.lock() {
         Ok(sensor_state) => *sensor_state,
         Err(e) => {
-            tracing::error!("Could not get sensor state: {}", e);
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "Could not get sensor state"
+            );
             return Ok(ApiResponse::internal_server_error());
         }
     };

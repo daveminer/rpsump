@@ -68,7 +68,7 @@ fn check_schedule(db: DbPool, sump: Sump, frequency_ms: u64) {
     });
 
     // Run irrigation events
-    run_next_event(db, sump);
+    block_on(run_next_event(db, sump));
 }
 
 fn get_schedule_statuses(db: DbPool) -> Result<Vec<Status>, Error> {

@@ -6,6 +6,7 @@ use validator::Validate;
 
 use crate::auth::{password::Password, validate_password};
 use crate::config::Settings;
+use crate::controllers::spawn_blocking_with_tracing;
 use crate::controllers::{auth::ip_address, ApiResponse};
 use crate::database::DbPool;
 use crate::models::user::User;
@@ -42,16 +43,44 @@ async fn request_password_reset(
     let mut conn = new_conn!(db);
     let db_clone = db.clone();
 
-    let user: User = match User::by_email(params.email.clone()).first(&mut conn) {
+    let thread_result = spawn_blocking_with_tracing(move || {
+        User::by_email(params.email.clone()).first::<User>(&mut conn)
+    })
+    .await;
+
+    let user_lookup = match thread_result {
         Ok(user) => user,
-        Err(_) => return Ok(ApiResponse::internal_server_error()),
+        Err(e) => {
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "User lookup thread failed"
+            );
+            return Ok(ApiResponse::internal_server_error());
+        }
+    };
+
+    let user: User = match user_lookup {
+        Ok(user) => user,
+        Err(e) => {
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "User lookup thread"
+            );
+            return Ok(ApiResponse::internal_server_error());
+        }
     };
 
     let user_clone = user.clone();
     let ip_addr: String = match ip_address(&req) {
         Ok(ip) => ip,
         Err(e) => {
-            tracing::error!("Getting ip address from request failed: {}", e);
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "Getting ip address from request failed"
+            );
             return Ok(ApiResponse::internal_server_error());
         }
     };
@@ -59,7 +88,11 @@ async fn request_password_reset(
     match UserEvent::create(user_clone, ip_addr, EventType::PasswordReset, db_clone).await {
         Ok(_) => (),
         Err(e) => {
-            tracing::error!("Creating user event for password reset failed: {}", e);
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "Creating user event for password reset failed"
+            );
             return Ok(ApiResponse::internal_server_error());
         }
     }
@@ -75,7 +108,11 @@ async fn request_password_reset(
     {
         Ok(_) => (),
         Err(e) => {
-            tracing::error!("Sending password reset email failed: {}", e);
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "Sending password reset email failed"
+            );
             return Ok(ApiResponse::internal_server_error());
         }
     }
@@ -100,7 +137,24 @@ async fn reset_password(
         return Ok(ApiResponse::bad_request(e.to_string()));
     }
 
-    let user: User = match User::by_password_reset_token(token_clone).first(&mut conn) {
+    let thread_request = spawn_blocking_with_tracing(move || {
+        User::by_password_reset_token(token_clone.clone()).first::<User>(&mut conn)
+    })
+    .await;
+
+    let user_lookup = match thread_request {
+        Ok(user) => user,
+        Err(e) => {
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "Password reset thread failed"
+            );
+            return Ok(ApiResponse::internal_server_error());
+        }
+    };
+
+    let user: User = match user_lookup {
         Ok(user) => user,
         Err(_) => return Ok(invalid_token_response()),
     };
@@ -109,11 +163,15 @@ async fn reset_password(
     if user.password_reset_token_expires_at > Some(Utc::now().naive_utc()) {
         match user.set_password(&params.new_password, db_clone).await {
             Ok(_) => {
-                tracing::info!("Password reset for user {}", user_id);
+                tracing::info!(target = module_path!(), user_id, "Password reset for user");
                 return Ok(ApiResponse::ok("Password reset successfully.".to_string()));
             }
             Err(e) => {
-                tracing::error!("Password reset failed: {}", e);
+                tracing::error!(
+                    target = module_path!(),
+                    error = e.to_string(),
+                    "Password reset failed"
+                );
                 return Ok(ApiResponse::internal_server_error());
             }
         }

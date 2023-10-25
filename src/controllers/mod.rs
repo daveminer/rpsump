@@ -52,7 +52,11 @@ macro_rules! new_conn {
         match $db.get() {
             Ok(conn) => conn,
             Err(e) => {
-                tracing::error!("Could not get database connection: {}", e);
+                tracing::error!(
+                    target = module_path!(),
+                    error = e.to_string(),
+                    "Could not get database connection"
+                );
                 return Ok(ApiResponse::internal_server_error());
             }
         }

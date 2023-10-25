@@ -33,11 +33,19 @@ pub async fn irrigation_event(
         spawn_blocking_with_tracing(move || irrigation_events(db, filter.status.clone()))
             .await
             .map_err(|e| {
-                tracing::error!("Error while spawning a blocking task: {:?}", e);
+                tracing::error!(
+                    target = module_path!(),
+                    error = e.to_string(),
+                    "Error while spawning a blocking task"
+                );
                 error::ErrorInternalServerError("Internal server error.")
             })?
             .map_err(|e| {
-                tracing::error!("Error while getting sump events: {:?}", e);
+                tracing::error!(
+                    target = module_path!(),
+                    error = e.to_string(),
+                    "Error while getting sump events"
+                );
                 error::ErrorInternalServerError("Internal server error.")
             })?;
 

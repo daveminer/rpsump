@@ -4,6 +4,7 @@ use secrecy::{ExposeSecret, Secret};
 use validator::ValidationError;
 
 use crate::auth::password::Password;
+use crate::controllers::spawn_blocking_with_tracing;
 use crate::database::DbConn;
 use crate::models::user::User;
 
@@ -37,7 +38,12 @@ pub async fn validate_credentials(credentials: &AuthParams, mut db: DbConn) -> R
 
     let email_clone = email.clone();
 
-    let user = match User::by_email(email_clone).first(&mut db) {
+    let user_query = spawn_blocking_with_tracing(move || {
+        User::by_email(email_clone.clone()).first::<User>(&mut db)
+    })
+    .await?;
+
+    let user = match user_query {
         Ok(user) => user,
         Err(_not_found) => {
             return Err(anyhow!(BAD_CREDS.to_string()));

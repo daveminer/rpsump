@@ -62,7 +62,11 @@ pub async fn login(
     let ip_addr: String = match ip_address(&request) {
         Ok(ip) => ip,
         Err(e) => {
-            tracing::error!("User signup failed: {}", e);
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "User signup failed"
+            );
             return Ok(ApiResponse::internal_server_error());
         }
     };
@@ -86,7 +90,11 @@ pub async fn login(
     match user_event.await {
         Ok(_) => (),
         Err(e) => {
-            tracing::error!("Could not insert user event during signup: {}", e);
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "Could not insert user event during signup"
+            );
             return Ok(ApiResponse::internal_server_error());
         }
     };
@@ -95,12 +103,16 @@ pub async fn login(
     let token = match create_token(user.id, settings.jwt_secret.clone()) {
         Ok(token) => token,
         Err(e) => {
-            tracing::error!("Could not create token for user: {}", e);
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "Could not create token for user"
+            );
             return Ok(ApiResponse::internal_server_error());
         }
     };
 
-    tracing::info!("User logged in: {}", user.id);
+    tracing::info!(target = module_path!(), user_id = user.id, "User logged in");
 
     Ok(HttpResponse::Ok().json(Response { token }))
 }
