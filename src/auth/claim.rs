@@ -11,6 +11,7 @@ pub struct Claim {
     pub exp: u64,
 }
 
+#[tracing::instrument(skip(private_key))]
 pub fn create_token(user_id: i32, private_key: String) -> Result<String, anyhow::Error> {
     let duration = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
 

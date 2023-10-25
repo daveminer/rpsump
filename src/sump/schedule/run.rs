@@ -12,12 +12,17 @@ use crate::sump::{SharedOutputPin, Sump};
 
 static INVALID_HOSE_NUMBER_MSG: &str = "Invalid hose number provided";
 
-pub fn run_next_event(db: DbPool, sump: Sump) {
+#[tracing::instrument(skip(db))]
+pub async fn run_next_event(db: DbPool, sump: Sump) {
     // Get the next event
-    let (duration, event) = match IrrigationEvent::next_queued(db.clone()) {
+    let (duration, event) = match IrrigationEvent::next_queued(db.clone()).await {
         Ok(event) => event,
         Err(e) => {
-            tracing::error!("Error getting next irrigation event: {:?}", e);
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "Error getting next irrigation event"
+            );
             return;
         }
     };
@@ -26,6 +31,7 @@ pub fn run_next_event(db: DbPool, sump: Sump) {
     let _irrigation_job = start_irrigation(db, event, duration, sump);
 }
 
+#[tracing::instrument(skip(db))]
 fn start_irrigation(
     db: DbPool,
     event: IrrigationEvent,
@@ -38,25 +44,37 @@ fn start_irrigation(
         let sensor_state = match sump.sensor_state.lock() {
             Ok(sensor_state) => *sensor_state,
             Err(e) => {
-                tracing::error!("Could not get sensor state: {}", e);
-                // TODO: send email
+                tracing::error!(
+                    target = module_path!(),
+                    error = e.to_string(),
+                    "Could not get sensor state"
+                );
                 return Err(anyhow!(e.to_string()));
             }
         };
         if sensor_state.irrigation_low_sensor == Level::Low {
             // Exit if water is too low
-            tracing::warn!("Water is too low to start irrigation.");
-            ()
+            tracing::warn!(
+                target = module_path!(),
+                "Water is too low to start irrigation."
+            );
+            return Ok(());
         }
 
         let hose_pin = match choose_irrigation_valve_pin(event.hose_id, sump.clone()) {
             Ok(pin) => pin,
             Err(e) => {
-                tracing::error!("Invalid pin from schedule");
+                tracing::error!(
+                    target = module_path!(),
+                    error = e.to_string(),
+                    hose_id = event.hose_id,
+                    "Invalid pin from schedule"
+                );
                 return Err(e);
             }
         };
 
+        tracing::info!(target = module_path!(), "Starting irrigation job");
         // Open the solenoid for the job
         let mut hose = hose_pin.lock().unwrap();
         // Start the pump
@@ -68,7 +86,11 @@ fn start_irrigation(
         let mut pump = match sump.irrigation_pump_control_pin.lock() {
             Ok(pump) => pump,
             Err(e) => {
-                tracing::error!("Could not get sump pump control pin: {}", e);
+                tracing::error!(
+                    target = module_path!(),
+                    error = e.to_string(),
+                    "Could not get irrigation pump control pin on start"
+                );
                 return Err(anyhow!(e.to_string()));
             }
         };
@@ -77,11 +99,6 @@ fn start_irrigation(
         drop(pump);
 
         // Wait for the job to finish
-        if duration > 60 {
-            tracing::error!("Schedule duration is too long");
-            return Err(anyhow!("Schedule duration is too long"));
-        }
-
         while !job_complete(duration, start_time) {
             block_on(sleep(StdDuration::from_secs(1)));
         }
@@ -90,10 +107,16 @@ fn start_irrigation(
         let mut pump = match sump.irrigation_pump_control_pin.lock() {
             Ok(pump) => pump,
             Err(e) => {
-                tracing::error!("Could not get sump pump control pin: {}", e);
+                tracing::error!(
+                    target = module_path!(),
+                    error = e.to_string(),
+                    "Could not get irrigation pump control pin on stop"
+                );
                 return Err(anyhow!(e.to_string()));
             }
         };
+
+        tracing::error!(target = module_path!(), "Stopping irrigation job");
         pump.set_low();
 
         // Close the solenoid
@@ -117,7 +140,6 @@ fn choose_irrigation_valve_pin(hose_id: i32, sump: Sump) -> Result<SharedOutputP
     } else if hose_id == 4 {
         Ok(sump.irrigation_valve_4_control_pin)
     } else {
-        tracing::error!(INVALID_HOSE_NUMBER_MSG);
         Err(anyhow!(INVALID_HOSE_NUMBER_MSG))
     }
 }
@@ -126,15 +148,22 @@ fn job_complete(duration: i32, start_time: SystemTime) -> bool {
     let elapsed = match SystemTime::now().duration_since(start_time) {
         Ok(now) => now,
         Err(e) => {
-            tracing::error!("Error getting duration since start time: {:?}", e);
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "Error getting duration since start time"
+            );
             return true;
         }
     };
 
     let dur = match duration.try_into() {
         Ok(dur) => dur,
-        Err(e) => {
-            tracing::error!("Error converting duration to std duration: {:?}", e);
+        Err(_e) => {
+            tracing::error!(
+                target = module_path!(),
+                "Error converting duration to std duration"
+            );
             return true;
         }
     };

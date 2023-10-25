@@ -1,8 +1,9 @@
 use actix_web::web::Data;
-use anyhow::Error;
+use anyhow::{anyhow, Error};
 
 use crate::auth::token::Token;
 use crate::config::MailerConfig;
+use crate::controllers::spawn_blocking_with_tracing;
 use crate::database::DbPool;
 use crate::email::{Contact, Email};
 use crate::models::user::User;
@@ -44,20 +45,36 @@ pub async fn send_password_reset(
 
 async fn send(auth_token: &str, email: Email, mailer_url: &str) -> Result<(), Error> {
     let client = reqwest::Client::new();
-
+    let auth_token_clone = auth_token.clone().to_string();
+    let mailer_clone = mailer_url.clone().to_string();
     let body = serde_json::to_string(&email)?;
 
-    let response = client
-        .post(mailer_url)
-        .header("accept", "application/json")
-        .header("api-key", auth_token)
-        .header("content-type", "application/json")
-        .body(body)
-        .send()
-        .await?;
+    let thread_response = spawn_blocking_with_tracing(move || {
+        client
+            .post(mailer_clone)
+            .header("accept", "application/json")
+            .header("api-key", auth_token_clone)
+            .header("content-type", "application/json")
+            .body(body)
+            .send()
+    })
+    .await?;
+
+    let response = match thread_response.await {
+        Ok(response) => response,
+        Err(e) => {
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "Failed to send email: {}",
+                e
+            );
+            return Err(anyhow!(e));
+        }
+    };
 
     if response.status().is_success() {
-        tracing::info!("Email sent.");
+        tracing::info!(target = module_path!(), "Email sent.");
         Ok(())
     } else {
         Err(anyhow::anyhow!(

@@ -50,7 +50,11 @@ pub async fn signup(
     let ip_addr: String = match ip_address(&req) {
         Ok(ip) => ip,
         Err(e) => {
-            tracing::error!("User signup failed: {}", e);
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "User signup failed"
+            );
             return Ok(ApiResponse::internal_server_error());
         }
     };
@@ -71,6 +75,13 @@ pub async fn signup(
         .await
     {
         Ok(_) => Ok(ApiResponse::ok("User created.".to_string())),
-        Err(e) => Ok(ApiResponse::internal_server_error()),
+        Err(e) => {
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "Email verification failed"
+            );
+            Ok(ApiResponse::internal_server_error())
+        }
     }
 }

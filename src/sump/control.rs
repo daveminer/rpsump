@@ -21,9 +21,15 @@ pub async fn update_high_sensor(
         pin.set_high();
         tracing::info!("Sump pump turned on.");
 
-        SumpEvent::create("pump on".to_string(), "reservoir full".to_string(), db)
-            .await
-            .unwrap();
+        if let Err(e) =
+            SumpEvent::create("pump on".to_string(), "reservoir full".to_string(), db).await
+        {
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "Failed to create sump event for pump on"
+            );
+        }
     }
 
     let mut sensors = sensor_state.lock().unwrap();
@@ -50,11 +56,17 @@ pub async fn update_low_sensor(
 
         let mut pin = pump_control_pin.lock().unwrap();
         pin.set_low();
-        tracing::info!("Sump pump turned off");
+        tracing::info!(target = module_path!(), "Sump pump turned off");
 
-        SumpEvent::create("pump off".to_string(), "reservoir empty".to_string(), db)
-            .await
-            .unwrap();
+        if let Err(e) =
+            SumpEvent::create("pump off".to_string(), "reservoir empty".to_string(), db).await
+        {
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "Failed to create sump event for pump off"
+            );
+        }
     }
 
     let mut sensors = sensor_state.lock().unwrap();
@@ -69,6 +81,12 @@ pub async fn update_irrigation_low_sensor(
     sensor_state: Arc<Mutex<PinState>>,
     delay: u64,
 ) {
+    tracing::info!(
+        target = module_path!(),
+        level = level.to_string(),
+        "Changing irrigation low sensor"
+    );
+
     let mut sensors = sensor_state.lock().unwrap();
     sensors.irrigation_low_sensor = level;
 }

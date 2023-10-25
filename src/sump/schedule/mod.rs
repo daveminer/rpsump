@@ -67,7 +67,7 @@ pub fn start(db: DbPool, sump: Sump) -> JoinHandle<()> {
             });
 
             // Run irrigation events
-            run_next_event(thread_db, thread_sump);
+            block_on(run_next_event(thread_db, thread_sump));
         }
     })
 }

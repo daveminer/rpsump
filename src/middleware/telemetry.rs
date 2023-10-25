@@ -9,8 +9,8 @@ use tracing_subscriber::{prelude::*, EnvFilter, Registry};
 
 use crate::config::Settings;
 
-// Configure a global `tracing` subscriber. `actix-web-opentelemetry` will use this
-// for spanning on requests.
+/// Configure a global `tracing` subscriber. `actix-web-opentelemetry` will use this
+/// for spanning on requests.
 pub fn init_tracer(settings: &Settings) -> Result<(), Error> {
     global::set_text_map_propagator(TraceContextPropagator::new());
 

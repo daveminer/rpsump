@@ -30,11 +30,19 @@ pub async fn irrigation_schedules(
     })
     .await
     .map_err(|e| {
-        tracing::error!("Error while spawning a blocking task: {:?}", e);
+        tracing::error!(
+            target = module_path!(),
+            error = e.to_string(),
+            "Error while spawning a blocking task",
+        );
         error::ErrorInternalServerError("Internal server error.")
     })?
     .map_err(|e| {
-        tracing::error!("Error while getting irrigation schedules: {:?}", e);
+        tracing::error!(
+            target = module_path!(),
+            error = e.to_string(),
+            "Error while getting irrigation schedules"
+        );
         error::ErrorInternalServerError("Internal server error.")
     })?;
 
@@ -55,7 +63,11 @@ pub async fn irrigation_schedule(
     })
     .await
     .map_err(|e| {
-        tracing::error!("Error while spawning a blocking task: {:?}", e);
+        tracing::error!(
+            target = module_path!(),
+            error = e.to_string(),
+            "Error while spawning a blocking task"
+        );
         error::ErrorInternalServerError("Internal server error.")
     })?
     .map_err(|e| {
@@ -65,7 +77,12 @@ pub async fn irrigation_schedule(
             }));
         };
 
-        tracing::error!("Error while getting irrigation schedules: {:?}", e);
+        tracing::error!(
+            target = module_path!(),
+            error = e.to_string(),
+            "Error while getting irrigation schedules"
+        );
+
         error::ErrorInternalServerError("Internal server error.")
     })?;
 
@@ -84,6 +101,7 @@ pub async fn delete_irrigation_schedule(
     let id = match IrrigationSchedule::delete(id, db).await {
         Ok(id) => id,
         Err(e) => {
+            // TODO: Handle not found
             return Ok(ApiResponse::bad_request(e.to_string()));
         }
     };
@@ -116,7 +134,12 @@ pub async fn edit_irrigation_schedule(
         Ok(None) => Ok(HttpResponse::NotFound().finish()),
         Ok(schedule) => Ok(HttpResponse::Ok().json(schedule)),
         Err(e) => {
-            tracing::error!("Error while updating irrigation schedule: {:?}", e);
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                id = id,
+                "Error while updating irrigation schedule"
+            );
             Ok(HttpResponse::InternalServerError().into())
         }
     };
@@ -142,6 +165,7 @@ pub async fn new_irrigation_schedule(
     let response = match new_irrigation_schedule {
         Ok(schedule) => schedule,
         Err(e) => {
+            // TODO: check bad request or ISE
             return Ok(ApiResponse::bad_request(e.to_string()));
         }
     };

@@ -19,6 +19,11 @@ async fn verify_email(
     match User::verify_email(params.token.clone(), db).await {
         Ok(()) => Ok(HttpResponse::Ok().body(json!({"message": "Email verified."}).to_string())),
         Err(e) => {
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "Failed to verify email"
+            );
             Ok(HttpResponse::BadRequest().body(json!({ "message": e.to_string() }).to_string()))
         }
     }

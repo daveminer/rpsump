@@ -17,11 +17,19 @@ pub async fn sump_event(
     let sump_events = spawn_blocking_with_tracing(move || sump_events(db))
         .await
         .map_err(|e| {
-            tracing::error!("Error while spawning a blocking task: {:?}", e);
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "Error while spawning a blocking task"
+            );
             error::ErrorInternalServerError("Internal server error.")
         })?
         .map_err(|e| {
-            tracing::error!("Error while getting sump events: {:?}", e);
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "Error while getting sump events"
+            );
             error::ErrorInternalServerError("Internal server error.")
         })?;
 

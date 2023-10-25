@@ -72,6 +72,7 @@ impl IrrigationSchedule {
             .into_boxed()
     }
 
+    #[tracing::instrument(skip(db))]
     pub async fn create(
         schedule_hoses: Vec<i32>,
         schedule_name: String,
@@ -113,6 +114,7 @@ impl IrrigationSchedule {
         Ok(new_schedule)
     }
 
+    #[tracing::instrument(skip(db))]
     pub async fn delete(schedule_id: i32, db: Data<DbPool>) -> Result<IrrigationSchedule, Error> {
         let mut conn = db.get()?;
 
@@ -126,6 +128,7 @@ impl IrrigationSchedule {
         Ok(result)
     }
 
+    #[tracing::instrument(skip(db))]
     pub async fn edit(
         schedule_id: i32,
         schedule_hoses: Option<Vec<i32>>,
@@ -151,6 +154,7 @@ impl IrrigationSchedule {
     }
 }
 
+#[tracing::instrument(skip(conn))]
 fn update_schedule(
     conn: &mut DbConn,
     schedule_id: i32,

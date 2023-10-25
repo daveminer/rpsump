@@ -105,19 +105,33 @@ impl IrrigationEvent {
             .into_boxed()
     }
 
-    pub fn next_queued(db: DbPool) -> Result<(i32, IrrigationEvent), Error> {
+    #[tracing::instrument(skip(db))]
+    pub async fn next_queued(db: DbPool) -> Result<(i32, IrrigationEvent), Error> {
         let mut conn = match db.get() {
             Ok(conn) => conn,
             Err(e) => return Err(anyhow!(e)),
         };
 
-        irrigation_event::table
-            .inner_join(irrigation_schedule::table)
-            .filter(status.eq("queued"))
-            .select((irrigation_schedule::duration, irrigation_event::all_columns))
-            .order(created_at.asc())
-            .first::<(i32, IrrigationEvent)>(&mut conn)
-            .map_err(|e| anyhow!("Error getting next queued event: {}", e))
+        let thread_result = spawn_blocking_with_tracing(move || {
+            irrigation_event::table
+                .inner_join(irrigation_schedule::table)
+                .filter(status.eq("queued"))
+                .select((irrigation_schedule::duration, irrigation_event::all_columns))
+                .order(created_at.asc())
+                .first::<(i32, IrrigationEvent)>(&mut conn)
+                .map_err(|e| anyhow!("Error getting next queued event: {}", e))
+        })
+        .await;
+
+        let result = match thread_result {
+            Ok(result) => result,
+            Err(e) => return Err(anyhow!(e)),
+        };
+
+        match result {
+            Ok(event) => Ok(event),
+            Err(e) => Err(anyhow!(e)),
+        }
     }
 
     pub fn status_query() -> SqlQuery {
@@ -155,6 +169,7 @@ impl IrrigationEvent {
         )
     }
 
+    #[tracing::instrument(skip(db))]
     pub async fn create(hose: i32, schedule: i32, db: DbPool) -> Result<(), Error> {
         spawn_blocking_with_tracing(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
@@ -227,6 +242,7 @@ impl IrrigationEvent {
         Ok(rows_updated)
     }
 
+    #[tracing::instrument(skip(db))]
     pub async fn finish(db: DbPool) -> Result<bool, Error> {
         let mut conn = db.get().expect("Could not get a db connection.");
 

@@ -30,7 +30,10 @@ impl FromRequest for AuthenticatedUser {
         };
 
         if let None = settings(req) {
-            tracing::error!("Configuration error; settings are None.");
+            tracing::error!(
+                target = module_path!(),
+                "Configuration error; settings are None."
+            );
             return internal_server_error();
         }
 
@@ -41,10 +44,16 @@ impl FromRequest for AuthenticatedUser {
             }
         };
 
+        tracing::info!(
+            target = module_path!(),
+            user_id = user.id,
+            "Authenticated user"
+        );
         Box::pin(async move { Ok(AuthenticatedUser { id: user.id }) })
     }
 }
 
+#[tracing::instrument(skip(req))]
 fn auth_token_from_request(req: &HttpRequest) -> Result<String, anyhow::Error> {
     let auth_header = req.headers().get("Authorization");
     if auth_header.is_none() {
@@ -54,7 +63,11 @@ fn auth_token_from_request(req: &HttpRequest) -> Result<String, anyhow::Error> {
     let token = match auth_header.unwrap().to_str() {
         Ok(token) => token.replace("Bearer ", ""),
         Err(e) => {
-            tracing::error!("Could not parse token: {:?}", e);
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "Could not parse token"
+            );
             return Err(anyhow!("Invalid authentication."));
         }
     };
@@ -62,6 +75,7 @@ fn auth_token_from_request(req: &HttpRequest) -> Result<String, anyhow::Error> {
     Ok(token)
 }
 
+#[tracing::instrument(skip(token, settings))]
 fn parse_token(token: String, settings: &Settings) -> Result<AuthenticatedUser, Error> {
     match decode::<Claim>(&token, &decoding_key(settings), &Validation::default()) {
         Ok(token) => {
@@ -69,7 +83,11 @@ fn parse_token(token: String, settings: &Settings) -> Result<AuthenticatedUser, 
                 Ok(true) => return Err(error::ErrorUnauthorized("Token expired")),
                 Ok(false) => (),
                 Err(e) => {
-                    tracing::error!("Error while checking token expiry: {:?}", e);
+                    tracing::error!(
+                        target = module_path!(),
+                        error = e.to_string(),
+                        "Error while checking token expiry"
+                    );
                     return Err(error::ErrorInternalServerError("Internal server error."));
                 }
             }
@@ -79,16 +97,22 @@ fn parse_token(token: String, settings: &Settings) -> Result<AuthenticatedUser, 
             })
         }
         Err(e) => {
-            tracing::error!("Could not get user from token: {:?}", e);
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "Could not get user from token"
+            );
             Err(error::ErrorUnauthorized("Invalid token"))
         }
     }
 }
 
+#[tracing::instrument(skip(settings))]
 fn decoding_key(settings: &Settings) -> DecodingKey {
     DecodingKey::from_secret(settings.jwt_secret.as_ref())
 }
 
+#[tracing::instrument(skip(req))]
 fn settings(req: &HttpRequest) -> Option<&Settings> {
     match req.app_data::<web::Data<Settings>>() {
         Some(settings) => Some(settings.get_ref()),
@@ -96,11 +120,16 @@ fn settings(req: &HttpRequest) -> Option<&Settings> {
     }
 }
 
+#[tracing::instrument(skip(token_expiry))]
 fn token_expired(token_expiry: &TokenData<Claim>) -> Result<bool, anyhow::Error> {
     let now = match SystemTime::now().duration_since(UNIX_EPOCH) {
         Ok(dur) => dur.as_secs(),
         Err(e) => {
-            tracing::error!("Error while finding duration: {:?}", e);
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "Error while finding duration."
+            );
             return Err(anyhow!("Could not get current time."));
         }
     };
