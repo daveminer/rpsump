@@ -34,42 +34,41 @@ pub struct Status {
 ///  * `db` - Handle to the database pool
 ///  * `sump` - Instance of the Sump object for running IrrigationEvents
 ///
-pub fn start(db: DbPool, sump: Sump) -> JoinHandle<()> {
-    // Schedule runs in a new thread
-    spawn_blocking_with_tracing(move || {
-        loop {
-            let thread_sump = sump.clone();
-            let thread_db = db.clone();
-            // Synchronously check for schedules to run
-            block_on(sleep(StdDuration::from_secs(5)));
-
-            // Get the statuses of all the schedules
-            let statuses = match get_schedule_statuses(thread_db.clone()) {
-                Ok(statuses) => statuses,
-                Err(e) => {
-                    tracing::error!("Could not get schedule statuses: {}", e);
-
-                    continue;
-                }
-            };
-
-            // Determine which statuses are due to run
-            let events_to_insert = due_statuses(statuses, chrono::Utc::now().naive_utc());
-
-            // Insert a queued event for each due status
-            events_to_insert.into_iter().for_each(|status| {
-                if let Err(e) = block_on(IrrigationEvent::create_irrigation_events_for_status(
-                    thread_db.clone(),
-                    status,
-                )) {
-                    tracing::error!("Could not insert irrigation event: {}", e)
-                }
-            });
-
-            // Run irrigation events
-            block_on(run_next_event(thread_db, thread_sump));
-        }
+pub fn start(db: DbPool, sump: Sump, frequency_ms: u64) -> JoinHandle<()> {
+    // Schedule runs statically in a new thread
+    spawn_blocking_with_tracing(move || loop {
+        check_schedule(db.clone(), sump.clone(), frequency_ms);
     })
+}
+
+fn check_schedule(db: DbPool, sump: Sump, frequency_ms: u64) {
+    block_on(sleep(StdDuration::from_millis(frequency_ms)));
+
+    // Get the statuses of all the schedules
+    let statuses = match get_schedule_statuses(db.clone()) {
+        Ok(statuses) => statuses,
+        Err(e) => {
+            tracing::error!("Could not get schedule statuses: {}", e);
+
+            return;
+        }
+    };
+
+    // Determine which statuses are due to run
+    let events_to_insert = due_statuses(statuses, chrono::Utc::now().naive_utc());
+
+    // Insert a queued event for each due status
+    events_to_insert.into_iter().for_each(|status| {
+        if let Err(e) = block_on(IrrigationEvent::create_irrigation_events_for_status(
+            db.clone(),
+            status,
+        )) {
+            tracing::error!("Could not insert irrigation event: {}", e)
+        }
+    });
+
+    // Run irrigation events
+    block_on(run_next_event(db, sump));
 }
 
 fn get_schedule_statuses(db: DbPool) -> Result<Vec<Status>, Error> {
