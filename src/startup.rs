@@ -12,8 +12,8 @@ use crate::controllers::{
     auth::auth_routes, info::info, irrigation::irrigation_routes, sump_event::sump_event,
 };
 use crate::database::DbPool;
-use crate::sump::sensor::{listen_to_high_sensor, listen_to_low_sensor};
-use crate::sump::{schedule, spawn_reporting_thread, Sump};
+//use crate::hydro::sensor::{listen_to_high_sensor, listen_to_low_sensor};
+use crate::hydro::schedule;
 
 pub struct Application {
     port: u16,
@@ -29,57 +29,57 @@ impl Application {
             .local_addr()
             .expect("Could not get server address.")
             .port();
-        let delay = match settings.clone().sump {
-            Some(sump) => sump.pump_shutoff_delay,
-            None => 0,
-        };
+        // let delay = match settings.clone().sump {
+        //     Some(sump) => sump.pump_shutoff_delay,
+        //     None => 0,
+        // };
 
-        let sump = match settings.clone().sump {
-            None => None,
-            Some(sump_config) => Some(
-                Sump::new(db_pool.clone(), &sump_config).expect("Could not create sump object"),
-            ),
-        };
+        // let sump = match settings.clone().sump {
+        //     None => None,
+        //     Some(sump_config) => Some(
+        //         Sump::new(db_pool.clone(), &sump_config).expect("Could not create sump object"),
+        //     ),
+        // };
 
-        let sump_clone = sump.clone();
+        // let sump_clone = sump.clone();
 
-        if sump_clone.is_some() {
-            let sump_clone = sump_clone.unwrap();
+        // if sump_clone.is_some() {
+        //     let sump_clone = sump_clone.unwrap();
 
-            listen_to_high_sensor(
-                Arc::clone(&sump_clone.high_sensor_pin),
-                Arc::clone(&sump_clone.pump_control_pin),
-                Arc::clone(&sump_clone.sensor_state),
-                db_pool.clone(),
-            );
+        //     listen_to_high_sensor(
+        //         Arc::clone(&sump_clone.high_sensor_pin),
+        //         Arc::clone(&sump_clone.pump_control_pin),
+        //         Arc::clone(&sump_clone.sensor_state),
+        //         db_pool.clone(),
+        //     );
 
-            listen_to_low_sensor(
-                Arc::clone(&sump_clone.low_sensor_pin),
-                Arc::clone(&sump_clone.pump_control_pin),
-                Arc::clone(&sump_clone.sensor_state),
-                delay,
-                db_pool.clone(),
-            );
-            if settings.console.report_freq_secs > 0 {
-                spawn_reporting_thread(
-                    Arc::clone(&sump_clone.sensor_state),
-                    settings.console.report_freq_secs,
-                );
-            }
+        //     listen_to_low_sensor(
+        //         Arc::clone(&sump_clone.low_sensor_pin),
+        //         Arc::clone(&sump_clone.pump_control_pin),
+        //         Arc::clone(&sump_clone.sensor_state),
+        //         delay,
+        //         db_pool.clone(),
+        //     );
+        //     if settings.console.report_freq_secs > 0 {
+        //         spawn_reporting_thread(
+        //             Arc::clone(&sump_clone.sensor_state),
+        //             settings.console.report_freq_secs,
+        //         );
+        //     }
 
-            if sump_clone.irrigation_enabled {
-                schedule::start(
-                    db_pool.clone(),
-                    sump_clone,
-                    settings
-                        .clone()
-                        .sump
-                        .unwrap()
-                        .irrigation
-                        .process_frequency_ms,
-                );
-            }
-        }
+        //     if sump_clone.irrigation_enabled {
+        //         schedule::start(
+        //             db_pool.clone(),
+        //             sump_clone,
+        //             settings
+        //                 .clone()
+        //                 .sump
+        //                 .unwrap()
+        //                 .irrigation
+        //                 .process_frequency_ms,
+        //         );
+        //     }
+        // }
 
         let server = HttpServer::new(move || {
             let mut app = App::new()
@@ -101,9 +101,9 @@ impl Application {
                 .app_data(Data::new(db_pool.clone()));
 
             // Initialize the sump if enabled in configuration
-            if sump.is_some() {
-                app = app.app_data(Data::new(sump.clone()));
-            }
+            // if sump.is_some() {
+            //     app = app.app_data(Data::new(sump.clone()));
+            // }
 
             app
         })

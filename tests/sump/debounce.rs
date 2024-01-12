@@ -2,7 +2,7 @@ use rppal::gpio::Level;
 use std::time::Duration;
 use tokio::time::Instant;
 
-use rpsump::sump::debounce::SensorDebouncer;
+use rpsump::hydro::debounce::Debouncer;
 
 const DURATION: Duration = Duration::from_secs(1);
 

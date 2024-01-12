@@ -12,9 +12,9 @@ use tracing::error;
 
 use crate::controllers::spawn_blocking_with_tracing;
 use crate::database::DbPool;
+use crate::hydro::schedule::Status;
 use crate::schema::irrigation_event::*;
 use crate::schema::{irrigation_event, irrigation_schedule};
-use crate::sump::schedule::Status;
 
 type BoxedQuery<'a> = irrigation_event::BoxedQuery<'a, Sqlite, irrigation_event::SqlType>;
 

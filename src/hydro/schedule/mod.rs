@@ -14,7 +14,7 @@ use crate::models::irrigation_event::StatusQueryResult;
 use crate::models::irrigation_schedule::IrrigationSchedule;
 use crate::{database::DbPool, models::irrigation_event::IrrigationEvent};
 
-use self::run::run_next_event;
+//use self::run::run_next_event;
 
 use super::Sump;
 
@@ -68,7 +68,7 @@ fn check_schedule(db: DbPool, sump: Sump, frequency_ms: u64) {
     });
 
     // Run irrigation events
-    block_on(run_next_event(db, sump));
+    //block_on(run_next_event(db, sump));
 }
 
 fn get_schedule_statuses(db: DbPool) -> Result<Vec<Status>, Error> {
@@ -194,11 +194,11 @@ mod tests {
     use rstest::*;
 
     use crate::{
+        hydro::schedule::{build_statuses, due_statuses, Status},
         models::{
             irrigation_event::{IrrigationEvent, StatusQueryResult},
             irrigation_schedule::IrrigationSchedule,
         },
-        sump::schedule::{build_statuses, due_statuses, Status},
         test_fixtures::{
             irrigation::{
                 event::completed_event,

@@ -19,6 +19,12 @@ pub struct ConsoleConfig {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+pub struct HydroConfig {
+    pub irrigation: IrrigationConfig,
+    pub sump: SumpConfig,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 pub struct IrrigationConfig {
     pub enabled: bool,
     pub low_sensor_pin: u8,

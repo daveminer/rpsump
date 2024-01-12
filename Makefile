@@ -10,7 +10,7 @@ deploy-swag:
 	bash ./deploy/deploy-prod.sh
 
 test:
-	cargo test
+	cargo test --features stub
 
 test-log:
-	cargo test -- --nocapture
+	cargo test -- features stub -- --nocapture

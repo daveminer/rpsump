@@ -45,8 +45,8 @@ pub async fn send_password_reset(
 
 async fn send(auth_token: &str, email: Email, mailer_url: &str) -> Result<(), Error> {
     let client = reqwest::Client::new();
-    let auth_token_clone = auth_token.clone().to_string();
-    let mailer_clone = mailer_url.clone().to_string();
+    let auth_token_clone = auth_token.to_string();
+    let mailer_clone = mailer_url.to_string();
     let body = serde_json::to_string(&email)?;
 
     let thread_response = spawn_blocking_with_tracing(move || {
