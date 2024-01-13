@@ -3,10 +3,6 @@ use anyhow::{anyhow, Error};
 use std::fmt;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-// use super::gpio::{
-//     GpioInterface, InputPinInterface, LevelInterface, OutputPinInterface, PinInterface,
-// };
-
 pub type PinLock<'a> = MutexGuard<'a, Box<dyn OutputPin>>;
 
 /// Represents a GPIO output for controlling stateful equipment. Water pump, etc.
@@ -17,25 +13,6 @@ pub struct Control {
     pub label: String,
     pub level: Level,
     pub pin: SharedOutputPin,
-}
-
-impl fmt::Debug for Control {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Control")
-            .field("label", &self.label)
-            .field("level", &self.level)
-            // We can't directly print `pin` because it's a Mutex of a trait object.
-            // Instead, we can print a placeholder value.
-            .field("pin", &"<mutexed pin>")
-            .finish()
-    }
-}
-
-pub trait Output {
-    fn on(&mut self) -> Result<(), Error>;
-    fn off(&mut self) -> Result<(), Error>;
-    fn is_on(&self) -> bool;
-    fn is_off(&self) -> bool;
 }
 
 impl Control {
@@ -54,51 +31,41 @@ impl Control {
         })
     }
 
-    fn lock_pin(&self) -> Result<PinLock, Error> {
+    fn lock(&self) -> Result<PinLock, Error> {
         self.pin.lock().map_err(|e| anyhow!(e.to_string()))
     }
 }
 
-// impl Output for Control {
-//     // Set the pin high
-//     fn on(&mut self) -> Result<(), Error> {
-//         let mut pin = self.lock_pin()?;
-
-//         pin.set_high();
-
-//         Ok(())
-//     }
-
-//     fn off(&mut self) -> Result<(), Error> {
-//         let mut pin = self.lock_pin()?;
-
-//         pin.set_low();
-
-//         Ok(())
-//     }
-
-//     fn is_on(&self) -> bool {
-//         self.level == Level::High
-//     }
-
-//     fn is_off(&self) -> bool {
-//         self.level == Level::Low
-//     }
-// }
-
-pub struct OutputPinStub {
-    pub level: Level,
+impl fmt::Debug for Control {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Control")
+            .field("label", &self.label)
+            .field("level", &self.level)
+            .finish()
+    }
 }
 
-impl Output for OutputPinStub {
+pub trait Output {
+    fn on(&mut self) -> Result<(), Error>;
+    fn off(&mut self) -> Result<(), Error>;
+    fn is_on(&self) -> bool;
+    fn is_off(&self) -> bool;
+}
+
+impl Output for Control {
+    // Set the pin high
     fn on(&mut self) -> Result<(), Error> {
-        self.level = Level::High;
+        let mut pin = self.lock()?;
+
+        pin.set_high();
 
         Ok(())
     }
 
     fn off(&mut self) -> Result<(), Error> {
-        self.level = Level::Low;
+        let mut pin = self.lock()?;
+
+        pin.set_low();
 
         Ok(())
     }
@@ -239,28 +206,30 @@ pub fn pin_lock_failure(e: &PoisonError<PinLock>, control: &Control) -> Error {
 
 #[cfg(test)]
 mod tests {
-    use crate::hydro::gpio::{stub::pin, Gpio, Level, MockGpio};
-    use mockall::predicate::*;
-    use mockall::*;
+    use crate::test_fixtures::gpio::mock_gpio_get;
 
     use super::Control;
 
     #[test]
-    fn test_new() {
-        let mut mock_gpio = MockGpio::new();
-        mock_gpio
-            .expect_get()
-            .with(predicate::eq(1))
-            .times(1)
-            .returning(|_| {
-                Ok(Box::new(pin::PinStub {
-                    index: 0,
-                    level: Level::Low,
-                }))
-            });
+    fn test_format() {
+        let mock_gpio = mock_gpio_get(1);
+
         let control: Control =
             Control::new("control pin label".to_string(), 1, &mock_gpio).unwrap();
 
-        assert!(control.level == Level::Low);
+        assert_eq!(
+            format!("{:?}", control),
+            "Control { label: \"control pin label\", level: Low }"
+        );
+    }
+
+    #[test]
+    fn test_lock() {
+        let mock_gpio = mock_gpio_get(1);
+
+        let control: Control =
+            Control::new("control pin label".to_string(), 1, &mock_gpio).unwrap();
+
+        let _lock = control.lock().unwrap();
     }
 }

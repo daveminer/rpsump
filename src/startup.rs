@@ -4,7 +4,6 @@ use actix_web::{cookie, dev::Server, web, web::Data, App, HttpServer};
 use actix_web::{error::ErrorBadRequest, web::JsonConfig};
 use actix_web_opentelemetry::RequestTracing;
 use serde_json::json;
-use std::sync::Arc;
 
 use crate::config::Settings;
 
@@ -13,7 +12,6 @@ use crate::controllers::{
 };
 use crate::database::DbPool;
 //use crate::hydro::sensor::{listen_to_high_sensor, listen_to_low_sensor};
-use crate::hydro::schedule;
 
 pub struct Application {
     port: u16,
@@ -82,7 +80,7 @@ impl Application {
         // }
 
         let server = HttpServer::new(move || {
-            let mut app = App::new()
+            let app = App::new()
                 .wrap(RequestTracing::new())
                 // Session tools
                 .wrap(IdentityMiddleware::default())

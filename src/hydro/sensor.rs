@@ -336,6 +336,27 @@ impl Input for Sensor {
 //     .expect("Could not not listen on low water level sump pin.");
 // }
 
-fn error_trace(e: Error, msg: &str) {
-    tracing::error!(target = module_path!(), error = e.to_string(), msg);
+// fn error_trace(e: Error, msg: &str) {
+//     tracing::error!(target = module_path!(), error = e.to_string(), msg);
+// }
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        hydro::gpio::{Level, Trigger},
+        test_fixtures::gpio::mock_gpio_get,
+    };
+
+    use super::Sensor;
+
+    #[test]
+    fn test_new() {
+        let callback = |level: Level| {
+            format!("{:?}", level);
+            ()
+        };
+        let mock_gpio = mock_gpio_get(1);
+        let _sensor: Sensor =
+            Sensor::new(1, &mock_gpio, Some(callback), Some(Trigger::Both)).unwrap();
+    }
 }

@@ -1,6 +1,6 @@
 pub mod control;
-mod debounce;
-mod gpio;
+pub mod debounce;
+pub mod gpio;
 mod irrigator;
 pub mod schedule;
 pub mod sensor;
@@ -36,12 +36,7 @@ impl Hydro {
         G: Gpio,
     {
         let sump = Sump::new(&config.sump, gpio, high_sensor_handler, low_sensor_handler)?;
-        let irrigator = Irrigator::new(
-            db.clone(),
-            &config.irrigation,
-            gpio,
-            irrigator_empty_sensor_handler,
-        )?;
+        let irrigator = Irrigator::new(&config.irrigation, gpio, irrigator_empty_sensor_handler)?;
 
         Ok(Self {
             db_pool: db,

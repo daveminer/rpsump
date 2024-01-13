@@ -36,6 +36,7 @@ pub struct Status {
 ///
 pub fn start(db: DbPool, sump: Sump, frequency_ms: u64) -> JoinHandle<()> {
     // Schedule runs statically in a new thread
+    // TODO: don't trace a static thread
     spawn_blocking_with_tracing(move || loop {
         check_schedule(db.clone(), sump.clone(), frequency_ms);
     })

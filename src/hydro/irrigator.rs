@@ -1,6 +1,5 @@
 use crate::{
     config::IrrigationConfig,
-    database::DbPool,
     hydro::{
         gpio::{Gpio, Trigger},
         Control, Level, Sensor,
@@ -20,7 +19,6 @@ pub struct Irrigator {
 
 impl Irrigator {
     pub fn new<C, G>(
-        db: DbPool,
         config: &IrrigationConfig,
         gpio: &G,
         low_sensor_handler: C,
@@ -65,5 +63,43 @@ impl Irrigator {
             valve3,
             valve4,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{
+        config::IrrigationConfig,
+        hydro::gpio::{stub::pin, Level, MockGpio},
+    };
+
+    use super::Irrigator;
+
+    #[test]
+    fn test_new() {
+        let mut mock_gpio = MockGpio::new();
+        mock_gpio.expect_get().times(6).returning(|_| {
+            Ok(Box::new(pin::PinStub {
+                index: 0,
+                level: Level::Low,
+            }))
+        });
+
+        let _irrigator: Irrigator = Irrigator::new(
+            &IrrigationConfig {
+                enabled: true,
+                low_sensor_pin: 1,
+                max_seconds_runtime: 2,
+                process_frequency_ms: 1000,
+                pump_control_pin: 2,
+                valve_1_control_pin: 3,
+                valve_2_control_pin: 4,
+                valve_3_control_pin: 5,
+                valve_4_control_pin: 6,
+            },
+            &mock_gpio,
+            |_| {},
+        )
+        .unwrap();
     }
 }

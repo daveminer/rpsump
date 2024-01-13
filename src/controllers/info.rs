@@ -15,7 +15,7 @@ async fn info(req: HttpRequest, _user: AuthenticatedUser) -> Result<impl Respond
         sump_arc.unwrap().as_ref()
     };
 
-    let sump = match maybe_sump {
+    let _sump = match maybe_sump {
         Some(sump) => sump,
         None => {
             tracing::error!(

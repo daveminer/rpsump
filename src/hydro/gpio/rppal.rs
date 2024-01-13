@@ -1,28 +1,9 @@
 use anyhow::{anyhow, Error};
 
 use crate::hydro::{
-    self,
-    gpio::{Gpio, InputPin, OutputPin, Pin},
+    gpio::{Gpio, InputPin, OutputPin, Pin, Trigger},
     Level,
 };
-
-// impl GpioInterface for Gpio {
-//     type InputPin = InputPin;
-//     type Level = Level;
-//     type OutputPin = OutputPin;
-//     type Pin = Pin;
-//     fn get(&self, pin: u8) -> Result<Pin, Error> {
-//         self.get(pin).map_err(|e| anyhow!(e.to_string()))
-//     }
-
-//     fn new() -> Result<Self, Error> {
-//         Gpio::new().map_err(|e| anyhow!(e.to_string()))
-//     }
-
-//     fn read_pin(&self, pin: u8) -> Level {
-//         self.read_pin(pin)
-//     }
-// }
 
 impl Gpio for rppal::gpio::Gpio {
     fn get(&self, pin: u8) -> Result<Box<dyn Pin>, Error> {
@@ -36,42 +17,12 @@ impl Gpio for rppal::gpio::Gpio {
     }
 }
 
-// impl PinInterface for Pin {
-//     type InputPin = InputPin;
-//     type Level = Level;
-//     type OutputPin = OutputPin;
-
-//     fn into_input(self) -> InputPin {
-//         self.into_input()
-//     }
-
-//     fn into_input_pullup(self) -> Self::InputPin {
-//         self.into_input_pullup()
-//     }
-
-//     fn into_output_low(self) -> OutputPin {
-//         self.into_output_low()
-//     }
-
-//     fn into_output_high(self) -> OutputPin {
-//         self.into_output_high()
-//     }
-
-//     fn pin(&self) -> u8 {
-//         self.pin()
-//     }
-
-//     fn read(&self) -> Level {
-//         self.read()
-//     }
-// }
-
 impl Pin for rppal::gpio::Pin {
     fn into_input_pullup(self: Box<Self>) -> Box<dyn InputPin> {
-        self.into_input_pullup()
+        Box::new(rppal::gpio::Pin::into_input_pullup(*self))
     }
     fn into_output_low(self: Box<Self>) -> Box<dyn OutputPin> {
-        self.into_output_low()
+        Box::new(rppal::gpio::Pin::into_output_low(*self))
     }
 }
 
@@ -84,7 +35,7 @@ impl Into<Level> for rppal::gpio::Level {
     }
 }
 
-impl InputPin for rppal::gpio::Pin {
+impl InputPin for rppal::gpio::InputPin {
     fn is_high(&self) -> bool {
         self.is_high()
     }
@@ -99,15 +50,28 @@ impl InputPin for rppal::gpio::Pin {
 
     fn set_async_interrupt(
         &mut self,
-        trigger: hydro::gpio::Trigger,
-        callback: super::InputPinCallback,
+        trigger: Trigger,
+        mut callback: super::InputPinCallback,
     ) -> Result<(), Error> {
-        self.set_async_interrupt(trigger, callback)
+        let converted_callback = Box::new(move |level: rppal::gpio::Level| callback(level.into()));
+
+        self.set_async_interrupt(trigger.into(), converted_callback)
             .map_err(|e| anyhow!(e.to_string()))
     }
 }
 
-impl OutputPin for rppal::gpio::Pin {
+impl Into<rppal::gpio::Trigger> for Trigger {
+    fn into(self) -> rppal::gpio::Trigger {
+        match self {
+            Trigger::Disabled => rppal::gpio::Trigger::Disabled,
+            Trigger::RisingEdge => rppal::gpio::Trigger::RisingEdge,
+            Trigger::FallingEdge => rppal::gpio::Trigger::FallingEdge,
+            Trigger::Both => rppal::gpio::Trigger::Both,
+        }
+    }
+}
+
+impl OutputPin for rppal::gpio::OutputPin {
     fn set_high(&mut self) {
         self.set_high()
     }
@@ -116,33 +80,3 @@ impl OutputPin for rppal::gpio::Pin {
         self.set_low()
     }
 }
-
-// impl InputPinInterface for InputPin {
-//     fn is_high(&self) -> bool {
-//         self.is_high()
-//     }
-
-//     fn is_low(&self) -> bool {
-//         self.is_low()
-//     }
-// }
-
-// impl OutputPinInterface for OutputPin {
-//     fn set_high(&mut self) {
-//         self.set_high()
-//     }
-
-//     fn set_low(&mut self) {
-//         self.set_low()
-//     }
-// }
-
-// impl LevelInterface for Level {
-//     fn is_high(&self) -> bool {
-//         self.is_high()
-//     }
-
-//     fn is_low(&self) -> bool {
-//         self.is_low()
-//     }
-// }
