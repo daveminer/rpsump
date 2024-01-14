@@ -60,7 +60,10 @@ impl Sump {
 
 #[cfg(test)]
 mod tests {
-    use crate::{config::SumpConfig, test_fixtures::gpio::mock_gpio_get};
+    use crate::{
+        config::SumpConfig,
+        hydro::gpio::{stub::pin, Level, MockGpio},
+    };
 
     use super::Sump;
 
@@ -74,7 +77,13 @@ mod tests {
             pump_shutoff_delay: 4,
         };
 
-        let mock_gpio = mock_gpio_get(2);
+        let mut mock_gpio = MockGpio::new();
+        mock_gpio.expect_get().times(3).returning(|_| {
+            Ok(Box::new(pin::PinStub {
+                index: 0,
+                level: Level::Low,
+            }))
+        });
 
         let sensor_handler = |_| ();
 

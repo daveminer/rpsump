@@ -1,4 +1,5 @@
 use once_cell::sync::Lazy;
+use rpsump::hydro::gpio::MockGpio;
 use serde_json::Value;
 use std::fs::copy;
 use tempfile::TempDir;
@@ -226,7 +227,8 @@ pub async fn spawn_app() -> TestApp {
     settings.mailer.server_url = email_server.uri();
 
     let db_pool = new_pool(&spawn_test_db()).unwrap();
-    let application = Application::build(settings, db_pool.clone());
+    let gpio = MockGpio::new();
+    let application = Application::build(settings, &db_pool, gpio);
     let port = application.port();
 
     let _ = tokio::spawn(application.run_until_stopped());
