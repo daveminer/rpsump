@@ -35,8 +35,8 @@ impl InputPin for PinStub {
 
     fn set_async_interrupt(
         &mut self,
-        trigger: Trigger,
-        callback: InputPinCallback,
+        _trigger: Trigger,
+        _callback: InputPinCallback,
     ) -> Result<(), Error> {
         Ok(())
     }

@@ -11,6 +11,8 @@ use crate::controllers::{
     auth::auth_routes, info::info, irrigation::irrigation_routes, sump_event::sump_event,
 };
 use crate::database::DbPool;
+use crate::hydro::gpio::Gpio;
+use crate::hydro::Hydro;
 //use crate::hydro::sensor::{listen_to_high_sensor, listen_to_low_sensor};
 
 pub struct Application {
@@ -19,7 +21,11 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn build(settings: Settings, db_pool: DbPool) -> Application {
+    pub fn build<G>(settings: Settings, db_pool: &DbPool, gpio: G) -> Application
+    where
+        G: Gpio,
+    {
+        // Web server configuration
         let address = format!("{}:{}", settings.server.host, settings.server.port);
         let listener =
             std::net::TcpListener::bind(address).expect("Could not bind server address.");
@@ -27,6 +33,27 @@ impl Application {
             .local_addr()
             .expect("Could not get server address.")
             .port();
+
+        // TODO: Handlers
+        let low_sensor_handler = |level| {
+            tracing::info!(
+                target = module_path!(),
+                "Low sensor state changed to {:?}",
+                level
+            );
+        };
+
+        let hydro = Hydro::new(
+            db_pool,
+            &settings.hydro,
+            &gpio,
+            Box::new(low_sensor_handler),
+            Box::new(low_sensor_handler),
+            Box::new(low_sensor_handler),
+        )
+        .expect("Could not create hydro object");
+
+        // Pump shutoff delay
         // let delay = match settings.clone().sump {
         //     Some(sump) => sump.pump_shutoff_delay,
         //     None => 0,
@@ -79,7 +106,11 @@ impl Application {
         //     }
         // }
 
+        // TODO: fix clones
+        let db_clone = db_pool.clone();
         let server = HttpServer::new(move || {
+            let db_clone = db_clone.clone();
+            let hydro_clone = hydro.clone();
             let app = App::new()
                 .wrap(RequestTracing::new())
                 // Session tools
@@ -96,12 +127,8 @@ impl Application {
                 // Application configuration
                 .app_data(Self::json_cfg())
                 .app_data(Data::new(settings.clone()))
-                .app_data(Data::new(db_pool.clone()));
-
-            // Initialize the sump if enabled in configuration
-            // if sump.is_some() {
-            //     app = app.app_data(Data::new(sump.clone()));
-            // }
+                .app_data(Data::new(db_clone))
+                .app_data(Data::new(hydro_clone));
 
             app
         })

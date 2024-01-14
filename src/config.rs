@@ -6,10 +6,10 @@ use std::env;
 pub struct Settings {
     pub console: ConsoleConfig,
     pub database_url: String,
+    pub hydro: HydroConfig,
     pub jwt_secret: String,
     pub mailer: MailerConfig,
     pub server: ServerConfig,
-    pub sump: Option<SumpConfig>,
     pub telemetry: TelemetryConfig,
 }
 
@@ -52,11 +52,11 @@ pub struct ServerConfig {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct SumpConfig {
+    pub enabled: bool,
     pub high_sensor_pin: u8,
     pub low_sensor_pin: u8,
     pub pump_control_pin: u8,
     pub pump_shutoff_delay: u64,
-    pub irrigation: IrrigationConfig,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -84,6 +84,10 @@ impl Settings {
                     .expect("CONSOLE_REPORT_FREQ_SECS must be a number."),
             },
             database_url,
+            hydro: HydroConfig {
+                irrigation: Self::irrigation_config().expect("Could not load irrigation config."),
+                sump: Self::sump_config().expect("Could not load sump config."),
+            },
             jwt_secret,
             mailer: MailerConfig {
                 auth_token: load_system_var("MAILER_AUTH_TOKEN"),
@@ -94,7 +98,6 @@ impl Settings {
                 host: server_host,
                 port: server_port,
             },
-            sump: Self::sump_config(),
             telemetry: TelemetryConfig {
                 api_key: load_system_var("TELEMETRY_API_KEY"),
                 receiver_url: load_system_var("TELEMETRY_RECEIVER_URL"),
@@ -102,13 +105,53 @@ impl Settings {
         }
     }
 
+    fn irrigation_config() -> Option<IrrigationConfig> {
+        let enabled: bool = load_system_var("IRRIGATION_ENABLED")
+            .parse()
+            .expect("IRRIGATION_ENABLED must be a boolean.");
+
+        let low_sensor_pin: u8 = load_system_var("IRRIGATION_LOW_SENSOR_PIN")
+            .parse()
+            .expect("IRRIGATION_LOW_SENSOR_PIN must be a number.");
+        let max_seconds_runtime: u8 = load_system_var("IRRIGATION_MAX_RUNTIME")
+            .parse()
+            .expect("IRRIGATION_MAX_RUNTIME must be a number");
+        let process_frequency_ms: u64 = load_system_var("IRRIGATION_PROCESS_FREQ_MS")
+            .parse()
+            .expect("IRRIGATION_PROCESS_FREQ_MS must be a number.");
+        let pump_control_pin: u8 = load_system_var("IRRIGATION_PUMP_CONTROL_PIN")
+            .parse()
+            .expect("IRRIGATION_PUMP_CONTROL_PIN must be a number.");
+        let valve_1_control_pin: u8 = load_system_var("IRRIGATION_VALVE_1_CONTROL_PIN")
+            .parse()
+            .expect("IRRIGATION_VALVE_1_CONTROL_PIN must be a number.");
+        let valve_2_control_pin: u8 = load_system_var("IRRIGATION_VALVE_2_CONTROL_PIN")
+            .parse()
+            .expect("IRRIGATION_VALVE_2_CONTROL_PIN must be a number.");
+        let valve_3_control_pin: u8 = load_system_var("IRRIGATION_VALVE_3_CONTROL_PIN")
+            .parse()
+            .expect("IRRIGATION_VALVE_3_CONTROL_PIN must be a number.");
+        let valve_4_control_pin: u8 = load_system_var("IRRIGATION_VALVE_4_CONTROL_PIN")
+            .parse()
+            .expect("IRRIGATION_VALVE_4_CONTROL_PIN must be a number.");
+
+        Some(IrrigationConfig {
+            enabled,
+            low_sensor_pin,
+            max_seconds_runtime,
+            process_frequency_ms,
+            pump_control_pin,
+            valve_1_control_pin,
+            valve_2_control_pin,
+            valve_3_control_pin,
+            valve_4_control_pin,
+        })
+    }
+
     fn sump_config() -> Option<SumpConfig> {
-        if !load_system_var("SUMP_ENABLED")
-            .parse::<bool>()
-            .expect("SUMP_ENABLED must be a boolean.")
-        {
-            return None;
-        }
+        let enabled: bool = load_system_var("SUMP_ENABLED")
+            .parse()
+            .expect("SUMP_ENABLED must be a boolean.");
 
         let high_sensor_pin: u8 = load_system_var("SUMP_HIGH_SENSOR_PIN")
             .parse()
@@ -127,42 +170,12 @@ impl Settings {
             panic!("SUMP_SHUTOFF_DELAY must be 5 seconds or less.");
         }
 
-        let irrigation = IrrigationConfig {
-            enabled: load_system_var("IRRIGATION_ENABLED")
-                .parse()
-                .expect("IRRIGATION_ENABLED must be a boolean."),
-            low_sensor_pin: load_system_var("IRRIGATION_LOW_SENSOR_PIN")
-                .parse()
-                .expect("IRRIGATION_LOW_SENSOR_PIN must be a number."),
-            max_seconds_runtime: load_system_var("IRRIGATION_MAX_RUNTIME")
-                .parse()
-                .expect("IRRIGATION_MAX_RUNTIME must be a number"),
-            process_frequency_ms: load_system_var("IRRIGATION_PROCESS_FREQUENCY_MS")
-                .parse()
-                .expect("IRRIGATION_PROCESS_FREQUENCY_MS must be a number."),
-            pump_control_pin: load_system_var("IRRIGATION_PUMP_CONTROL_PIN")
-                .parse()
-                .expect("IRRIGATION_PUMP_CONTROL_PIN must be a number."),
-            valve_1_control_pin: load_system_var("IRRIGATION_VALVE_1_CONTROL_PIN")
-                .parse()
-                .expect("IRRIGATION_VALVE_1_CONTROL_PIN must be a number."),
-            valve_2_control_pin: load_system_var("IRRIGATION_VALVE_2_CONTROL_PIN")
-                .parse()
-                .expect("IRRIGATION_VALVE_2_CONTROL_PIN must be a number."),
-            valve_3_control_pin: load_system_var("IRRIGATION_VALVE_3_CONTROL_PIN")
-                .parse()
-                .expect("IRRIGATION_VALVE_3_CONTROL_PIN must be a number."),
-            valve_4_control_pin: load_system_var("IRRIGATION_VALVE_4_CONTROL_PIN")
-                .parse()
-                .expect("IRRIGATION_VALVE_4_CONTROL_PIN must be a number."),
-        };
-
         Some(SumpConfig {
+            enabled,
             high_sensor_pin,
             low_sensor_pin,
             pump_control_pin,
             pump_shutoff_delay,
-            irrigation,
         })
     }
 }

@@ -7,7 +7,7 @@ use crate::{
 };
 use anyhow::Error;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Irrigator {
     pub low_sensor: Sensor,
     pub pump: Control,

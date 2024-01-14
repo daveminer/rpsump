@@ -16,6 +16,7 @@ use crate::database::DbPool;
 use anyhow::Error;
 use gpio::{Gpio, Level};
 
+#[derive(Clone)]
 pub struct Hydro {
     pub db_pool: DbPool,
     pub sump: Sump,
@@ -24,7 +25,7 @@ pub struct Hydro {
 
 impl Hydro {
     pub fn new<C, G>(
-        db: DbPool,
+        db: &DbPool,
         config: &HydroConfig,
         gpio: &G,
         high_sensor_handler: C,
@@ -39,7 +40,7 @@ impl Hydro {
         let irrigator = Irrigator::new(&config.irrigation, gpio, irrigator_empty_sensor_handler)?;
 
         Ok(Self {
-            db_pool: db,
+            db_pool: db.clone(),
             irrigator,
             sump,
         })

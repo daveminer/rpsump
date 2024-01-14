@@ -1,7 +1,9 @@
 use crate::hydro::gpio::{Gpio, Level, OutputPin};
 use anyhow::{anyhow, Error};
+use futures::Future;
 use std::fmt;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, PoisonError};
+use tokio::sync::{Mutex, MutexGuard};
 
 pub type PinLock<'a> = MutexGuard<'a, Box<dyn OutputPin>>;
 
@@ -31,8 +33,8 @@ impl Control {
         })
     }
 
-    fn lock(&self) -> Result<PinLock, Error> {
-        self.pin.lock().map_err(|e| anyhow!(e.to_string()))
+    pub async fn lock(&self) -> PinLock {
+        self.pin.lock().await
     }
 }
 
@@ -46,35 +48,36 @@ impl fmt::Debug for Control {
 }
 
 pub trait Output {
-    fn on(&mut self) -> Result<(), Error>;
-    fn off(&mut self) -> Result<(), Error>;
-    fn is_on(&self) -> bool;
-    fn is_off(&self) -> bool;
+    // TODO: verify these are Send
+    fn on(&mut self) -> impl Future<Output = Result<(), Error>> + Send;
+    fn off(&mut self) -> impl Future<Output = Result<(), Error>> + Send;
+    fn is_on(&self) -> impl Future<Output = bool> + Send;
+    fn is_off(&self) -> impl Future<Output = bool> + Send;
 }
 
 impl Output for Control {
     // Set the pin high
-    fn on(&mut self) -> Result<(), Error> {
-        let mut pin = self.lock()?;
+    async fn on(&mut self) -> Result<(), Error> {
+        let mut pin = self.lock().await;
 
         pin.set_high();
 
         Ok(())
     }
 
-    fn off(&mut self) -> Result<(), Error> {
-        let mut pin = self.lock()?;
+    async fn off(&mut self) -> Result<(), Error> {
+        let mut pin = self.lock().await;
 
         pin.set_low();
 
         Ok(())
     }
 
-    fn is_on(&self) -> bool {
+    async fn is_on(&self) -> bool {
         self.level == Level::High
     }
 
-    fn is_off(&self) -> bool {
+    async fn is_off(&self) -> bool {
         self.level == Level::Low
     }
 }
@@ -223,13 +226,13 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_lock() {
+    #[tokio::test]
+    async fn test_lock() {
         let mock_gpio = mock_gpio_get(1);
 
         let control: Control =
             Control::new("control pin label".to_string(), 1, &mock_gpio).unwrap();
 
-        let _lock = control.lock().unwrap();
+        let _lock = control.lock().await;
     }
 }

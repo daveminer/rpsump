@@ -1,3 +1,5 @@
+use std::fmt;
+
 use anyhow::Error;
 use mockall::*;
 
@@ -47,6 +49,19 @@ pub trait InputPin: Send + Sync {
         trigger: Trigger,
         callback: InputPinCallback,
     ) -> Result<(), Error>;
+}
+
+impl fmt::Debug for dyn InputPin {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let pin = f
+            .debug_struct("InputPin")
+            .field("is_high", &self.is_high())
+            .field("is_low", &self.is_low())
+            .field("read", &self.read())
+            .finish()?;
+
+        Ok(pin)
+    }
 }
 // TODO: check traits
 #[automock]

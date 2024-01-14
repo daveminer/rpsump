@@ -112,6 +112,7 @@ impl IrrigationEvent {
             Err(e) => return Err(anyhow!(e)),
         };
 
+        // TODO: handle not found
         let thread_result = spawn_blocking_with_tracing(move || {
             irrigation_event::table
                 .inner_join(irrigation_schedule::table)

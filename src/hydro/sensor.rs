@@ -1,5 +1,8 @@
 use anyhow::{anyhow, Error};
-use std::sync::{Arc, Mutex};
+use std::{
+    fmt::Debug,
+    sync::{Arc, Mutex},
+};
 
 use crate::hydro::{
     debounce::Debouncer,
@@ -12,7 +15,7 @@ pub type SharedInputPin = Arc<Mutex<Box<dyn InputPin>>>;
 /// Threads spawned from sensor state changes will share one of these per sensor
 pub type SharedSensorDebouncer = Arc<Mutex<Option<Debouncer>>>;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Sensor {
     pub level: Level,
     pub pin: SharedInputPin,
