@@ -2,6 +2,7 @@ pub mod control;
 pub mod debounce;
 pub mod gpio;
 mod irrigator;
+mod pump;
 pub mod schedule;
 pub mod sensor;
 mod sump;

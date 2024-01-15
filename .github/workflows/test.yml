@@ -19,7 +19,7 @@ jobs:
       - name: Install protobuf-compiler
         run: sudo apt-get install protobuf-compiler -y
       - uses: actions/checkout@v3
-      - uses: dtolnay/rust-toolchain@1.74.0
+      - uses: dtolnay/rust-toolchain@1.75.0
       - run: make test
   # test:
   #   runs-on: ubuntu-20.04
