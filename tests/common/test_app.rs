@@ -1,5 +1,6 @@
-use once_cell::sync::Lazy;
-use rpsump::hydro::gpio::MockGpio;
+use mockall::predicate::eq;
+use once_cell::sync::{Lazy, OnceCell};
+use rpsump::hydro::gpio::{Level, MockGpio, MockInputPin, MockOutputPin, MockPin};
 use serde_json::Value;
 use std::fs::copy;
 use tempfile::TempDir;
@@ -41,6 +42,12 @@ static TEST_DB_TEMPLATE: Lazy<TempDir> = Lazy::new(|| {
 
     temp_dir
 });
+
+static GPIO: OnceCell<MockGpio> = OnceCell::new();
+
+fn get_gpio() -> &'static MockGpio {
+    GPIO.get_or_init(|| spawn_test_gpio())
+}
 
 impl TestApp {
     pub async fn delete_irrigation_schedule(&self, token: String, id: i32) -> reqwest::Response {
@@ -227,8 +234,8 @@ pub async fn spawn_app() -> TestApp {
     settings.mailer.server_url = email_server.uri();
 
     let db_pool = new_pool(&spawn_test_db()).unwrap();
-    let gpio = MockGpio::new();
-    let application = Application::build(settings, &db_pool, gpio);
+
+    let application = Application::build(settings, &db_pool, get_gpio());
     let port = application.port();
 
     let _ = tokio::spawn(application.run_until_stopped());
@@ -247,4 +254,55 @@ pub async fn spawn_app() -> TestApp {
     };
 
     test_app
+}
+
+pub fn spawn_test_gpio() -> MockGpio {
+    let mut gpio = MockGpio::new();
+
+    expect_output_pin(&mut gpio, 1);
+    expect_output_pin(&mut gpio, 7);
+    expect_output_pin(&mut gpio, 8);
+    expect_output_pin(&mut gpio, 22);
+    expect_output_pin(&mut gpio, 25);
+    expect_output_pin(&mut gpio, 32);
+
+    expect_input_pin(&mut gpio, 17);
+    expect_input_pin(&mut gpio, 24);
+    expect_input_pin(&mut gpio, 27);
+
+    gpio
+}
+
+fn expect_input_pin(gpio: &mut MockGpio, pin: u8) {
+    gpio.expect_get().with(eq(pin)).returning(move |_| {
+        let mut pin = MockPin::new();
+
+        pin.expect_into_input_pullup().returning(|| {
+            let mut input_pin = MockInputPin::new();
+
+            input_pin
+                .expect_set_async_interrupt()
+                .returning(|_, _| Ok(()));
+
+            input_pin.expect_read().returning(|| Level::Low);
+
+            Box::new(input_pin)
+        });
+
+        Ok(Box::new(pin))
+    });
+}
+
+fn expect_output_pin(gpio: &mut MockGpio, pin: u8) {
+    gpio.expect_get().with(eq(pin)).returning(move |_| {
+        let mut pin = MockPin::new();
+
+        pin.expect_into_output_low().returning(|| {
+            let mut output_pin = MockOutputPin::new();
+            output_pin.expect_set_low().returning(|| ());
+            Box::new(output_pin)
+        });
+
+        Ok(Box::new(pin))
+    });
 }

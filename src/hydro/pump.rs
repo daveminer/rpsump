@@ -3,7 +3,11 @@ struct PoolPump {
     speed2: Control,
     speed3: Control,
     speed4: Control,
-    current: PumpSpeed,
+    current: PoolPumpSpeed,
+}
+
+enum PoolPumpSpeed {
+    Off,
 }
 
 fn off() {}

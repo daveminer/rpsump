@@ -14,7 +14,7 @@ async fn main() -> std::io::Result<()> {
     let db_pool = new_pool(&settings.database_url).expect("Could not create database pool.");
     telemetry::init_tracer(&settings).expect("Could not initialize telemetry.");
     let gpio = rppal::gpio::Gpio::new().expect("Could not initialize GPIO.");
-    let application = Application::build(settings, &db_pool, gpio);
+    let application = Application::build(settings, &db_pool, &gpio);
 
     application.run_until_stopped().await?;
 

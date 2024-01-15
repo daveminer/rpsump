@@ -69,7 +69,7 @@ clippy = "0.0.302"
 env_logger = "0.10.0"
 lazy_static = "1.4.0"
 linkify = "0.10.0"
-once_cell = "1.17.1"
+once_cell = "1.19.0"
 tempfile = "3.5.0"
 wiremock = "0.5.18"
 

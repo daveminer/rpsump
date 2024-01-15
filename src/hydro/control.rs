@@ -51,8 +51,8 @@ pub trait Output {
     // TODO: verify these are Send
     fn on(&mut self) -> impl Future<Output = Result<(), Error>> + Send;
     fn off(&mut self) -> impl Future<Output = Result<(), Error>> + Send;
-    fn is_on(&self) -> impl Future<Output = bool> + Send;
-    fn is_off(&self) -> impl Future<Output = bool> + Send;
+    fn is_on(&self) -> bool;
+    fn is_off(&self) -> bool;
 }
 
 impl Output for Control {
@@ -73,11 +73,11 @@ impl Output for Control {
         Ok(())
     }
 
-    async fn is_on(&self) -> bool {
+    fn is_on(&self) -> bool {
         self.level == Level::High
     }
 
-    async fn is_off(&self) -> bool {
+    fn is_off(&self) -> bool {
         self.level == Level::Low
     }
 }

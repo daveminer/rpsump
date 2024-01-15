@@ -21,7 +21,7 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn build<G>(settings: Settings, db_pool: &DbPool, gpio: G) -> Application
+    pub fn build<G>(settings: Settings, db_pool: &DbPool, gpio: &G) -> Application
     where
         G: Gpio,
     {
@@ -46,7 +46,7 @@ impl Application {
         let hydro = Hydro::new(
             db_pool,
             &settings.hydro,
-            &gpio,
+            gpio,
             Box::new(low_sensor_handler),
             Box::new(low_sensor_handler),
             Box::new(low_sensor_handler),
