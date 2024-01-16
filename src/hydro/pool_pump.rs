@@ -1,5 +1,6 @@
 use anyhow::Error;
 use futures::try_join;
+use serde::Deserialize;
 
 use crate::{
     config::PoolPumpConfig,
@@ -15,7 +16,7 @@ pub struct PoolPump {
     pub current: PoolPumpSpeed,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Deserialize, PartialEq)]
 pub enum PoolPumpSpeed {
     Off,
     Low,
@@ -53,13 +54,25 @@ impl PoolPump {
     }
 
     pub async fn on(mut self, speed: PoolPumpSpeed) -> Result<(), Error> {
+        match self.current {
+            PoolPumpSpeed::Off => (),
+            PoolPumpSpeed::Low => self.low.off().await?,
+            PoolPumpSpeed::Med => self.med.off().await?,
+            PoolPumpSpeed::High => self.high.off().await?,
+            PoolPumpSpeed::Max => self.max.off().await?,
+        };
+
         match speed {
-            PoolPumpSpeed::Off => self.off().await,
-            PoolPumpSpeed::Low => self.low.on().await,
-            PoolPumpSpeed::Med => self.med.on().await,
-            PoolPumpSpeed::High => self.high.on().await,
-            PoolPumpSpeed::Max => self.max.on().await,
-        }
+            PoolPumpSpeed::Off => self.off().await?,
+            PoolPumpSpeed::Low => self.low.on().await?,
+            PoolPumpSpeed::Med => self.med.on().await?,
+            PoolPumpSpeed::High => self.high.on().await?,
+            PoolPumpSpeed::Max => self.max.on().await?,
+        };
+
+        self.current = speed;
+
+        Ok(())
     }
 }
 
