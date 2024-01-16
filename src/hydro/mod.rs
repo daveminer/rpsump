@@ -1,16 +1,19 @@
 pub mod control;
 pub mod debounce;
 pub mod gpio;
+pub mod heater;
 mod irrigator;
-mod pump;
+pub mod pool_pump;
 pub mod schedule;
 pub mod sensor;
 mod sump;
 
-use self::control::Control;
+use self::heater::Heater;
 use self::irrigator::Irrigator;
 use self::sensor::Sensor;
 use self::sump::Sump;
+use self::{control::Control, pool_pump::PoolPump};
+
 use crate::config::HydroConfig;
 use crate::database::DbPool;
 
@@ -20,6 +23,8 @@ use gpio::{Gpio, Level};
 #[derive(Clone)]
 pub struct Hydro {
     pub db_pool: DbPool,
+    pub heater: Heater,
+    pub pool_pump: PoolPump,
     pub sump: Sump,
     pub irrigator: Irrigator,
 }
@@ -37,12 +42,16 @@ impl Hydro {
         C: FnMut(Level) + Send + 'static,
         G: Gpio,
     {
+        let heater = Heater::new(&config.heater, gpio)?;
+        let pool_pump = PoolPump::new(&config.pool_pump, gpio)?;
         let sump = Sump::new(&config.sump, gpio, high_sensor_handler, low_sensor_handler)?;
         let irrigator = Irrigator::new(&config.irrigation, gpio, irrigator_empty_sensor_handler)?;
 
         Ok(Self {
             db_pool: db.clone(),
             irrigator,
+            heater,
+            pool_pump,
             sump,
         })
     }

@@ -19,8 +19,15 @@ pub struct ConsoleConfig {
 }
 
 #[derive(Clone, Debug, Deserialize)]
+pub struct HeaterConfig {
+    pub control_pin: u8,
+}
+
+#[derive(Clone, Debug, Deserialize)]
 pub struct HydroConfig {
     pub irrigation: IrrigationConfig,
+    pub heater: HeaterConfig,
+    pub pool_pump: PoolPumpConfig,
     pub sump: SumpConfig,
 }
 
@@ -42,6 +49,14 @@ pub struct MailerConfig {
     pub auth_token: String,
     pub error_contact: String,
     pub server_url: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct PoolPumpConfig {
+    pub low_pin: u8,
+    pub med_pin: u8,
+    pub high_pin: u8,
+    pub max_pin: u8,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -86,6 +101,25 @@ impl Settings {
             database_url,
             hydro: HydroConfig {
                 irrigation: Self::irrigation_config().expect("Could not load irrigation config."),
+                heater: HeaterConfig {
+                    control_pin: load_system_var("HEATER_CONTROL_PIN")
+                        .parse()
+                        .expect("HEATER_CONTROL_PIN must be a number."),
+                },
+                pool_pump: PoolPumpConfig {
+                    low_pin: load_system_var("POOL_PUMP_LOW_PIN")
+                        .parse()
+                        .expect("POOL_PUMP_LOW_PIN must be a number."),
+                    med_pin: load_system_var("POOL_PUMP_MED_PIN")
+                        .parse()
+                        .expect("POOL_PUMP_MED_PIN must be a number."),
+                    high_pin: load_system_var("POOL_PUMP_HIGH_PIN")
+                        .parse()
+                        .expect("POOL_PUMP_HIGH_PIN must be a number."),
+                    max_pin: load_system_var("POOL_PUMP_MAX_PIN")
+                        .parse()
+                        .expect("POOL_PUMP_MAX_PIN must be a number."),
+                },
                 sump: Self::sump_config().expect("Could not load sump config."),
             },
             jwt_secret,
