@@ -1,15 +1,18 @@
-use crate::hydro::gpio::OutputPin;
+use crate::hydro::gpio::{Level, OutputPin};
 
 pub struct OutputPinStub {
     pub index: u8,
+    pub level: Level,
 }
 
 impl OutputPin for OutputPinStub {
     fn set_high(&mut self) {
-        println!("Set pin {} high", self.index);
+        println!("Set OutputPinStub {} high", self.index);
+        self.level = Level::High;
     }
 
     fn set_low(&mut self) {
-        println!("Set pin {} low", self.index);
+        println!("Set OutputPinStub {} low", self.index);
+        self.level = Level::Low;
     }
 }

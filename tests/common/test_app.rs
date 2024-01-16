@@ -262,8 +262,13 @@ pub fn spawn_test_gpio() -> MockGpio {
     expect_output_pin(&mut gpio, 1);
     expect_output_pin(&mut gpio, 7);
     expect_output_pin(&mut gpio, 8);
+    expect_output_pin(&mut gpio, 14);
+    expect_output_pin(&mut gpio, 15);
+    expect_output_pin(&mut gpio, 18);
     expect_output_pin(&mut gpio, 22);
+    expect_output_pin(&mut gpio, 23);
     expect_output_pin(&mut gpio, 25);
+    expect_output_pin(&mut gpio, 26);
     expect_output_pin(&mut gpio, 32);
 
     expect_input_pin(&mut gpio, 17);

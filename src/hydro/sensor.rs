@@ -358,7 +358,7 @@ mod tests {
             format!("{:?}", level);
             ()
         };
-        let mock_gpio = mock_gpio_get(1);
+        let mock_gpio = mock_gpio_get(vec![1]);
         let _sensor: Sensor =
             Sensor::new(1, &mock_gpio, Some(callback), Some(Trigger::Both)).unwrap();
     }

@@ -16,7 +16,10 @@ impl Pin for PinStub {
         })
     }
     fn into_output_low(self: Box<Self>) -> Box<dyn OutputPin> {
-        Box::new(OutputPinStub { index: self.index })
+        Box::new(OutputPinStub {
+            index: self.index,
+            level: Level::Low,
+        })
     }
 }
 

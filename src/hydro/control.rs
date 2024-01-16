@@ -58,6 +58,7 @@ pub trait Output {
 impl Output for Control {
     // Set the pin high
     async fn on(&mut self) -> Result<(), Error> {
+        self.level = Level::High;
         let mut pin = self.lock().await;
 
         pin.set_high();
@@ -66,6 +67,7 @@ impl Output for Control {
     }
 
     async fn off(&mut self) -> Result<(), Error> {
+        self.level = Level::Low;
         let mut pin = self.lock().await;
 
         pin.set_low();
@@ -215,7 +217,7 @@ mod tests {
 
     #[test]
     fn test_format() {
-        let mock_gpio = mock_gpio_get(1);
+        let mock_gpio = mock_gpio_get(vec![1]);
 
         let control: Control =
             Control::new("control pin label".to_string(), 1, &mock_gpio).unwrap();
@@ -228,7 +230,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_lock() {
-        let mock_gpio = mock_gpio_get(1);
+        let mock_gpio = mock_gpio_get(vec![1]);
 
         let control: Control =
             Control::new("control pin label".to_string(), 1, &mock_gpio).unwrap();

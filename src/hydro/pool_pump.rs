@@ -8,15 +8,15 @@ use crate::{
 
 #[derive(Clone)]
 pub struct PoolPump {
-    low: Control,
-    med: Control,
-    high: Control,
-    max: Control,
-    current: PoolPumpSpeed,
+    pub low: Control,
+    pub med: Control,
+    pub high: Control,
+    pub max: Control,
+    pub current: PoolPumpSpeed,
 }
 
-#[derive(Clone)]
-enum PoolPumpSpeed {
+#[derive(Clone, Debug, PartialEq)]
+pub enum PoolPumpSpeed {
     Off,
     Low,
     Med,
@@ -43,7 +43,7 @@ impl PoolPump {
         })
     }
 
-    async fn off(&mut self) -> Result<(), Error> {
+    pub async fn off(&mut self) -> Result<(), Error> {
         let low = turn_off(&mut self.low);
         let med = turn_off(&mut self.med);
         let high = turn_off(&mut self.high);
@@ -52,7 +52,7 @@ impl PoolPump {
         try_join!(low, med, high, max).map(|_| ())
     }
 
-    async fn on(mut self, speed: PoolPumpSpeed) -> Result<(), Error> {
+    pub async fn on(mut self, speed: PoolPumpSpeed) -> Result<(), Error> {
         match speed {
             PoolPumpSpeed::Off => self.off().await,
             PoolPumpSpeed::Low => self.low.on().await,
@@ -68,4 +68,43 @@ async fn turn_off(speed_pin: &mut Control) -> Result<(), Error> {
         return speed_pin.off().await;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+
+    use crate::test_fixtures::gpio::mock_gpio_get;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_pool_pump_new() {
+        let config = PoolPumpConfig {
+            low_pin: 1,
+            med_pin: 2,
+            high_pin: 3,
+            max_pin: 4,
+        };
+        let mock_gpio = mock_gpio_get(vec![1, 2, 3, 4]);
+
+        let pool_pump = PoolPump::new(&config, &mock_gpio).unwrap();
+
+        assert_eq!(pool_pump.current, PoolPumpSpeed::Off);
+    }
+
+    #[tokio::test]
+    async fn test_pool_pump_off() {
+        let config = PoolPumpConfig {
+            low_pin: 1,
+            med_pin: 2,
+            high_pin: 3,
+            max_pin: 4,
+        };
+        let mock_gpio = mock_gpio_get(vec![1, 2, 3, 4]);
+
+        let mut pool_pump = PoolPump::new(&config, &mock_gpio).unwrap();
+        pool_pump.off().await.unwrap();
+
+        assert_eq!(pool_pump.current, PoolPumpSpeed::Off);
+    }
 }
