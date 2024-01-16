@@ -31,7 +31,7 @@ actix-session = { version = "0.8.0", features = ["cookie-session"] }
 actix-web = "4.3.1"
 
 # Hardware
-rppal = "0.15.0"
+rppal = "0.16.1"
 
 # Database
 diesel = { version = "2.0.3", features = [
@@ -61,14 +61,19 @@ tracing-subscriber = { version = "0.3.17", features = [
 ] }
 
 # Testing
-mockall = "0.11.4"
+mockall = "0.12.1"
 rstest = { version = "0.18.2" }
 
 [dev-dependencies]
+async-trait = "0.1.77"
 clippy = "0.0.302"
 env_logger = "0.10.0"
 lazy_static = "1.4.0"
 linkify = "0.10.0"
-once_cell = "1.17.1"
+once_cell = "1.19.0"
 tempfile = "3.5.0"
 wiremock = "0.5.18"
+
+
+[features]
+stub = []

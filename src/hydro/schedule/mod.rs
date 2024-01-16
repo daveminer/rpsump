@@ -1,22 +1,18 @@
+pub mod check;
 pub mod run;
 
 use anyhow::{anyhow, Error};
 use chrono::{Datelike, NaiveDateTime, NaiveTime};
 use diesel::RunQueryDsl;
-use futures::executor::block_on;
-use std::time::Duration as StdDuration;
 use tokio::task::JoinHandle;
-use tokio::time::sleep;
+use tokio::time::{sleep, Duration};
 
-use crate::controllers::spawn_blocking_with_tracing;
-
+use crate::hydro::schedule::check::check_schedule;
 use crate::models::irrigation_event::StatusQueryResult;
 use crate::models::irrigation_schedule::IrrigationSchedule;
 use crate::{database::DbPool, models::irrigation_event::IrrigationEvent};
 
-use self::run::run_next_event;
-
-use super::Sump;
+use super::irrigator::Irrigator;
 
 /// Represents an IrrigationSchedule and its most recent IrrigationEvent
 #[derive(Clone, Debug, PartialEq)]
@@ -34,42 +30,41 @@ pub struct Status {
 ///  * `db` - Handle to the database pool
 ///  * `sump` - Instance of the Sump object for running IrrigationEvents
 ///
-pub fn start(db: DbPool, sump: Sump, frequency_ms: u64) -> JoinHandle<()> {
+pub fn start(db: DbPool, irrigator: Irrigator, frequency_ms: u64) -> JoinHandle<()> {
     // Schedule runs statically in a new thread
-    spawn_blocking_with_tracing(move || loop {
-        check_schedule(db.clone(), sump.clone(), frequency_ms);
+    tokio::spawn(async move {
+        check_schedule(db.clone(), irrigator);
+        sleep(Duration::from_millis(frequency_ms)).await;
     })
 }
 
-fn check_schedule(db: DbPool, sump: Sump, frequency_ms: u64) {
-    block_on(sleep(StdDuration::from_millis(frequency_ms)));
+// fn check_schedule(db: DbPool, irrigator: &Irrigator) {
+//     // Get the statuses of all the schedules
+//     let statuses = match get_schedule_statuses(db.clone()) {
+//         Ok(statuses) => statuses,
+//         Err(e) => {
+//             tracing::error!("Could not get schedule statuses: {}", e);
 
-    // Get the statuses of all the schedules
-    let statuses = match get_schedule_statuses(db.clone()) {
-        Ok(statuses) => statuses,
-        Err(e) => {
-            tracing::error!("Could not get schedule statuses: {}", e);
+//             return;
+//         }
+//     };
 
-            return;
-        }
-    };
+//     // Determine which statuses are due to run
+//     let events_to_insert = due_statuses(statuses, chrono::Utc::now().naive_utc());
 
-    // Determine which statuses are due to run
-    let events_to_insert = due_statuses(statuses, chrono::Utc::now().naive_utc());
+//     // Insert a queued event for each due status
+//     events_to_insert.into_iter().for_each(|status| {
+//         if let Err(e) = block_on(IrrigationEvent::create_irrigation_events_for_status(
+//             db.clone(),
+//             status,
+//         )) {
+//             tracing::error!("Could not insert irrigation event: {}", e)
+//         }
+//     });
 
-    // Insert a queued event for each due status
-    events_to_insert.into_iter().for_each(|status| {
-        if let Err(e) = block_on(IrrigationEvent::create_irrigation_events_for_status(
-            db.clone(),
-            status,
-        )) {
-            tracing::error!("Could not insert irrigation event: {}", e)
-        }
-    });
-
-    // Run irrigation events
-    block_on(run_next_event(db, sump));
-}
+//     // Run irrigation events
+//     block_on(run_next_event(db, irrigator));
+// }
 
 fn get_schedule_statuses(db: DbPool) -> Result<Vec<Status>, Error> {
     let mut conn = match db.get() {
@@ -194,11 +189,11 @@ mod tests {
     use rstest::*;
 
     use crate::{
+        hydro::schedule::{build_statuses, due_statuses, Status},
         models::{
             irrigation_event::{IrrigationEvent, StatusQueryResult},
             irrigation_schedule::IrrigationSchedule,
         },
-        sump::schedule::{build_statuses, due_statuses, Status},
         test_fixtures::{
             irrigation::{
                 event::completed_event,
