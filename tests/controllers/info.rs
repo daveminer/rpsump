@@ -1,8 +1,6 @@
 use actix_web::web::Data;
 use serde_json::Value;
 
-use rpsump::controllers::ApiResponse;
-
 use crate::common::fixtures::sump_event::insert_sump_events;
 use crate::common::test_app::spawn_app;
 use crate::controllers::{create_test_user, user_params};
@@ -21,10 +19,10 @@ async fn info_success_sump_disabled() {
     let token = body["token"].as_str().unwrap();
 
     let sump_event_response = app.get_info(token.to_string()).await;
-    let response = sump_event_response.json::<ApiResponse>().await.unwrap();
+    let response: Value = sump_event_response.json().await.unwrap();
 
     // Assert
-    assert!(response.message == "Sump disabled.");
+    assert!(response["heater"].as_bool() == Some(false));
 }
 
 #[tokio::test]
