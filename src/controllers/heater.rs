@@ -3,12 +3,14 @@ use actix_web::{
     web::{self, Data},
     HttpResponse, Responder, Result,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 use crate::hydro::Hydro;
 use crate::{auth::authenticated_user::AuthenticatedUser, database::DbPool};
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum HeaterLevel {
     Off,
     On,
@@ -20,16 +22,15 @@ pub struct HeaterParams {
 }
 
 #[post("/heater")]
-#[tracing::instrument(skip(_req_body, _db, _user, maybe_hydro))]
+#[tracing::instrument(skip(_db, _user, maybe_hydro))]
 pub async fn heater(
-    _req_body: String,
     params: web::Json<HeaterParams>,
     _db: Data<DbPool>,
     _user: AuthenticatedUser,
     maybe_hydro: web::Data<Option<Hydro>>,
 ) -> Result<impl Responder> {
     if maybe_hydro.is_none() {
-        return Ok(HttpResponse::Ok().body("Hydro not configured"));
+        return Ok(HttpResponse::Ok().body("Hydro not configured."));
     }
     let mut hydro = maybe_hydro.as_ref().clone().unwrap();
 
@@ -52,5 +53,5 @@ pub async fn heater(
 
     tracing::info!("Heater status changed: {:?}", params.switch);
 
-    Ok(HttpResponse::Ok().json(r#"{ "status": "ok" }"#))
+    Ok(HttpResponse::Ok().json(json!({"status":"ok"})))
 }

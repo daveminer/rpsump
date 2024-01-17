@@ -8,11 +8,11 @@ use serde_json::json;
 use crate::config::Settings;
 
 use crate::controllers::{
-    auth::auth_routes, info::info, irrigation::irrigation_routes, sump_event::sump_event,
+    auth::auth_routes, heater::heater, info::info, irrigation::irrigation_routes,
+    pool_pump::pool_pump, sump_event::sump_event,
 };
 use crate::database::DbPool;
-use crate::hydro::gpio::Gpio;
-use crate::hydro::Hydro;
+use crate::hydro::{gpio::Gpio, Hydro};
 //use crate::hydro::sensor::{listen_to_high_sensor, listen_to_low_sensor};
 
 pub struct Application {
@@ -120,7 +120,9 @@ impl Application {
                     cookie::Key::generate(),
                 ))
                 // HTTP API Routes
+                .service(heater)
                 .service(info)
+                .service(pool_pump)
                 .service(sump_event)
                 .service(web::scope("/auth").configure(auth_routes))
                 .service(web::scope("/irrigation").configure(irrigation_routes))
@@ -128,7 +130,7 @@ impl Application {
                 .app_data(Self::json_cfg())
                 .app_data(Data::new(settings.clone()))
                 .app_data(Data::new(db_clone))
-                .app_data(Data::new(hydro_clone));
+                .app_data(Data::new(Some(hydro_clone)));
 
             app
         })

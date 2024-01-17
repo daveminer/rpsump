@@ -17,6 +17,7 @@ pub struct PoolPump {
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
 pub enum PoolPumpSpeed {
     Off,
     Low,

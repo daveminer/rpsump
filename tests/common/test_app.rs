@@ -1,7 +1,7 @@
 use mockall::predicate::eq;
 use once_cell::sync::{Lazy, OnceCell};
-use rpsump::hydro::gpio::{Level, MockGpio, MockInputPin, MockOutputPin, MockPin};
-use serde_json::Value;
+use rpsump::hydro::gpio::{Gpio, Level, MockGpio, MockInputPin, MockOutputPin, MockPin};
+use serde_json::{json, Value};
 use std::fs::copy;
 use tempfile::TempDir;
 use uuid::Uuid;
@@ -45,7 +45,7 @@ static TEST_DB_TEMPLATE: Lazy<TempDir> = Lazy::new(|| {
 
 static GPIO: OnceCell<MockGpio> = OnceCell::new();
 
-fn get_gpio() -> &'static MockGpio {
+pub fn get_gpio() -> &'static MockGpio {
     GPIO.get_or_init(|| spawn_test_gpio())
 }
 
@@ -144,6 +144,30 @@ impl TestApp {
             .unwrap()
     }
 
+    pub async fn post_heater_off(&self, token: String) -> reqwest::Response {
+        let (header_name, header_value) = create_auth_header(&token);
+
+        self.api_client
+            .post(&format!("{}/heater", &self.address))
+            .header(header_name, header_value)
+            .json(&json!({"switch": "off"}))
+            .send()
+            .await
+            .unwrap()
+    }
+
+    pub async fn post_heater_on(&self, token: String) -> reqwest::Response {
+        let (header_name, header_value) = create_auth_header(&token);
+
+        self.api_client
+            .post(&format!("{}/heater", &self.address))
+            .header(header_name, header_value)
+            .json(&json!({"switch": "on"}))
+            .send()
+            .await
+            .unwrap()
+    }
+
     pub async fn post_irrigation_schedule(&self, token: String, body: Value) -> reqwest::Response {
         let (header_name, header_value) = create_auth_header(&token);
 
@@ -175,6 +199,17 @@ impl TestApp {
         self.api_client
             .post(&format!("{}/auth/reset_password?token", &self.address))
             .json(body)
+            .send()
+            .await
+            .unwrap()
+    }
+
+    pub async fn post_pool_pump(&self, token: String, body: Value) -> reqwest::Response {
+        let (header_name, header_value) = create_auth_header(&token);
+        self.api_client
+            .post(&format!("{}/pool_pump", &self.address))
+            .header(header_name, header_value)
+            .json(&body)
             .send()
             .await
             .unwrap()
@@ -225,6 +260,13 @@ pub fn spawn_test_db() -> String {
 }
 
 pub async fn spawn_app() -> TestApp {
+    spawn_app_with_gpio(get_gpio()).await
+}
+
+pub async fn spawn_app_with_gpio<G>(gpio: &G) -> TestApp
+where
+    G: Gpio,
+{
     let email_server = MockServer::start().await;
 
     let mut settings = Settings::new();
@@ -235,7 +277,7 @@ pub async fn spawn_app() -> TestApp {
 
     let db_pool = new_pool(&spawn_test_db()).unwrap();
 
-    let application = Application::build(settings, &db_pool, get_gpio());
+    let application = Application::build(settings, &db_pool, gpio);
     let port = application.port();
 
     let _ = tokio::spawn(application.run_until_stopped());

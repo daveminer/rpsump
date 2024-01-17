@@ -5,6 +5,7 @@ use actix_web::{
 };
 use anyhow::Error;
 use serde::Deserialize;
+use serde_json::json;
 
 use crate::{auth::authenticated_user::AuthenticatedUser, database::DbPool};
 use crate::{
@@ -13,20 +14,13 @@ use crate::{
 };
 
 #[derive(Debug, Deserialize)]
-pub enum HeaterLevel {
-    Off,
-    On,
-}
-
-#[derive(Debug, Deserialize)]
 pub struct PoolPumpParams {
     pub speed: PoolPumpSpeed,
 }
 
 #[post("/pool_pump")]
-#[tracing::instrument(skip(_req_body, _db, _user, maybe_hydro))]
+#[tracing::instrument(skip(_db, _user, maybe_hydro))]
 pub async fn pool_pump(
-    _req_body: String,
     params: web::Json<PoolPumpParams>,
     _db: Data<DbPool>,
     _user: AuthenticatedUser,
@@ -72,7 +66,7 @@ pub async fn pool_pump(
 
     tracing::info!("Heater status changed: {:?}", params.speed);
 
-    Ok(HttpResponse::Ok().json(r#"{ "status": "ok" }"#))
+    Ok(HttpResponse::Ok().json(json!({"status":"ok"})))
 }
 
 fn error_trace(speed: &PoolPumpSpeed, e: Error) {
