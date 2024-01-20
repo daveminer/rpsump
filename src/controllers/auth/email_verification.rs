@@ -18,7 +18,7 @@ struct EmailVerificationParams {
 #[tracing::instrument(skip(params, db))]
 pub async fn verify_email(
     params: Query<EmailVerificationParams>,
-    db: Data<DbPool>,
+    db: Data<dyn DbPool>,
 ) -> Result<HttpResponse> {
     match User::verify_email(params.token.clone(), db).await {
         Ok(()) => Ok(HttpResponse::Ok().body(json!({"message": "Email verified."}).to_string())),
