@@ -1,16 +1,23 @@
-use actix_web::web;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use diesel::sqlite::SqliteConnection;
+use mockall::automock;
 
-pub type DbPool = Pool<ConnectionManager<SqliteConnection>>;
+pub type RealDbPool = Pool<ConnectionManager<SqliteConnection>>;
 pub type DbConn = PooledConnection<ConnectionManager<SqliteConnection>>;
 
-pub fn new_pool(path: &String) -> Result<DbPool, anyhow::Error> {
-    let manager = ConnectionManager::<SqliteConnection>::new(path);
-
-    Pool::builder().build(manager).map_err(|e| e.into())
+#[automock]
+pub trait DbPool: Clone + Send + Sync {
+    fn get_conn(&self) -> Result<DbConn, anyhow::Error>;
 }
 
-pub fn conn(db: web::Data<DbPool>) -> Result<DbConn, anyhow::Error> {
-    db.get().map_err(|e| e.into())
+impl DbPool for RealDbPool {
+    fn get_conn(&self) -> Result<DbConn, anyhow::Error> {
+        self.get().map_err(|e| e.into())
+    }
+}
+
+impl Clone for MockDbPool {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
 }

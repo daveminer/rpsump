@@ -4,14 +4,13 @@ use diesel::RunQueryDsl;
 use serde::Deserialize;
 use validator::Validate;
 
-use crate::auth::{password::Password, validate_password};
+use crate::auth::password::Password;
 use crate::config::Settings;
-use crate::controllers::spawn_blocking_with_tracing;
-use crate::controllers::{auth::ip_address, ApiResponse};
+use crate::controllers::auth::{ip_address, validate_password::validate_password};
 use crate::database::DbPool;
 use crate::models::user::User;
 use crate::models::user_event::{EventType, UserEvent};
-use crate::new_conn;
+use crate::util::{spawn_blocking_with_tracing, ApiResponse};
 
 #[derive(Deserialize, Validate)]
 pub struct ResetPasswordParams {
@@ -37,13 +36,13 @@ pub struct RequestPasswordResetParams {
 async fn request_password_reset(
     req: HttpRequest,
     params: web::Json<RequestPasswordResetParams>,
-    db: Data<DbPool>,
+    db: Data<dyn DbPool>,
     settings: Data<Settings>,
-) -> Result<impl Responder> {
-    let mut conn = new_conn!(db);
+) -> Result<HttpResponse> {
     let db_clone = db.clone();
 
     let thread_result = spawn_blocking_with_tracing(move || {
+        let mut conn = db_clone.get_conn().expect("Could not get a db connection.");
         User::by_email(params.email.clone()).first::<User>(&mut conn)
     })
     .await;
@@ -85,7 +84,7 @@ async fn request_password_reset(
         }
     };
 
-    match UserEvent::create(user_clone, ip_addr, EventType::PasswordReset, db_clone).await {
+    match UserEvent::create(user_clone, ip_addr, EventType::PasswordReset, db.clone()).await {
         Ok(_) => (),
         Err(e) => {
             tracing::error!(
@@ -127,17 +126,17 @@ async fn request_password_reset(
 #[tracing::instrument(skip(params, db))]
 async fn reset_password(
     params: web::Json<ResetPasswordParams>,
-    db: Data<DbPool>,
-) -> Result<impl Responder> {
+    db: Data<dyn DbPool>,
+) -> Result<HttpResponse> {
     let token_clone = params.token.clone();
-    let mut conn = new_conn!(db);
-    let db_clone = db.clone();
 
     if let Err(e) = validate_password(&params.new_password) {
         return Ok(ApiResponse::bad_request(e.to_string()));
     }
 
+    let db_clone = db.clone();
     let thread_request = spawn_blocking_with_tracing(move || {
+        let mut conn = db_clone.get_conn().expect("Could not get a db connection.");
         User::by_password_reset_token(token_clone.clone()).first::<User>(&mut conn)
     })
     .await;
@@ -161,7 +160,7 @@ async fn reset_password(
     let user_id = user.id;
 
     if user.password_reset_token_expires_at > Some(Utc::now().naive_utc()) {
-        match user.set_password(&params.new_password, db_clone).await {
+        match user.set_password(&params.new_password, db.clone()).await {
             Ok(_) => {
                 tracing::info!(target = module_path!(), user_id, "Password reset for user");
                 return Ok(ApiResponse::ok("Password reset successfully.".to_string()));

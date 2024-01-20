@@ -10,11 +10,11 @@ use diesel::sqlite::Sqlite;
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
-use crate::controllers::spawn_blocking_with_tracing;
-use crate::database::DbPool;
+use crate::database::{DbPool, RealDbPool};
 use crate::hydro::schedule::Status;
 use crate::schema::irrigation_event::*;
 use crate::schema::{irrigation_event, irrigation_schedule};
+use crate::util::spawn_blocking_with_tracing;
 
 type BoxedQuery<'a> = irrigation_event::BoxedQuery<'a, Sqlite, irrigation_event::SqlType>;
 
@@ -106,8 +106,8 @@ impl IrrigationEvent {
     }
 
     #[tracing::instrument(skip(db))]
-    pub async fn next_queued(db: DbPool) -> Result<(i32, IrrigationEvent), Error> {
-        let mut conn = match db.get() {
+    pub async fn next_queued(db: RealDbPool) -> Result<(i32, IrrigationEvent), Error> {
+        let mut conn = match db.get_conn() {
             Ok(conn) => conn,
             Err(e) => return Err(anyhow!(e)),
         };
@@ -171,7 +171,7 @@ impl IrrigationEvent {
     }
 
     #[tracing::instrument(skip(db))]
-    pub async fn create(hose: i32, schedule: i32, db: DbPool) -> Result<(), Error> {
+    pub async fn create(hose: i32, schedule: i32, db: RealDbPool) -> Result<(), Error> {
         spawn_blocking_with_tracing(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 
@@ -200,7 +200,7 @@ impl IrrigationEvent {
     }
 
     pub async fn create_irrigation_events_for_status(
-        db: DbPool,
+        db: RealDbPool,
         stat: Status,
     ) -> Result<usize, Error> {
         let mut conn = match db.get() {
@@ -244,7 +244,7 @@ impl IrrigationEvent {
     }
 
     #[tracing::instrument(skip(db))]
-    pub async fn finish(db: DbPool) -> Result<bool, Error> {
+    pub async fn finish(db: RealDbPool) -> Result<bool, Error> {
         let mut conn = db.get().expect("Could not get a db connection.");
 
         spawn_blocking_with_tracing(move || {

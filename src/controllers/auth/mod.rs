@@ -1,10 +1,10 @@
-use actix_web::web::ServiceConfig;
-use actix_web::HttpRequest;
+use actix_web::{web::ServiceConfig, HttpRequest};
 
 pub mod email_verification;
 pub mod login;
 pub mod reset_password;
 pub mod signup;
+pub mod validate_password;
 
 pub fn auth_routes(cfg: &mut ServiceConfig) {
     cfg.service(email_verification::verify_email);

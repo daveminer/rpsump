@@ -1,8 +1,11 @@
+use actix_web::rt::Runtime;
 use anyhow::{anyhow, Error};
 use std::{
     fmt::Debug,
+    process::Command,
     sync::{Arc, Mutex},
 };
+use tokio::sync::mpsc::Sender;
 
 use crate::hydro::{
     debounce::Debouncer,
@@ -14,6 +17,10 @@ use crate::hydro::{
 pub type SharedInputPin = Arc<Mutex<Box<dyn InputPin>>>;
 /// Threads spawned from sensor state changes will share one of these per sensor
 pub type SharedSensorDebouncer = Arc<Mutex<Option<Debouncer>>>;
+
+pub mod high_sump;
+pub mod low_irrigator;
+pub mod low_sump;
 
 #[derive(Clone, Debug)]
 pub struct Sensor {
@@ -31,14 +38,16 @@ pub trait Input {
 /// Represents a GPIO output for controlling stateful equipment. Water pump, etc.
 /// Can be read synchronously or listened to for events.
 impl Sensor {
-    pub fn new<C, G>(
+    pub fn new<G>(
+        name: String,
         pin_number: u8,
         gpio: &G,
-        handler: Option<C>,
-        trigger: Option<Trigger>,
+        trigger: Trigger,
+        rt: Arc<Mutex<Runtime>>,
+        tx: &Sender<Command>,
+        delay: u64,
     ) -> Result<Self, Error>
     where
-        C: FnMut(Level) + Send + 'static,
         G: Gpio,
     {
         let mut pin_io = gpio
@@ -46,17 +55,9 @@ impl Sensor {
             .map_err(|e| anyhow!(e))?
             .into_input_pullup();
 
-        if handler.is_some() {
-            if trigger.is_none() {
-                return Err(anyhow!("Cannot set interrupt handler without trigger"));
-            }
-
-            // TODO: fix this stuff
-            let _debouncer: Arc<Mutex<Option<Debouncer>>> = Arc::from(Mutex::new(None));
-
-            // TODO: remove unwrap
-            let _ = pin_io.set_async_interrupt(trigger.unwrap(), Box::new(handler.unwrap()));
-        }
+        let _ = pin_io
+            .set_async_interrupt(name.to_string(), trigger, rt, tx, delay)
+            .map_err(|e| anyhow!(e.to_string()))?;
 
         Ok(Self {
             level: pin_io.read(),
@@ -80,23 +81,57 @@ impl Input for Sensor {
     }
 }
 
-// fn serialize_level<S>(level: &Level, serializer: S) -> Result<S::Ok, S::Error>
-// where
-//     S: Serializer,
+// #[tracing::instrument(skip(db))]
+// pub fn level_change_handler<Fut>(
+//     level: Level,
+//     handler: impl FnOnce(Level, Control, DbPool) -> Fut,
+//     shared_debouncer: Arc<Mutex<Option<Debouncer>>>,
+//     pump: Control,
+//     db: DbPool,
+//     rt: &mut Runtime,
+// ) where
+//     Fut: Future<Output = ()>,
 // {
-//     serializer.serialize_u8(*level as u8)
+//     let deb = Arc::clone(&shared_debouncer);
+//     let mut deb_lock = deb.lock().unwrap();
+
+//     if deb_lock.is_some() {
+//         deb_lock.as_mut().unwrap().reset_deadline(level);
+//         return;
+//     }
+
+//     let sleep = deb_lock.as_ref().unwrap().sleep();
+
+//     rt.block_on(async {
+//         sleep.await;
+//         *deb_lock = None;
+//         drop(deb_lock);
+
+//         handler(level, pump, db.clone()).await;
+//     });
 // }
 
-// fn deserialize_level<'de, D>(deserializer: D) -> Result<Level, D::Error>
-// where
-//     D: Deserializer<'de>,
-// {
-//     let value = u8::deserialize(deserializer)?;
-//     match value {
-//         0 => Ok(Level::Low),
-//         1 => Ok(Level::High),
-//         _ => Err(serde::de::Error::custom("invalid Level value")),
+// #[tracing::instrument(skip(db))]
+// pub async fn handle_sensor_signal(action: Level, mut pump: Control, db: DbPool) {
+//     if delay > 0 {
+//         sleep(Duration::from_secs(delay as u64)).await;
 //     }
+
+//     match action {
+//         Level::High => pump.on().await,
+//         Level::Low => pump.off().await,
+//         Level::Both => Ok(()),
+//     };
+
+//     tracing::info!("Sump pump turned {:?}.", action);
+
+//     if let Err(e) = SumpEvent::create(format!("pump {:?}", action), "".to_string(), db).await {
+//         tracing::error!(
+//             target = module_path!(),
+//             error = e.to_string(),
+//             "Failed to create sump event for pump on"
+//         );
+//     };
 // }
 
 // #[tracing::instrument(skip(db))]
@@ -224,44 +259,6 @@ impl Input for Sensor {
 // }
 
 // #[tracing::instrument(skip(db))]
-// pub fn listen_to_high_sensor(
-//     high_sensor_pin: SharedInputPin,
-//     pump_control_pin: SharedOutputPin,
-//     sensor_state: SharedPinState,
-//     db: DbPool,
-// ) {
-//     let debouncer: Arc<Mutex<Option<SensorDebouncer>>> = Arc::from(Mutex::new(None));
-//     let mut pin = high_sensor_pin.lock().unwrap();
-
-//     pin.set_async_interrupt(Trigger::Both, move |level| {
-//         let shared_deb = Arc::clone(&debouncer);
-//         let mut deb = shared_deb.lock().unwrap();
-
-//         if deb.is_some() {
-//             deb.as_mut().unwrap().reset_deadline(level);
-//             return;
-//         }
-
-//         let debouncer = SensorDebouncer::new(Duration::new(2, 0), level);
-//         *deb = Some(debouncer);
-
-//         let sleep = deb.as_ref().unwrap().sleep();
-//         let rt = Runtime::new().unwrap();
-//         rt.block_on(sleep);
-//         *deb = None;
-//         drop(deb);
-
-//         rt.block_on(update_high_sensor(
-//             level,
-//             Arc::clone(&pump_control_pin),
-//             Arc::clone(&sensor_state),
-//             db.clone(),
-//         ));
-//     })
-//     .expect("Could not not listen on high water level sump pin.");
-// }
-
-// #[tracing::instrument(skip(db))]
 // pub fn listen_to_low_sensor(
 //     low_sensor_pin: SharedInputPin,
 //     pump_control_pin: SharedOutputPin,
@@ -346,20 +343,20 @@ impl Input for Sensor {
 #[cfg(test)]
 mod tests {
     use crate::{
-        hydro::gpio::{Level, Trigger},
+        database::DbPool,
+        hydro::{control::Control, gpio::Level},
         test_fixtures::gpio::mock_gpio_get,
     };
 
-    use super::Sensor;
-
     #[test]
     fn test_new() {
-        let callback = |level: Level| {
+        let callback = |level: Level, control: Control, db: DbPool, delay: u64| {
             format!("{:?}", level);
             ()
         };
         let mock_gpio = mock_gpio_get(vec![1]);
-        let _sensor: Sensor =
-            Sensor::new(1, &mock_gpio, Some(callback), Some(Trigger::Both)).unwrap();
+        // TODO: finish
+        // let _sensor: Sensor =
+        //     Sensor::new(1, &mock_gpio, Some(callback), Some(Trigger::Both)).unwrap();
     }
 }

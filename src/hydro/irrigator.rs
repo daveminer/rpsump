@@ -1,11 +1,19 @@
+use actix_web::rt::Runtime;
+use anyhow::Error;
+use std::{
+    process::Command,
+    sync::{Arc, Mutex},
+};
+use tokio::sync::mpsc::Sender;
+
 use crate::{
     config::IrrigationConfig,
     hydro::{
         gpio::{Gpio, Trigger},
-        Control, Level, Sensor,
+        sensor::Sensor,
+        Control,
     },
 };
-use anyhow::Error;
 
 #[derive(Clone, Debug)]
 pub struct Irrigator {
@@ -18,22 +26,27 @@ pub struct Irrigator {
 }
 
 impl Irrigator {
-    pub fn new<C, G>(
+    pub fn new<G>(
         config: &IrrigationConfig,
+        tx: &Sender<Command>,
+        rt: Arc<Mutex<Runtime>>,
         gpio: &G,
-        low_sensor_handler: C,
     ) -> Result<Self, Error>
     where
-        C: FnMut(Level) + Send + 'static,
         G: Gpio,
     {
+        let pump = Control::new("Irrigation Pump".to_string(), config.pump_control_pin, gpio)?;
+
         let low_sensor = Sensor::new(
+            "Irrigator Empty".to_string(),
             config.low_sensor_pin,
             gpio,
-            Some(low_sensor_handler),
-            Some(Trigger::Both),
+            Trigger::Both,
+            rt,
+            tx,
+            0,
         )?;
-        let pump = Control::new("irrigation pump".into(), config.pump_control_pin, gpio)?;
+
         let valve1 = Control::new(
             "irrigation valve 1".into(),
             config.valve_1_control_pin,
@@ -68,15 +81,29 @@ impl Irrigator {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use actix_web::rt::Runtime;
+
     use crate::{
         config::IrrigationConfig,
-        hydro::gpio::{stub::pin, Level, MockGpio},
+        hydro::{
+            gpio::{stub::pin, Level, MockGpio},
+            message::Message,
+        },
     };
 
     use super::Irrigator;
 
     #[test]
     fn test_new() {
+        let mpsc = Message::init();
+
+        // let mut mock_db_pool = MockDbPool::new();
+        // mock_db_pool
+        //     .expect_get_conn()
+        //     .returning(|| Ok(MockDbConn::new())); // Replace with your mock connection
+
         let mut mock_gpio = MockGpio::new();
         mock_gpio.expect_get().times(6).returning(|_| {
             Ok(Box::new(pin::PinStub {
@@ -97,8 +124,9 @@ mod tests {
                 valve_3_control_pin: 5,
                 valve_4_control_pin: 6,
             },
+            &mpsc.tx,
+            Arc::from(Mutex::new(Runtime::new().unwrap())),
             &mock_gpio,
-            |_| {},
         )
         .unwrap();
     }

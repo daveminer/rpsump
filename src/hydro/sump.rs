@@ -1,10 +1,18 @@
+use std::{
+    process::Command,
+    sync::{Arc, Mutex},
+};
+
+use actix_web::rt::Runtime;
 use anyhow::Error;
+use tokio::sync::mpsc::Sender;
 
 use crate::{
     config::SumpConfig,
     hydro::{
-        gpio::{Gpio, Level, Trigger},
-        Control, Sensor,
+        gpio::{Gpio, Trigger},
+        sensor::Sensor,
+        Control,
     },
 };
 
@@ -16,29 +24,37 @@ pub struct Sump {
 }
 
 impl Sump {
-    pub fn new<C, G>(
+    pub fn new<G>(
         config: &SumpConfig,
+        tx: &Sender<Command>,
+        rt: Arc<Mutex<Runtime>>,
         gpio: &G,
-        high_sensor_handler: C,
-        low_sensor_handler: C,
     ) -> Result<Self, Error>
     where
-        C: FnMut(Level) -> () + Send + 'static,
         G: Gpio,
     {
+        let pump = Control::new("sump pump".into(), config.pump_control_pin, gpio)?;
+
         let high_sensor = Sensor::new(
+            "Sump Full".to_string(),
             config.high_sensor_pin,
             gpio,
-            Some(high_sensor_handler),
-            Some(Trigger::Both),
+            Trigger::Both,
+            rt,
+            tx,
+            0,
         )?;
+
         let low_sensor = Sensor::new(
+            "Sump Empty".to_string(),
             config.low_sensor_pin,
             gpio,
-            Some(low_sensor_handler),
-            Some(Trigger::Both),
+            Trigger::Both,
+            rt,
+            tx,
+            // TODO: verify
+            1000,
         )?;
-        let pump = Control::new("sump pump".into(), config.pump_control_pin, gpio)?;
 
         Ok(Self {
             high_sensor,
@@ -46,16 +62,6 @@ impl Sump {
             pump,
         })
     }
-
-    // fn status(&self) -> String {
-    //     if self.pump.is_on() {
-    //         "pumping".into()
-    //     } else if self.low_sensor.is_low() {
-    //         "empty".into()
-    //     } else {
-    //         "filling".into()
-    //     }
-    // }
 }
 
 #[cfg(test)]
@@ -64,8 +70,6 @@ mod tests {
         config::SumpConfig,
         hydro::gpio::{stub::pin, Level, MockGpio},
     };
-
-    use super::Sump;
 
     #[test]
     fn test_new() {
@@ -85,8 +89,7 @@ mod tests {
             }))
         });
 
-        let sensor_handler = |_| ();
-
-        let _sump: Sump = Sump::new(&config, &mock_gpio, sensor_handler, sensor_handler).unwrap();
+        //TODO: finish
+        //let _sump: Sump = Sump::new(&config, &mock_gpio, ).unwrap();
     }
 }

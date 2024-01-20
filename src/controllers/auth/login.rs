@@ -5,16 +5,19 @@ use diesel::prelude::*;
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 
-use super::super::spawn_blocking_with_tracing;
-use crate::auth::{claim::create_token, validate_credentials, AuthParams};
+use crate::auth::claim::create_token;
+use crate::auth::password::AuthParams;
 use crate::config::Settings;
-use crate::controllers::{auth::ip_address, ApiResponse};
+use crate::controllers::auth::ip_address;
 use crate::database::DbPool;
+use crate::models::user::User;
 use crate::models::user_event::*;
 use crate::new_conn;
 use crate::schema::user_event;
+use crate::util::{spawn_blocking_with_tracing, ApiResponse};
 
 const BAD_CREDS: &str = "Invalid email or password.";
+pub const REQUIRED_FIELDS: &str = "Email and password are required.";
 
 #[derive(Serialize, Deserialize)]
 struct Response {
@@ -26,7 +29,7 @@ struct Response {
 pub async fn login(
     request: HttpRequest,
     user_data: web::Json<AuthParams>,
-    db: Data<DbPool>,
+    db: Data<dyn DbPool>,
     settings: Data<Settings>,
 ) -> Result<impl Responder> {
     let conn = new_conn!(db);
@@ -115,4 +118,32 @@ pub async fn login(
     tracing::info!(target = module_path!(), user_id = user.id, "User logged in");
 
     Ok(HttpResponse::Ok().json(Response { token }))
+}
+
+#[tracing::instrument(skip(credentials, db))]
+pub async fn validate_credentials(
+    credentials: &AuthParams,
+    mut db: dyn DbPool,
+) -> Result<User, Error> {
+    // User lookup from params
+    let AuthParams { email, password } = credentials;
+    if email.is_empty() || password.expose_secret().is_empty() {
+        return Err(anyhow!(REQUIRED_FIELDS.to_string()));
+    }
+
+    let email_clone = email.clone();
+
+    let user_query = spawn_blocking_with_tracing(move || {
+        User::by_email(email_clone.clone()).first::<User>(&mut db)
+    })
+    .await?;
+
+    let user = match user_query {
+        Ok(user) => user,
+        Err(_not_found) => {
+            return Err(anyhow!(BAD_CREDS.to_string()));
+        }
+    };
+
+    Ok(user)
 }

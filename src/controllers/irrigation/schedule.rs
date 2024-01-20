@@ -4,9 +4,9 @@ use diesel::result::Error::NotFound;
 use diesel::RunQueryDsl;
 
 use crate::auth::authenticated_user::AuthenticatedUser;
-use crate::controllers::{spawn_blocking_with_tracing, ApiResponse};
 use crate::database::DbPool;
 use crate::models::irrigation_schedule::{DayOfWeek, IrrigationSchedule};
+use crate::util::{spawn_blocking_with_tracing, ApiResponse};
 
 #[derive(Debug, serde::Deserialize)]
 pub struct IrrigationScheduleParams {
@@ -21,11 +21,11 @@ pub struct IrrigationScheduleParams {
 #[tracing::instrument(skip(_req_body, db, _user))]
 pub async fn irrigation_schedules(
     _req_body: String,
-    db: Data<DbPool>,
+    db: Data<dyn DbPool>,
     _user: AuthenticatedUser,
-) -> Result<impl Responder> {
+) -> Result<HttpResponse> {
     let schedules = spawn_blocking_with_tracing(move || {
-        let mut conn = db.get().expect("Could not get a db connection.");
+        let mut conn = db.get_conn().expect("Could not get a db connection.");
         IrrigationSchedule::all().get_results::<IrrigationSchedule>(&mut conn)
     })
     .await
@@ -53,12 +53,12 @@ pub async fn irrigation_schedules(
 #[tracing::instrument(skip(db, _user))]
 pub async fn irrigation_schedule(
     path: web::Path<i32>,
-    db: Data<DbPool>,
+    db: Data<dyn DbPool>,
     _user: AuthenticatedUser,
-) -> Result<impl Responder> {
+) -> Result<HttpResponse> {
     let id = path.into_inner();
     let irrigation_schedule = spawn_blocking_with_tracing(move || {
-        let mut conn = db.get().expect("Could not get a db connection.");
+        let mut conn = db.get_conn().expect("Could not get a db connection.");
         return IrrigationSchedule::by_user_id(id).first::<IrrigationSchedule>(&mut conn);
     })
     .await
@@ -93,9 +93,9 @@ pub async fn irrigation_schedule(
 #[tracing::instrument(skip(db, _user))]
 pub async fn delete_irrigation_schedule(
     path: web::Path<i32>,
-    db: Data<DbPool>,
+    db: Data<dyn DbPool>,
     _user: AuthenticatedUser,
-) -> Result<impl Responder> {
+) -> Result<HttpResponse> {
     let id = path.into_inner();
 
     let id = match IrrigationSchedule::delete(id, db).await {
@@ -114,9 +114,9 @@ pub async fn delete_irrigation_schedule(
 pub async fn edit_irrigation_schedule(
     path: web::Path<i32>,
     req_body: web::Json<IrrigationScheduleParams>,
-    db: Data<DbPool>,
+    db: Data<dyn DbPool>,
     _user: AuthenticatedUser,
-) -> Result<impl Responder> {
+) -> Result<HttpResponse> {
     let id = path.into_inner();
 
     // Create an irrigation schedule entry.
@@ -149,9 +149,9 @@ pub async fn edit_irrigation_schedule(
 #[tracing::instrument(skip(req_body, db, _user))]
 pub async fn new_irrigation_schedule(
     req_body: web::Json<IrrigationScheduleParams>,
-    db: Data<DbPool>,
+    db: Data<dyn DbPool>,
     _user: AuthenticatedUser,
-) -> Result<impl Responder> {
+) -> Result<HttpResponse> {
     let new_irrigation_schedule = IrrigationSchedule::create(
         req_body.hoses.clone().unwrap(),
         req_body.name.clone().unwrap(),

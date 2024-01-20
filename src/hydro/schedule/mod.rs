@@ -10,7 +10,7 @@ use tokio::time::{sleep, Duration};
 use crate::hydro::schedule::check::check_schedule;
 use crate::models::irrigation_event::StatusQueryResult;
 use crate::models::irrigation_schedule::IrrigationSchedule;
-use crate::{database::DbPool, models::irrigation_event::IrrigationEvent};
+use crate::{database::RealDbPool, models::irrigation_event::IrrigationEvent};
 
 use super::irrigator::Irrigator;
 
@@ -30,7 +30,7 @@ pub struct Status {
 ///  * `db` - Handle to the database pool
 ///  * `sump` - Instance of the Sump object for running IrrigationEvents
 ///
-pub fn start(db: DbPool, irrigator: Irrigator, frequency_ms: u64) -> JoinHandle<()> {
+pub fn start(db: RealDbPool, irrigator: Irrigator, frequency_ms: u64) -> JoinHandle<()> {
     // Schedule runs statically in a new thread
     tokio::spawn(async move {
         check_schedule(db.clone(), irrigator);
@@ -66,7 +66,7 @@ pub fn start(db: DbPool, irrigator: Irrigator, frequency_ms: u64) -> JoinHandle<
 //     block_on(run_next_event(db, irrigator));
 // }
 
-fn get_schedule_statuses(db: DbPool) -> Result<Vec<Status>, Error> {
+fn get_schedule_statuses(db: RealDbPool) -> Result<Vec<Status>, Error> {
     let mut conn = match db.get() {
         Ok(conn) => conn,
         Err(e) => return Err(e.into()),

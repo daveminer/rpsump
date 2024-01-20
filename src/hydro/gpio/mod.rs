@@ -1,4 +1,10 @@
-use std::fmt;
+use actix_web::rt::Runtime;
+use std::{
+    fmt,
+    process::Command,
+    sync::{Arc, Mutex},
+};
+use tokio::sync::mpsc::Sender;
 
 use anyhow::Error;
 use mockall::*;
@@ -6,7 +12,7 @@ use mockall::*;
 pub mod rppal;
 pub mod stub;
 
-type InputPinCallback = Box<dyn FnMut(Level) + Send>;
+type InputPinCallback = Box<dyn FnMut(Level, Sender<Command>, u64) + Send>;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Level {
@@ -46,8 +52,11 @@ pub trait InputPin: Send + Sync {
     fn read(&self) -> Level;
     fn set_async_interrupt(
         &mut self,
+        name: String,
         trigger: Trigger,
-        callback: InputPinCallback,
+        rt: Arc<Mutex<Runtime>>,
+        tx: &Sender<Command>,
+        delay: u64,
     ) -> Result<(), Error>;
 }
 

@@ -1,3 +1,5 @@
+use std::sync::Mutex;
+
 use actix_web::{
     post,
     web::{self, Data},
@@ -6,8 +8,7 @@ use actix_web::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::hydro::Hydro;
-use crate::{auth::authenticated_user::AuthenticatedUser, database::DbPool};
+use crate::{auth::authenticated_user::AuthenticatedUser, hydro::Hydro};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -22,18 +23,18 @@ pub struct HeaterParams {
 }
 
 #[post("/heater")]
-#[tracing::instrument(skip(_db, _user, maybe_hydro))]
+#[tracing::instrument(skip(_user, maybe_hydro))]
 pub async fn heater(
     params: web::Json<HeaterParams>,
-    _db: Data<DbPool>,
     _user: AuthenticatedUser,
-    maybe_hydro: web::Data<Option<Hydro>>,
-) -> Result<impl Responder> {
-    if maybe_hydro.is_none() {
-        return Ok(HttpResponse::Ok().body("Hydro not configured."));
+    maybe_hydro: Data<Mutex<Option<Hydro>>>,
+) -> Result<HttpResponse> {
+    let mut lock = maybe_hydro.lock();
+    if lock.is_none() {
+        return Ok(HttpResponse::Ok().body("Hydro not configured"));
     }
-    let mut hydro = maybe_hydro.as_ref().clone().unwrap();
 
+    let hydro = lock.as_mut().unwrap();
     match params.switch {
         HeaterLevel::On => {
             println!("Turning heater on");

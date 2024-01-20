@@ -26,7 +26,7 @@ impl User {
     #[tracing::instrument(name = "Send email verification", skip(self, db, mailer, server_url), fields(user_id = self.id))]
     pub async fn send_email_verification(
         self,
-        db: Data<DbPool>,
+        db: Data<dyn DbPool>,
         mailer: MailerConfig,
         server_url: &str,
     ) -> Result<(), anyhow::Error> {
@@ -36,7 +36,7 @@ impl User {
     #[tracing::instrument(name = "Send password reset", skip(self, db, server_url, auth_token), fields(user_id = self.id))]
     pub async fn send_password_reset(
         self,
-        db: Data<DbPool>,
+        db: Data<dyn DbPool>,
         mailer_url: &str,
         server_url: &str,
         auth_token: &str,

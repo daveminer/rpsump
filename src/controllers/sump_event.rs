@@ -3,17 +3,17 @@ use anyhow::{anyhow, Error};
 use diesel::{QueryDsl, RunQueryDsl};
 
 use crate::auth::authenticated_user::AuthenticatedUser;
-use crate::controllers::spawn_blocking_with_tracing;
-use crate::database::{self, DbPool};
+use crate::database::DbPool;
 use crate::models::sump_event::SumpEvent;
+use crate::util::spawn_blocking_with_tracing;
 
 #[get("/sump_event")]
 #[tracing::instrument(skip(_req_body, db, _user))]
 pub async fn sump_event(
     _req_body: String,
-    db: Data<DbPool>,
+    db: Data<dyn DbPool>,
     _user: AuthenticatedUser,
-) -> Result<impl Responder> {
+) -> Result<HttpResponse> {
     let sump_events = spawn_blocking_with_tracing(move || sump_events(db))
         .await
         .map_err(|e| {
@@ -36,8 +36,8 @@ pub async fn sump_event(
     Ok(HttpResponse::Ok().json(sump_events))
 }
 
-fn sump_events(db: Data<DbPool>) -> Result<Vec<SumpEvent>, Error> {
-    let mut conn = database::conn(db)?;
+fn sump_events(db: Data<dyn DbPool>) -> Result<Vec<SumpEvent>, Error> {
+    let mut conn = db.get_conn().expect("Could not get a db connection.");
     let sump_events: Vec<SumpEvent> = SumpEvent::all()
         .limit(100)
         .load::<SumpEvent>(&mut conn)

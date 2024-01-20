@@ -1,11 +1,17 @@
 use anyhow::{anyhow, Error};
 use bcrypt::{hash, DEFAULT_COST};
-use secrecy::{ExposeSecret, SecretString};
+use secrecy::{ExposeSecret, Secret, SecretString};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
 #[derive(Deserialize)]
 pub struct Password(SecretString);
+
+#[derive(Debug, serde::Deserialize)]
+pub struct AuthParams {
+    pub email: String,
+    pub password: Secret<String>,
+}
 
 impl Password {
     pub fn hash(&self) -> Result<String, Error> {
@@ -37,7 +43,6 @@ impl ExposeSecret<String> for Password {
         &self.0.expose_secret()
     }
 }
-
 
 impl Serialize for Password {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {

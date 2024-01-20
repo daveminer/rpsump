@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 use tokio::time::{Duration, Instant};
 
-use rppal::gpio::Level;
+use crate::hydro::gpio::Level;
 
 #[derive(Clone, Debug)]
 pub struct Debouncer {
@@ -19,7 +19,7 @@ struct DebouncerInner {
 /// when a change to the sensor pin state occurs before the deadline elapses. Otherwise, water
 /// turbulence may trigger multiple events where only one is desired.
 impl Debouncer {
-    pub fn new(duration: Duration, level: Level) -> Self {
+    pub fn new(level: Level, duration: Duration) -> Self {
         Self {
             inner: Arc::new(Mutex::new(DebouncerInner {
                 deadline: Instant::now() + duration,
@@ -69,14 +69,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_reset_deadline() {
-        let mut debouncer = Debouncer::new(Duration::from_secs(1), Level::High);
+        let mut debouncer = Debouncer::new(Level::High, Duration::from_secs(1));
         debouncer.reset_deadline(Level::Low);
         assert_eq!(debouncer.prev_reading, Level::Low);
     }
 
     #[tokio::test]
     async fn test_sleep() {
-        let debouncer = Debouncer::new(Duration::from_secs(1), Level::High);
+        let debouncer = Debouncer::new(Level::High, Duration::from_secs(1));
         let start = Instant::now();
         debouncer.sleep().await;
         assert!(Instant::now() - start >= Duration::from_secs(1));
@@ -84,7 +84,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_deadline() {
-        let debouncer = Debouncer::new(Duration::from_secs(1), Level::High);
+        let debouncer = Debouncer::new(Level::High, Duration::from_secs(1));
         let deadline = debouncer.get_deadline();
         assert!(deadline <= Instant::now() + Duration::from_secs(1));
     }

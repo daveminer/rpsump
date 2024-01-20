@@ -1,5 +1,12 @@
-use crate::hydro::gpio::{InputPin, InputPinCallback, Level, OutputPin, Pin, Trigger};
+use std::{
+    process::Command,
+    sync::{Arc, Mutex},
+};
+
+use crate::hydro::gpio::{InputPin, Level, OutputPin, Pin, Trigger};
+use actix_web::rt::Runtime;
 use anyhow::Error;
+use tokio::sync::mpsc::Sender;
 
 use super::{input_pin::InputPinStub, output_pin::OutputPinStub};
 
@@ -38,8 +45,11 @@ impl InputPin for PinStub {
 
     fn set_async_interrupt(
         &mut self,
-        _trigger: Trigger,
-        _callback: InputPinCallback,
+        name: String,
+        trigger: Trigger,
+        rt: Arc<Mutex<Runtime>>,
+        tx: &Sender<Command>,
+        delay: u64,
     ) -> Result<(), Error> {
         Ok(())
     }

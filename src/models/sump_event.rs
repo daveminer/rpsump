@@ -5,11 +5,11 @@ use diesel::dsl::*;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::controllers::spawn_blocking_with_tracing;
-use crate::database::DbPool;
+use crate::database::RealDbPool;
 use crate::schema::sump_event;
 use crate::schema::sump_event::dsl::*;
 use crate::schema::sump_event::*;
+use crate::util::spawn_blocking_with_tracing;
 
 #[derive(Clone, Debug, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
 #[diesel(table_name = sump_event)]
@@ -21,7 +21,12 @@ pub struct SumpEvent {
 }
 
 impl SumpEvent {
-    pub async fn create(event_kind: String, event_info: String, db: DbPool) -> Result<(), Error> {
+    pub async fn create(
+        event_kind: String,
+        event_info: String,
+        db: RealDbPool,
+    ) -> Result<(), Error> {
+        let db = db.clone();
         spawn_blocking_with_tracing(move || {
             let mut conn = db.get().expect("Could not get a db connection.");
 

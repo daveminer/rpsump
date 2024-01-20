@@ -6,10 +6,10 @@ use diesel::sqlite::Sqlite;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-use crate::controllers::spawn_blocking_with_tracing;
 use crate::database::{DbConn, DbPool};
 use crate::schema::irrigation_schedule;
 use crate::schema::irrigation_schedule::*;
+use crate::util::spawn_blocking_with_tracing;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum DayOfWeek {
@@ -73,14 +73,17 @@ impl IrrigationSchedule {
     }
 
     #[tracing::instrument(skip(db))]
-    pub async fn create(
+    pub async fn create<D>(
         schedule_hoses: Vec<i32>,
         schedule_name: String,
         schedule_start_time: NaiveTime,
         schedule_duration: i32,
         schedule_days_of_week: Vec<DayOfWeek>,
-        db: Data<DbPool>,
-    ) -> Result<IrrigationSchedule, Error> {
+        db: Data<D>,
+    ) -> Result<IrrigationSchedule, Error>
+    where
+        D: DbPool + 'static + ?Sized,
+    {
         let hose_str = schedule_hoses
             .iter()
             .map(|hose| hose.to_string())
@@ -94,7 +97,7 @@ impl IrrigationSchedule {
             .join(",");
 
         let new_schedule = spawn_blocking_with_tracing(move || {
-            let mut conn = db.get().expect("Could not get a db connection.");
+            let mut conn = db.get_conn().expect("Could not get a db connection.");
 
             return diesel::insert_into(irrigation_schedule::table)
                 .values((
@@ -115,8 +118,11 @@ impl IrrigationSchedule {
     }
 
     #[tracing::instrument(skip(db))]
-    pub async fn delete(schedule_id: i32, db: Data<DbPool>) -> Result<IrrigationSchedule, Error> {
-        let mut conn = db.get()?;
+    pub async fn delete<D>(schedule_id: i32, db: Data<D>) -> Result<IrrigationSchedule, Error>
+    where
+        D: DbPool + 'static + ?Sized,
+    {
+        let mut conn = db.get_conn()?;
 
         let result = spawn_blocking_with_tracing(move || {
             diesel::delete(irrigation_schedule::table.find(schedule_id))
@@ -129,15 +135,18 @@ impl IrrigationSchedule {
     }
 
     #[tracing::instrument(skip(db))]
-    pub async fn edit(
+    pub async fn edit<D>(
         schedule_id: i32,
         schedule_hoses: Option<Vec<i32>>,
         schedule_name: Option<String>,
         schedule_start_time: Option<NaiveTime>,
         schedule_days_of_week: Option<Vec<DayOfWeek>>,
-        db: Data<DbPool>,
-    ) -> Result<Option<IrrigationSchedule>, Error> {
-        let mut conn = db.get()?;
+        db: Data<D>,
+    ) -> Result<Option<IrrigationSchedule>, Error>
+    where
+        D: DbPool + 'static + ?Sized,
+    {
+        let mut conn = db.get_conn()?;
         spawn_blocking_with_tracing(move || {
             conn.transaction::<_, Error, _>(|conn| {
                 update_schedule(

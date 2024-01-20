@@ -7,11 +7,11 @@ use diesel_derive_enum::DbEnum;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-use crate::controllers::spawn_blocking_with_tracing;
 use crate::database::DbPool;
 use crate::models::user::User;
 use crate::schema::user_event;
 use crate::schema::user_event::dsl::*;
+use crate::util::spawn_blocking_with_tracing;
 
 #[derive(Clone, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
 #[diesel(table_name = user_event)]
@@ -48,13 +48,16 @@ impl Display for EventType {
 
 impl UserEvent {
     #[tracing::instrument(skip(request_user, db))]
-    pub async fn recent_events(
+    pub async fn recent_events<D>(
         request_user: Option<User>,
         ip_addr: Option<String>,
         event: EventType,
         count: i64,
-        db: Data<DbPool>,
-    ) -> Result<Vec<UserEvent>, Error> {
+        db: D,
+    ) -> Result<Vec<UserEvent>, Error>
+    where
+        D: DbPool + 'static,
+    {
         if request_user.is_none() && ip_addr.is_none() {
             return Err(anyhow!("Must provide either a user or ip address."));
         }
@@ -72,7 +75,7 @@ impl UserEvent {
         }
 
         spawn_blocking_with_tracing(move || {
-            let mut conn = db.get().expect("Could not get a db connection.");
+            let mut conn = db.get_conn().expect("Could not get a db connection.");
 
             query.limit(count).load(&mut conn)
         })
@@ -86,14 +89,17 @@ impl UserEvent {
     }
 
     #[tracing::instrument(skip(request_user, db))]
-    pub async fn create(
+    pub async fn create<D>(
         request_user: User,
         request_ip_address: String,
         user_event_type: EventType,
-        db: Data<DbPool>,
-    ) -> Result<usize, Error> {
+        db: Data<D>,
+    ) -> Result<usize, Error>
+    where
+        D: DbPool + 'static + ?Sized,
+    {
         let new_user_event = spawn_blocking_with_tracing(move || {
-            let mut conn = db.get().expect("Could not get a db connection.");
+            let mut conn = db.get_conn().expect("Could not get a db connection.");
 
             diesel::insert_into(user_event::table)
                 .values((

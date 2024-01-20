@@ -6,10 +6,10 @@ use diesel::{prelude::*, sqlite::Sqlite};
 use serde::{Deserialize, Serialize};
 
 use crate::auth::{password::Password, token::Token};
-use crate::controllers::spawn_blocking_with_tracing;
 use crate::database::DbPool;
 use crate::models::user_event::EventType;
 use crate::schema::{user, user_event};
+use crate::util::spawn_blocking_with_tracing;
 
 #[derive(Clone, Debug, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
 #[diesel(table_name = user)]
@@ -51,14 +51,17 @@ impl User {
     }
 
     #[tracing::instrument(name = "Create user", skip(new_email, new_password, db))]
-    pub async fn create(
+    pub async fn create<D>(
         new_email: String,
         new_password: String,
         req_ip_address: String,
-        db: Data<DbPool>,
-    ) -> Result<User, Error> {
+        db: Data<D>,
+    ) -> Result<User, Error>
+    where
+        D: DbPool + 'static + ?Sized,
+    {
         let new_user: User = spawn_blocking_with_tracing(move || {
-            let mut conn = db.get()?;
+            let mut conn = db.get_conn()?;
 
             let user = conn.transaction::<_, Error, _>(|conn| {
                 let _row_inserted = diesel::insert_into(user::table)
@@ -98,10 +101,13 @@ impl User {
     }
 
     #[tracing::instrument(skip(self, password, db))]
-    pub async fn set_password(self, password: &Password, db: Data<DbPool>) -> Result<(), Error> {
+    pub async fn set_password<D>(self, password: &Password, db: Data<D>) -> Result<(), Error>
+    where
+        D: DbPool + 'static + ?Sized,
+    {
         let hash = password.hash()?;
         let _row_updated = spawn_blocking_with_tracing(move || {
-            let mut conn = db.get()?;
+            let mut conn = db.get_conn()?;
 
             diesel::update(user::table)
                 .filter(user::email.eq(self.email))
@@ -116,9 +122,12 @@ impl User {
     }
 
     #[tracing::instrument(skip(self, token, db))]
-    pub async fn save_reset_token(self, token: Token, db: Data<DbPool>) -> Result<(), Error> {
+    pub async fn save_reset_token<D>(self, token: Token, db: Data<D>) -> Result<(), Error>
+    where
+        D: DbPool + 'static + ?Sized,
+    {
         let _row_updated = spawn_blocking_with_tracing(move || {
-            let mut conn = db.get()?;
+            let mut conn = db.get_conn()?;
 
             diesel::update(user::table)
                 .filter(user::email.eq(self.email))
@@ -136,13 +145,16 @@ impl User {
     }
 
     #[tracing::instrument(skip(user_email, token, db))]
-    pub async fn save_email_verification_token(
+    pub async fn save_email_verification_token<D>(
         user_email: String,
         token: Token,
-        db: Data<DbPool>,
-    ) -> Result<(), Error> {
+        db: D,
+    ) -> Result<(), Error>
+    where
+        D: DbPool + 'static,
+    {
         let _row_updated = spawn_blocking_with_tracing(move || {
-            let mut conn = db.get()?;
+            let mut conn = db.get_conn()?;
 
             diesel::update(user::table)
                 .filter(user::email.eq(user_email))
@@ -160,9 +172,12 @@ impl User {
     }
 
     #[tracing::instrument(skip(token, db))]
-    pub async fn verify_email(token: String, db: Data<DbPool>) -> Result<(), Error> {
+    pub async fn verify_email<D>(token: String, db: Data<D>) -> Result<(), Error>
+    where
+        D: DbPool,
+    {
         let _result = spawn_blocking_with_tracing(move || {
-            let mut conn = db.get()?;
+            let mut conn = db.get_conn()?;
 
             let user_from_token =
                 match Self::by_email_verification_token(token.clone()).first::<User>(&mut conn) {

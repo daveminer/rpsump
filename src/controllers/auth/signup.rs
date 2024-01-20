@@ -1,14 +1,16 @@
 use std::sync::Arc;
 
+use actix_web::HttpResponse;
 use actix_web::{post, web, web::Data, HttpRequest, Responder, Result};
 use serde::Deserialize;
 use validator::Validate;
 
-use crate::auth::{password::Password, validate_password};
+use crate::auth::password::Password;
 use crate::config::Settings;
-use crate::controllers::{auth::ip_address, ApiResponse};
+use crate::controllers::auth::{ip_address, validate_password::validate_password};
 use crate::database::DbPool;
 use crate::models::user::User;
+use crate::util::ApiResponse;
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct SignupParams {
@@ -28,9 +30,9 @@ pub struct SignupParams {
 pub async fn signup(
     req: HttpRequest,
     params: web::Json<SignupParams>,
-    db: Data<DbPool>,
+    db: Data<dyn DbPool>,
     settings: Data<Settings>,
-) -> Result<impl Responder> {
+) -> Result<HttpResponse> {
     // Validate params
     match &params.validate() {
         Ok(_) => (),
@@ -71,7 +73,7 @@ pub async fn signup(
 
     // Send email verification
     match new_user
-        .send_email_verification(db.clone(), mailer_settings, req.connection_info().host())
+        .send_email_verification(db, mailer_settings, req.connection_info().host())
         .await
     {
         Ok(_) => Ok(ApiResponse::ok("User created.".to_string())),

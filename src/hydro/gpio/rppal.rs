@@ -1,8 +1,16 @@
+use actix_web::rt::Runtime;
 use anyhow::{anyhow, Error};
+use std::{
+    borrow::BorrowMut,
+    process::Command,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+use tokio::sync::mpsc::Sender;
 
 use crate::hydro::{
+    debounce::Debouncer,
     gpio::{Gpio, InputPin, OutputPin, Pin, Trigger},
-    Level,
 };
 
 impl Gpio for rppal::gpio::Gpio {
@@ -26,15 +34,6 @@ impl Pin for rppal::gpio::Pin {
     }
 }
 
-impl Into<Level> for rppal::gpio::Level {
-    fn into(self) -> Level {
-        match self {
-            rppal::gpio::Level::Low => Level::Low,
-            rppal::gpio::Level::High => Level::High,
-        }
-    }
-}
-
 impl InputPin for rppal::gpio::InputPin {
     fn is_high(&self) -> bool {
         self.is_high()
@@ -44,20 +43,76 @@ impl InputPin for rppal::gpio::InputPin {
         self.is_low()
     }
 
-    fn read(&self) -> Level {
+    fn read(&self) -> crate::hydro::Level {
         self.read().into()
     }
 
     fn set_async_interrupt(
         &mut self,
+        name: String,
         trigger: Trigger,
-        mut callback: super::InputPinCallback,
+        rt: Arc<Mutex<Runtime>>,
+        tx: &Sender<Command>,
+        delay: u64,
     ) -> Result<(), Error> {
-        let converted_callback = Box::new(move |level: rppal::gpio::Level| callback(level.into()));
-
-        self.set_async_interrupt(trigger.into(), converted_callback)
-            .map_err(|e| anyhow!(e.to_string()))
+        let rt = rt.borrow_mut();
+        let tx = tx.clone();
+        let debouncer: Arc<Mutex<Option<Debouncer>>> = Arc::from(Mutex::new(None));
+        let callback = move |level: rppal::gpio::Level| {
+            callback(level, &name, Arc::clone(&debouncer), delay, rt, &tx);
+        };
+        Ok(self.set_async_interrupt(trigger.into(), Box::new(callback))?)
     }
+}
+
+fn callback(
+    level: rppal::gpio::Level,
+    name: &str,
+    debouncer: Arc<Mutex<Option<Debouncer>>>,
+    delay: u64,
+    rt: Arc<Mutex<Runtime>>,
+    tx: &Sender<Command>,
+) {
+    // let level = level.into();
+    // let name = name.to_string();
+    // let tx = tx.clone();
+    let shared_deb = Arc::clone(&debouncer);
+    let mut deb = shared_deb.lock().unwrap();
+
+    if deb.is_some() {
+        deb.as_mut().unwrap().reset_deadline(level.into());
+        return;
+    }
+
+    let debouncer = Debouncer::new(level.into(), Duration::new(2, 0));
+    *deb = Some(debouncer);
+
+    let sleep = deb.as_ref().unwrap().sleep();
+    //let rt = Runtime::new().unwrap();
+    rt.block_on(sleep);
+    *deb = None;
+    drop(deb);
+
+    // TODO: send tx message
+    // rt.block_on(update_irrigation_low_sensor(
+    //     level,
+    //     Arc::clone(&irrigation_pump_control_pin),
+    //     Arc::clone(&sensor_state),
+    //     delay,
+    // ));
+    if delay > 0 {
+        rt.block_on(tokio::time::sleep(Duration::from_secs(delay as u64)));
+    }
+
+    // tokio::spawn(async move {
+    //     let cmd = Command::new("sleep").arg(delay.to_string()).output();
+    //     if let Err(e) = cmd {
+    //         log::error!("Error running sleep command: {}", e);
+    //     }
+    //     if let Err(e) = tx.send(Command::new("irrigator").arg(name).arg(level)) {
+    //         log::error!("Error sending command: {}", e);
+    //     }
+    // });
 }
 
 impl Into<rppal::gpio::Trigger> for Trigger {
@@ -78,5 +133,14 @@ impl OutputPin for rppal::gpio::OutputPin {
 
     fn set_low(&mut self) {
         self.set_low()
+    }
+}
+
+impl From<rppal::gpio::Level> for crate::hydro::Level {
+    fn from(level: rppal::gpio::Level) -> Self {
+        match level {
+            rppal::gpio::Level::Low => crate::hydro::Level::Low,
+            rppal::gpio::Level::High => crate::hydro::Level::High,
+        }
     }
 }

@@ -1,6 +1,6 @@
 use futures::executor::block_on;
 
-use crate::database::DbPool;
+use crate::database::RealDbPool;
 use crate::hydro::schedule::get_schedule_statuses;
 use crate::hydro::Irrigator;
 use crate::models::irrigation_event::IrrigationEvent;
@@ -8,7 +8,7 @@ use crate::models::irrigation_event::IrrigationEvent;
 use super::due_statuses;
 use super::run::run_next_event;
 
-pub(crate) fn check_schedule(db: DbPool, irrigator: Irrigator) {
+pub(crate) fn check_schedule(db: RealDbPool, irrigator: Irrigator) {
     // Get the statuses of all the schedules
     let statuses = match get_schedule_statuses(db.clone()) {
         Ok(statuses) => statuses,

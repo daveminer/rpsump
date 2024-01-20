@@ -5,8 +5,9 @@ use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use serde::Deserialize;
 
 use crate::auth::authenticated_user::AuthenticatedUser;
-use crate::controllers::spawn_blocking_with_tracing;
-use crate::database::{self, DbPool};
+use crate::database::DbPool;
+use crate::util::spawn_blocking_with_tracing;
+
 use crate::models::irrigation_event::IrrigationEvent;
 use crate::schema::irrigation_event::status;
 
@@ -19,9 +20,9 @@ pub struct Params {
 #[tracing::instrument(skip(req, db, _user))]
 pub async fn irrigation_event(
     req: HttpRequest,
-    db: Data<DbPool>,
+    db: Data<dyn DbPool>,
     _user: AuthenticatedUser,
-) -> Result<impl Responder> {
+) -> Result<HttpResponse> {
     let filter = match web::Query::<Params>::from_query(req.query_string()) {
         Ok(filter) => filter,
         Err(_e) => {
@@ -53,10 +54,10 @@ pub async fn irrigation_event(
 }
 
 fn irrigation_events(
-    db: Data<DbPool>,
+    db: Data<dyn DbPool>,
     filter_status: Option<String>,
 ) -> Result<Vec<IrrigationEvent>, Error> {
-    let mut conn = database::conn(db)?;
+    let mut conn = db.get_conn().expect("Could not get a db connection.");
     let mut query = IrrigationEvent::all().limit(100);
     if let Some(filter_status) = filter_status {
         query = query.filter(status.eq(filter_status))

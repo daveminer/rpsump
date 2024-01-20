@@ -3,14 +3,14 @@ use anyhow::{anyhow, Error};
 
 use crate::auth::token::Token;
 use crate::config::MailerConfig;
-use crate::controllers::spawn_blocking_with_tracing;
 use crate::database::DbPool;
 use crate::email::{Contact, Email};
 use crate::models::user::User;
+use crate::util::spawn_blocking_with_tracing;
 
 pub async fn send_email_verification(
     user: User,
-    db: Data<DbPool>,
+    db: Data<dyn DbPool>,
     mailer: MailerConfig,
     app_server_url: &str,
 ) -> Result<(), Error> {
@@ -29,7 +29,7 @@ pub async fn send_error_email(mailer: &MailerConfig, error_msg: &str) -> Result<
 
 pub async fn send_password_reset(
     user: User,
-    db: Data<DbPool>,
+    db: Data<dyn DbPool>,
     mailer_url: &str,
     server_url: &str,
     auth_token: &str,

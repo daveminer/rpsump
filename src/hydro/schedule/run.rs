@@ -3,12 +3,12 @@ use std::time::{Duration as StdDuration, SystemTime};
 use anyhow::{anyhow, Error};
 use tokio::{sync::MutexGuard, task::JoinHandle, time::sleep};
 
-use crate::database::DbPool;
+use crate::database::RealDbPool;
 use crate::hydro::gpio::OutputPin;
 use crate::hydro::{control::Control, schedule::IrrigationEvent, sensor::Input, Irrigator};
 
 #[tracing::instrument(skip(db))]
-pub async fn run_next_event(db: DbPool, irrigator: Irrigator) {
+pub async fn run_next_event(db: RealDbPool, irrigator: Irrigator) {
     // Get the next event
     let (duration, event) = match IrrigationEvent::next_queued(db.clone()).await {
         Ok(event) => event,
@@ -36,7 +36,7 @@ pub async fn run_next_event(db: DbPool, irrigator: Irrigator) {
 
 #[tracing::instrument(skip(db))]
 async fn start_irrigation(
-    db: DbPool,
+    db: RealDbPool,
     event: IrrigationEvent,
     duration: i32,
     irrigator: Irrigator,
