@@ -6,7 +6,7 @@ pub type RealDbPool = Pool<ConnectionManager<SqliteConnection>>;
 pub type DbConn = PooledConnection<ConnectionManager<SqliteConnection>>;
 
 #[automock]
-pub trait DbPool: Clone + Send + Sync {
+pub trait DbPool: Send + Sync {
     fn get_conn(&self) -> Result<DbConn, anyhow::Error>;
 }
 

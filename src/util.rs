@@ -68,7 +68,7 @@ macro_rules! get_hydro {
 #[macro_export]
 macro_rules! new_conn {
     ($db:expr) => {
-        match $db.get_conn() {
+        match $db.clone().get_conn() {
             Ok(conn) => conn,
             Err(e) => {
                 tracing::error!(

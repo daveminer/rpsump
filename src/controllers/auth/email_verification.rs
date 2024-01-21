@@ -6,7 +6,7 @@ use actix_web::{
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::database::DbPool;
+use crate::database::RealDbPool;
 use crate::models::user::User;
 
 #[derive(Debug, Deserialize)]
@@ -18,7 +18,7 @@ struct EmailVerificationParams {
 #[tracing::instrument(skip(params, db))]
 pub async fn verify_email(
     params: Query<EmailVerificationParams>,
-    db: Data<dyn DbPool>,
+    db: Data<RealDbPool>,
 ) -> Result<HttpResponse> {
     match User::verify_email(params.token.clone(), db).await {
         Ok(()) => Ok(HttpResponse::Ok().body(json!({"message": "Email verified."}).to_string())),

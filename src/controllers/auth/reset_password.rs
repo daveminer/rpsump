@@ -1,4 +1,4 @@
-use actix_web::{post, web, web::Data, HttpRequest, HttpResponse, Responder, Result};
+use actix_web::{post, web, web::Data, HttpRequest, HttpResponse, Result};
 use chrono::Utc;
 use diesel::RunQueryDsl;
 use serde::Deserialize;
@@ -7,7 +7,7 @@ use validator::Validate;
 use crate::auth::password::Password;
 use crate::config::Settings;
 use crate::controllers::auth::{ip_address, validate_password::validate_password};
-use crate::database::DbPool;
+use crate::database::{DbPool, RealDbPool};
 use crate::models::user::User;
 use crate::models::user_event::{EventType, UserEvent};
 use crate::util::{spawn_blocking_with_tracing, ApiResponse};
@@ -36,7 +36,7 @@ pub struct RequestPasswordResetParams {
 async fn request_password_reset(
     req: HttpRequest,
     params: web::Json<RequestPasswordResetParams>,
-    db: Data<dyn DbPool>,
+    db: Data<RealDbPool>,
     settings: Data<Settings>,
 ) -> Result<HttpResponse> {
     let db_clone = db.clone();
@@ -126,7 +126,7 @@ async fn request_password_reset(
 #[tracing::instrument(skip(params, db))]
 async fn reset_password(
     params: web::Json<ResetPasswordParams>,
-    db: Data<dyn DbPool>,
+    db: Data<RealDbPool>,
 ) -> Result<HttpResponse> {
     let token_clone = params.token.clone();
 

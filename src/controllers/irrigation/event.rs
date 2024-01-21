@@ -5,7 +5,7 @@ use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use serde::Deserialize;
 
 use crate::auth::authenticated_user::AuthenticatedUser;
-use crate::database::DbPool;
+use crate::database::RealDbPool;
 use crate::util::spawn_blocking_with_tracing;
 
 use crate::models::irrigation_event::IrrigationEvent;
@@ -20,7 +20,7 @@ pub struct Params {
 #[tracing::instrument(skip(req, db, _user))]
 pub async fn irrigation_event(
     req: HttpRequest,
-    db: Data<dyn DbPool>,
+    db: Data<RealDbPool>,
     _user: AuthenticatedUser,
 ) -> Result<HttpResponse> {
     let filter = match web::Query::<Params>::from_query(req.query_string()) {
@@ -54,7 +54,7 @@ pub async fn irrigation_event(
 }
 
 fn irrigation_events(
-    db: Data<dyn DbPool>,
+    db: Data<RealDbPool>,
     filter_status: Option<String>,
 ) -> Result<Vec<IrrigationEvent>, Error> {
     let mut conn = db.get_conn().expect("Could not get a db connection.");

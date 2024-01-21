@@ -1,10 +1,10 @@
-use actix_web::{delete, error, get, patch, post, web, web::Data, HttpResponse, Responder, Result};
+use actix_web::{delete, error, get, patch, post, web, web::Data, HttpResponse, Result};
 use chrono::NaiveTime;
 use diesel::result::Error::NotFound;
 use diesel::RunQueryDsl;
 
 use crate::auth::authenticated_user::AuthenticatedUser;
-use crate::database::DbPool;
+use crate::database::RealDbPool;
 use crate::models::irrigation_schedule::{DayOfWeek, IrrigationSchedule};
 use crate::util::{spawn_blocking_with_tracing, ApiResponse};
 
@@ -21,7 +21,7 @@ pub struct IrrigationScheduleParams {
 #[tracing::instrument(skip(_req_body, db, _user))]
 pub async fn irrigation_schedules(
     _req_body: String,
-    db: Data<dyn DbPool>,
+    db: Data<RealDbPool>,
     _user: AuthenticatedUser,
 ) -> Result<HttpResponse> {
     let schedules = spawn_blocking_with_tracing(move || {
@@ -53,7 +53,7 @@ pub async fn irrigation_schedules(
 #[tracing::instrument(skip(db, _user))]
 pub async fn irrigation_schedule(
     path: web::Path<i32>,
-    db: Data<dyn DbPool>,
+    db: Data<RealDbPool>,
     _user: AuthenticatedUser,
 ) -> Result<HttpResponse> {
     let id = path.into_inner();
@@ -93,7 +93,7 @@ pub async fn irrigation_schedule(
 #[tracing::instrument(skip(db, _user))]
 pub async fn delete_irrigation_schedule(
     path: web::Path<i32>,
-    db: Data<dyn DbPool>,
+    db: Data<RealDbPool>,
     _user: AuthenticatedUser,
 ) -> Result<HttpResponse> {
     let id = path.into_inner();
@@ -114,7 +114,7 @@ pub async fn delete_irrigation_schedule(
 pub async fn edit_irrigation_schedule(
     path: web::Path<i32>,
     req_body: web::Json<IrrigationScheduleParams>,
-    db: Data<dyn DbPool>,
+    db: Data<RealDbPool>,
     _user: AuthenticatedUser,
 ) -> Result<HttpResponse> {
     let id = path.into_inner();
@@ -149,7 +149,7 @@ pub async fn edit_irrigation_schedule(
 #[tracing::instrument(skip(req_body, db, _user))]
 pub async fn new_irrigation_schedule(
     req_body: web::Json<IrrigationScheduleParams>,
-    db: Data<dyn DbPool>,
+    db: Data<RealDbPool>,
     _user: AuthenticatedUser,
 ) -> Result<HttpResponse> {
     let new_irrigation_schedule = IrrigationSchedule::create(

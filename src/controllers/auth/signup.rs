@@ -8,7 +8,7 @@ use validator::Validate;
 use crate::auth::password::Password;
 use crate::config::Settings;
 use crate::controllers::auth::{ip_address, validate_password::validate_password};
-use crate::database::DbPool;
+use crate::database::RealDbPool;
 use crate::models::user::User;
 use crate::util::ApiResponse;
 
@@ -30,7 +30,7 @@ pub struct SignupParams {
 pub async fn signup(
     req: HttpRequest,
     params: web::Json<SignupParams>,
-    db: Data<dyn DbPool>,
+    db: Data<RealDbPool>,
     settings: Data<Settings>,
 ) -> Result<HttpResponse> {
     // Validate params

@@ -9,7 +9,7 @@ use crate::auth::claim::create_token;
 use crate::auth::password::AuthParams;
 use crate::config::Settings;
 use crate::controllers::auth::ip_address;
-use crate::database::DbPool;
+use crate::database::{DbPool, RealDbPool};
 use crate::models::user::User;
 use crate::models::user_event::*;
 use crate::new_conn;
@@ -29,14 +29,14 @@ struct Response {
 pub async fn login(
     request: HttpRequest,
     user_data: web::Json<AuthParams>,
-    db: Data<dyn DbPool>,
+    db: Data<RealDbPool>,
     settings: Data<Settings>,
 ) -> Result<impl Responder> {
-    let conn = new_conn!(db);
+    let mut conn = new_conn!(db);
 
     // User lookup from params
     let credentials: AuthParams = user_data.into_inner();
-    let user = match validate_credentials(&credentials, conn).await {
+    let user = match validate_credentials(&credentials, db).await {
         Ok(user) => user,
         Err(e) => return Ok(ApiResponse::bad_request(e.to_string())),
     };
@@ -75,7 +75,6 @@ pub async fn login(
     };
 
     // Create user event
-    let mut conn = new_conn!(db);
     let user_event = spawn_blocking_with_tracing(move || {
         return conn.transaction::<_, Error, _>(|conn| {
             diesel::insert_into(user_event::table)
@@ -121,9 +120,9 @@ pub async fn login(
 }
 
 #[tracing::instrument(skip(credentials, db))]
-pub async fn validate_credentials(
+async fn validate_credentials(
     credentials: &AuthParams,
-    mut db: dyn DbPool,
+    db: Data<RealDbPool>,
 ) -> Result<User, Error> {
     // User lookup from params
     let AuthParams { email, password } = credentials;
@@ -133,8 +132,9 @@ pub async fn validate_credentials(
 
     let email_clone = email.clone();
 
+    // TODO: remove unwrap
     let user_query = spawn_blocking_with_tracing(move || {
-        User::by_email(email_clone.clone()).first::<User>(&mut db)
+        User::by_email(email_clone.clone()).first::<User>(&mut db.get_conn().unwrap())
     })
     .await?;
 

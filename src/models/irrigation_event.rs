@@ -7,11 +7,11 @@ use diesel::query_builder::SqlQuery;
 use diesel::sql_query;
 use diesel::sql_types::{Bool, Integer, Nullable, Text};
 use diesel::sqlite::Sqlite;
+use rppal::uart::Status;
 use serde::{Deserialize, Serialize};
 use tracing::error;
 
 use crate::database::{DbPool, RealDbPool};
-use crate::hydro::schedule::Status;
 use crate::schema::irrigation_event::*;
 use crate::schema::{irrigation_event, irrigation_schedule};
 use crate::util::spawn_blocking_with_tracing;

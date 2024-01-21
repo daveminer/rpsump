@@ -3,6 +3,7 @@ use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie, dev::Server, web, web::Data, App, HttpServer};
 use actix_web::{error::ErrorBadRequest, web::JsonConfig};
 use actix_web_opentelemetry::RequestTracing;
+use rppal::gpio::Gpio;
 use serde_json::json;
 
 use crate::config::Settings;
@@ -12,7 +13,6 @@ use crate::controllers::{
     pool_pump::pool_pump, sump_event::sump_event,
 };
 use crate::database::DbPool;
-use crate::hydro::{gpio::Gpio, Hydro};
 
 pub struct Application {
     port: u16,
@@ -20,10 +20,9 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn build<D, G>(settings: Settings, db_pool: D, gpio: &G) -> Application
+    pub fn build<D>(settings: Settings, db_pool: D, gpio: &Gpio) -> Application
     where
-        D: DbPool,
-        G: Gpio,
+        D: DbPool + Clone,
     {
         // Web server configuration
         let address = format!("{}:{}", settings.server.host, settings.server.port);
@@ -34,14 +33,14 @@ impl Application {
             .expect("Could not get server address.")
             .port();
 
-        let hydro =
-            Hydro::new(db_pool, &settings.hydro, gpio).expect("Could not create hydro object");
+        // let hydro =
+        //     Hydro::new(db_pool, &settings.hydro, gpio).expect("Could not create hydro object");
 
         // TODO: fix clones
         let db_clone = db_pool.clone();
         let server = HttpServer::new(move || {
             let db_clone = db_clone.clone();
-            let hydro_clone = hydro.clone();
+            //let hydro_clone = hydro.clone();
             let app = App::new()
                 .wrap(RequestTracing::new())
                 // Session tools
@@ -60,8 +59,8 @@ impl Application {
                 // Application configuration
                 .app_data(Self::json_cfg())
                 .app_data(Data::new(settings.clone()))
-                .app_data(Data::new(db_clone))
-                .app_data(Data::new(Some(hydro_clone)));
+                .app_data(Data::new(db_clone));
+            //.app_data(Data::new(Some(hydro_clone)));
 
             app
         })
