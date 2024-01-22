@@ -1,11 +1,11 @@
 use serde::Deserialize;
 
-use crate::database::RealDbPool;
 use crate::hydro::{control::Output, Control, Level};
 use crate::models::sump_event::SumpEvent;
+use crate::repository::Repo;
 
-#[tracing::instrument(skip(db))]
-pub async fn update_sensor(level: Level, mut pump: Control, db: RealDbPool) {
+#[tracing::instrument(skip(repo))]
+pub async fn update_sensor(level: Level, mut pump: Control, repo: Repo) {
     // Turn the pump on
     if level == Level::High {
         pump.on();
@@ -13,7 +13,7 @@ pub async fn update_sensor(level: Level, mut pump: Control, db: RealDbPool) {
         tracing::info!("Sump pump turned on.");
 
         if let Err(e) =
-            SumpEvent::create("pump on".to_string(), "reservoir full".to_string(), db).await
+            SumpEvent::create("pump on".to_string(), "reservoir full".to_string(), repo).await
         {
             tracing::error!(
                 target = module_path!(),
@@ -31,8 +31,8 @@ enum PumpAction {
     Off,
 }
 
-#[tracing::instrument(skip(db))]
-pub async fn handle_sensor_signal(action: PumpAction, mut pump: Control, db: RealDbPool) {
+#[tracing::instrument(skip(repo))]
+pub async fn handle_sensor_signal(action: PumpAction, mut pump: Control, repo: Repo) {
     match action {
         PumpAction::On => pump.on().await,
         PumpAction::Off => pump.off().await,
@@ -43,7 +43,7 @@ pub async fn handle_sensor_signal(action: PumpAction, mut pump: Control, db: Rea
     if let Err(e) = SumpEvent::create(
         format!("pump {:?}", action),
         "reservoir full".to_string(),
-        db,
+        repo,
     )
     .await
     {

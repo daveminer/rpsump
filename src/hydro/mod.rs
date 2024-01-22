@@ -3,7 +3,6 @@ use std::sync::{Arc, Mutex};
 
 use crate::{
     config::HydroConfig,
-    database::DbPool,
     hydro::{
         control::Control,
         gpio::{Gpio, Level},
@@ -13,6 +12,7 @@ use crate::{
         pool_pump::PoolPump,
         sump::Sump,
     },
+    repository::Repo,
 };
 
 pub mod control;
@@ -28,23 +28,16 @@ mod sump;
 
 #[derive(Clone)]
 pub struct Hydro {
-    pub db_pool: Box<dyn DbPool>,
+    pub repo: Repo,
     pub heater: Heater,
     pub pool_pump: PoolPump,
     pub sump: Sump,
     pub irrigator: Irrigator,
 }
 
-impl Clone for Box<dyn DbPool> {
-    fn clone(&self) -> Box<dyn DbPool> {
-        self.clone_box()
-    }
-}
-
 impl Hydro {
-    pub fn new<D, G>(db: D, config: &HydroConfig, gpio: &G) -> Result<Self, Error>
+    pub fn new<G>(config: &HydroConfig, gpio: &G, repo: Repo) -> Result<Self, Error>
     where
-        D: DbPool,
         G: Gpio,
     {
         let mpsc = Message::init();
@@ -60,10 +53,10 @@ impl Hydro {
         let irrigator = Irrigator::new(&config.irrigation, &tx, rt, gpio)?;
 
         Ok(Self {
-            db_pool: Box::new(db),
             irrigator,
             heater,
             pool_pump,
+            repo,
             sump,
         })
     }

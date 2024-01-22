@@ -6,13 +6,13 @@ use actix_web_opentelemetry::RequestTracing;
 use serde_json::json;
 
 use crate::config::Settings;
-
 use crate::controllers::{
     auth::auth_routes, heater::heater, info::info, irrigation::irrigation_routes,
     pool_pump::pool_pump, sump_event::sump_event,
 };
-use crate::database::DbPool;
+
 use crate::hydro::{gpio::Gpio, Hydro};
+use crate::repository::Repository;
 
 pub struct Application {
     port: u16,
@@ -20,10 +20,10 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn build<D, G>(settings: Settings, db_pool: D, gpio: &G) -> Application
+    pub fn build<G, R>(settings: Settings, gpio: &G, repo: R) -> Application
     where
-        D: DbPool,
         G: Gpio,
+        R: Repository,
     {
         // Web server configuration
         let address = format!("{}:{}", settings.server.host, settings.server.port);
@@ -34,14 +34,13 @@ impl Application {
             .expect("Could not get server address.")
             .port();
 
-        let hydro =
-            Hydro::new(db_pool, &settings.hydro, gpio).expect("Could not create hydro object");
+        let hydro = Hydro::new(repo, &settings.hydro, gpio).expect("Could not create hydro object");
 
         // TODO: fix clones
-        let db_clone = db_pool.clone();
+        //let db_clone = db_pool.clone();
         let server = HttpServer::new(move || {
-            let db_clone = db_clone.clone();
-            let hydro_clone = hydro.clone();
+            //let db_clone = db_clone.clone();
+            //let hydro_clone = hydro.clone();
             let app = App::new()
                 .wrap(RequestTracing::new())
                 // Session tools
@@ -60,8 +59,8 @@ impl Application {
                 // Application configuration
                 .app_data(Self::json_cfg())
                 .app_data(Data::new(settings.clone()))
-                .app_data(Data::new(db_clone))
-                .app_data(Data::new(Some(hydro_clone)));
+                .app_data(Data::new(repo))
+                .app_data(Data::new(Some(hydro)));
 
             app
         })

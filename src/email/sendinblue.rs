@@ -1,22 +1,19 @@
-use actix_web::web::Data;
 use anyhow::{anyhow, Error};
 
 use crate::auth::token::Token;
 use crate::config::MailerConfig;
-use crate::database::DbPool;
 use crate::email::{Contact, Email};
 use crate::models::user::User;
 use crate::util::spawn_blocking_with_tracing;
 
 pub async fn send_email_verification(
     user: User,
-    db: Data<dyn DbPool>,
     mailer: MailerConfig,
     app_server_url: &str,
 ) -> Result<(), Error> {
     let token = Token::new_email_verification(user.id);
 
-    User::save_email_verification_token(user.email.clone(), token.clone(), db).await?;
+    //User::save_email_verification_token(user.email.clone(), token.clone(), db).await?;
 
     let email = new_email_verification_email(&user.email, &app_server_url, token);
     send(&mailer.auth_token, email, &mailer.server_url).await
@@ -29,15 +26,14 @@ pub async fn send_error_email(mailer: &MailerConfig, error_msg: &str) -> Result<
 
 pub async fn send_password_reset(
     user: User,
-    db: Data<dyn DbPool>,
+    //db: Data<dyn DbPool>,
     mailer_url: &str,
     server_url: &str,
     auth_token: &str,
 ) -> Result<(), Error> {
     let token = Token::new_password_reset(user.id);
 
-    User::save_reset_token(user.clone(), token.clone(), db).await?;
-
+    //User::save_reset_token(user.clone(), token.clone(), db).await?;
     let email = new_password_reset_email(&user.email, server_url, token)?;
 
     send(auth_token, email, mailer_url).await

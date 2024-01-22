@@ -9,7 +9,7 @@ use anyhow::Error;
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::{auth::authenticated_user::AuthenticatedUser, database::DbPool};
+use crate::auth::authenticated_user::AuthenticatedUser;
 use crate::{
     hydro::{pool_pump::PoolPumpSpeed, Hydro},
     util::ApiResponse,
@@ -21,10 +21,9 @@ pub struct PoolPumpParams {
 }
 
 #[post("/pool_pump")]
-#[tracing::instrument(skip(_db, _user, maybe_hydro))]
+#[tracing::instrument(skip(_user, maybe_hydro))]
 pub async fn pool_pump(
     params: web::Json<PoolPumpParams>,
-    _db: Data<dyn DbPool>,
     _user: AuthenticatedUser,
     maybe_hydro: Data<Mutex<Option<Hydro>>>,
 ) -> Result<HttpResponse> {

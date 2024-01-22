@@ -1,12 +1,12 @@
 use tokio::time::{sleep, Duration};
 
-use crate::database::RealDbPool;
 use crate::hydro::control::Output;
 use crate::hydro::{Control, Level};
 use crate::models::sump_event::SumpEvent;
+use crate::repository::Repo;
 
-#[tracing::instrument(skip(db))]
-pub async fn update_sensor(level: Level, mut pump: Control, db: RealDbPool, delay: u64) {
+#[tracing::instrument(skip(repo))]
+pub async fn update_sensor(level: Level, mut pump: Control, repo: Repo, delay: u64) {
     // Turn the pump on
     if level == Level::Low {
         if delay > 0 {
@@ -17,7 +17,7 @@ pub async fn update_sensor(level: Level, mut pump: Control, db: RealDbPool, dela
         tracing::info!(target = module_path!(), "Sump pump turned off");
 
         if let Err(e) =
-            SumpEvent::create("pump off".to_string(), "reservoir empty".to_string(), db).await
+            SumpEvent::create("pump off".to_string(), "reservoir empty".to_string(), repo).await
         {
             tracing::error!(
                 target = module_path!(),

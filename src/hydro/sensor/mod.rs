@@ -343,14 +343,14 @@ impl Input for Sensor {
 #[cfg(test)]
 mod tests {
     use crate::{
-        database::DbPool,
         hydro::{control::Control, gpio::Level},
+        repository::Repo,
         test_fixtures::gpio::mock_gpio_get,
     };
 
     #[test]
     fn test_new() {
-        let callback = |level: Level, control: Control, db: DbPool, delay: u64| {
+        let callback = |level: Level, control: Control, db: Repo, delay: u64| {
             format!("{:?}", level);
             ()
         };

@@ -2,12 +2,14 @@ use actix_web::HttpResponse;
 use serde::{Deserialize, Serialize};
 use tokio::task::{spawn_blocking, JoinHandle};
 
+pub const BAD_CREDS: &str = "Invalid email or password.";
 pub const PASSWORD_LOWER: &str = "Password must contain a lowercase letter.";
 pub const PASSWORD_NUMBER: &str = "Password must contain a number.";
 pub const PASSWORD_SPECIAL: &str = "Password must contain a special character.";
 pub const PASSWORD_TOO_SHORT: &str = "Password is too short.";
 pub const PASSWORD_TOO_LONG: &str = "Password is too long.";
 pub const PASSWORD_UPPER: &str = "Password must contain an uppercase letter.";
+pub const REQUIRED_FIELDS: &str = "Email and password are required.";
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ApiResponse {
@@ -23,6 +25,12 @@ impl ApiResponse {
     pub fn internal_server_error() -> HttpResponse {
         HttpResponse::InternalServerError().json(Self {
             message: "Internal server error".to_string(),
+        })
+    }
+
+    pub fn not_found() -> HttpResponse {
+        HttpResponse::NotFound().json(Self {
+            message: "Not found".to_string(),
         })
     }
 
@@ -64,20 +72,20 @@ macro_rules! get_hydro {
     };
 }
 
-/// Convenience method for database connections during an api request.
-#[macro_export]
-macro_rules! new_conn {
-    ($db:expr) => {
-        match $db.get_conn() {
-            Ok(conn) => conn,
-            Err(e) => {
-                tracing::error!(
-                    target = module_path!(),
-                    error = e.to_string(),
-                    "Could not get database connection"
-                );
-                return Ok(ApiResponse::internal_server_error());
-            }
-        }
-    };
-}
+//// Convenience method for database connections during an api request.
+// #[macro_export]
+// macro_rules! new_conn {
+//     ($db:expr) => {
+//         match $db.get_conn() {
+//             Ok(conn) => conn,
+//             Err(e) => {
+//                 tracing::error!(
+//                     target = module_path!(),
+//                     error = e.to_string(),
+//                     "Could not get database connection"
+//                 );
+//                 return Ok(ApiResponse::internal_server_error());
+//             }
+//         }
+//     };
+// }

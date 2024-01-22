@@ -10,7 +10,7 @@ use tokio::time::{sleep, Duration};
 use crate::hydro::schedule::check::check_schedule;
 use crate::models::irrigation_event::StatusQueryResult;
 use crate::models::irrigation_schedule::IrrigationSchedule;
-use crate::{database::RealDbPool, models::irrigation_event::IrrigationEvent};
+use crate::{models::irrigation_event::IrrigationEvent, repository::Repo};
 
 use super::irrigator::Irrigator;
 
@@ -30,10 +30,9 @@ pub struct Status {
 ///  * `db` - Handle to the database pool
 ///  * `sump` - Instance of the Sump object for running IrrigationEvents
 ///
-pub fn start(db: RealDbPool, irrigator: Irrigator, frequency_ms: u64) -> JoinHandle<()> {
-    // Schedule runs statically in a new thread
+pub fn start(repo: Repo, irrigator: Irrigator, frequency_ms: u64) -> JoinHandle<()> {
     tokio::spawn(async move {
-        check_schedule(db.clone(), irrigator);
+        check_schedule(repo, irrigator);
         sleep(Duration::from_millis(frequency_ms)).await;
     })
 }
@@ -66,17 +65,17 @@ pub fn start(db: RealDbPool, irrigator: Irrigator, frequency_ms: u64) -> JoinHan
 //     block_on(run_next_event(db, irrigator));
 // }
 
-fn get_schedule_statuses(db: RealDbPool) -> Result<Vec<Status>, Error> {
-    let mut conn = match db.get() {
-        Ok(conn) => conn,
-        Err(e) => return Err(e.into()),
-    };
+// fn get_schedule_statuses(repo: Repo) -> Result<Vec<Status>, Error> {
+//     let mut conn = match db.get() {
+//         Ok(conn) => conn,
+//         Err(e) => return Err(e.into()),
+//     };
 
-    IrrigationEvent::status_query()
-        .load::<StatusQueryResult>(&mut conn)
-        .map(|results| build_statuses(results))
-        .map_err(|e| anyhow!(e))
-}
+//     IrrigationEvent::status_query()
+//         .load::<StatusQueryResult>(&mut conn)
+//         .map(|results| build_statuses(results))
+//         .map_err(|e| anyhow!(e))
+// }
 
 fn due_statuses(status_list: Vec<Status>, now: NaiveDateTime) -> Vec<Status> {
     let mut schedules_to_run = status_list

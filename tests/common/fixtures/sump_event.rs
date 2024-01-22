@@ -1,5 +1,5 @@
 use diesel::prelude::*;
-use rpsump::database::DbPool;
+use rpsump::repository::DbPool;
 use rpsump::schema::sump_event;
 use rpsump::schema::sump_event::dsl::*;
 

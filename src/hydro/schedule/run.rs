@@ -1,16 +1,17 @@
+use anyhow::{anyhow, Error};
 use std::time::{Duration as StdDuration, SystemTime};
 
-use anyhow::{anyhow, Error};
 use tokio::{sync::MutexGuard, task::JoinHandle, time::sleep};
 
-use crate::database::RealDbPool;
-use crate::hydro::gpio::OutputPin;
-use crate::hydro::{control::Control, schedule::IrrigationEvent, sensor::Input, Irrigator};
+use crate::hydro::{
+    control::Control, gpio::OutputPin, schedule::IrrigationEvent, sensor::Input, Irrigator,
+};
+use crate::repository::Repo;
 
-#[tracing::instrument(skip(db))]
-pub async fn run_next_event(db: RealDbPool, irrigator: Irrigator) {
+#[tracing::instrument(skip(repo))]
+pub async fn run_next_event(repo: Repo, irrigator: Irrigator) {
     // Get the next event
-    let (duration, event) = match IrrigationEvent::next_queued(db.clone()).await {
+    let (duration, event) = match repo.next_queued_irrigation_event().await {
         Ok(event) => event,
         Err(e) => {
             tracing::error!(
@@ -31,12 +32,12 @@ pub async fn run_next_event(db: RealDbPool, irrigator: Irrigator) {
     }
 
     // Start the irrigation
-    let _irrigation_job = start_irrigation(db, event, duration, irrigator);
+    let _irrigation_job = start_irrigation(repo, event, duration, irrigator);
 }
 
-#[tracing::instrument(skip(db))]
+#[tracing::instrument(skip(repo))]
 async fn start_irrigation(
-    db: RealDbPool,
+    repo: Repo,
     event: IrrigationEvent,
     duration: i32,
     irrigator: Irrigator,
@@ -100,7 +101,7 @@ async fn start_irrigation(
         pump_lock.set_low();
 
         // Move the job out of "in progress" status
-        if let Err(e) = IrrigationEvent::finish(db).await {
+        if let Err(e) = repo.finish_irrigation_event().await {
             tracing::error!(
                 target = module_path!(),
                 error = e.to_string(),

@@ -8,6 +8,7 @@ edition = "2021"
 [dependencies]
 # Development tools
 anyhow = "1.0"
+async-trait = "0.1.77"
 bcrypt = "0.15.0"
 chrono = { version = "0.4.24", features = ["serde"] }
 ctrlc = "3.2.5"
@@ -65,7 +66,6 @@ mockall = "0.12.1"
 rstest = { version = "0.18.2" }
 
 [dev-dependencies]
-async-trait = "0.1.77"
 clippy = "0.0.302"
 env_logger = "0.10.0"
 lazy_static = "1.4.0"

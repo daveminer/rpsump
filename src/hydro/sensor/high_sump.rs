@@ -1,13 +1,13 @@
 use std::sync::{Arc, Mutex};
 
-use crate::database::RealDbPool;
 use crate::hydro::debounce::Debouncer;
 use crate::hydro::{control::Output, Control, Level};
 use crate::models::sump_event::SumpEvent;
+use crate::repository::Repo;
 
 pub fn handler(
     level: Level,
-    handler: impl FnOnce(Level, Control, RealDbPool) + Send + 'static,
+    handler: dyn FnOnce(Level, Control, Repo) + Send + 'static,
     shared_debouncer: Arc<Mutex<Option<Debouncer>>>,
     rt: &mut tokio::runtime::Runtime,
 ) {
@@ -57,8 +57,8 @@ pub fn handler(
 //     });
 // }
 
-#[tracing::instrument(skip(db))]
-pub async fn update_sensor(level: Level, mut pump: Control, db: RealDbPool) {
+#[tracing::instrument(skip(repo))]
+pub async fn update_sensor(level: Level, mut pump: Control, repo: Repo) {
     // Turn the pump on
     if level == Level::High {
         pump.on();
@@ -66,7 +66,7 @@ pub async fn update_sensor(level: Level, mut pump: Control, db: RealDbPool) {
         tracing::info!("Sump pump turned on.");
 
         if let Err(e) =
-            SumpEvent::create("pump on".to_string(), "reservoir full".to_string(), db).await
+            SumpEvent::create("pump on".to_string(), "reservoir full".to_string(), repo).await
         {
             tracing::error!(
                 target = module_path!(),
