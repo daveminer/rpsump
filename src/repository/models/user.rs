@@ -1,13 +1,8 @@
-use actix_web::web::Data;
-use anyhow::{anyhow, Error};
-use chrono::{NaiveDateTime, Utc};
-use diesel::result::{DatabaseErrorKind, Error as DieselError};
+use chrono::NaiveDateTime;
 use diesel::{prelude::*, sqlite::Sqlite};
 use serde::{Deserialize, Serialize};
 
-use crate::models::user_event::EventType;
-use crate::schema::{user, user_event};
-use crate::util::spawn_blocking_with_tracing;
+use crate::schema::user;
 
 #[derive(Clone, Debug, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
 #[diesel(table_name = user)]

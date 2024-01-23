@@ -1,8 +1,8 @@
 use chrono::NaiveDateTime;
 use diesel::{ExpressionMethods, RunQueryDsl};
 use rpsump::{
-    database::DbPool,
     models::irrigation_event::IrrigationEventStatus,
+    repository::DbPool,
     schema::irrigation_event::{self, *},
 };
 
@@ -30,7 +30,8 @@ pub async fn insert_irrigation_event(
 pub async fn insert_irrigation_events(db: DbPool) {
     let complete_status: String = IrrigationEventStatus::Completed.to_string();
 
-    let dt = NaiveDateTime::parse_from_str("2022-01-01 12:34:56".into(), "%Y-%m-%d %H:%M:%S").unwrap();
+    let dt =
+        NaiveDateTime::parse_from_str("2022-01-01 12:34:56".into(), "%Y-%m-%d %H:%M:%S").unwrap();
     insert_irrigation_event(
         db.clone(),
         1,
@@ -40,7 +41,8 @@ pub async fn insert_irrigation_events(db: DbPool) {
         Some(dt + chrono::Duration::seconds(30)),
     )
     .await;
-    let dt2 = NaiveDateTime::parse_from_str("2022-01-02 16:50:22".into(), "%Y-%m-%d %H:%M:%S").unwrap();
+    let dt2 =
+        NaiveDateTime::parse_from_str("2022-01-02 16:50:22".into(), "%Y-%m-%d %H:%M:%S").unwrap();
     insert_irrigation_event(
         db.clone(),
         1,
@@ -50,7 +52,8 @@ pub async fn insert_irrigation_events(db: DbPool) {
         Some(dt2 + chrono::Duration::seconds(30)),
     )
     .await;
-    let dt3 = NaiveDateTime::parse_from_str("2022-01-03 23:59:59".into(), "%Y-%m-%d %H:%M:%S").unwrap();
+    let dt3 =
+        NaiveDateTime::parse_from_str("2022-01-03 23:59:59".into(), "%Y-%m-%d %H:%M:%S").unwrap();
     insert_irrigation_event(
         db.clone(),
         1,
@@ -60,7 +63,8 @@ pub async fn insert_irrigation_events(db: DbPool) {
         Some(dt3 + chrono::Duration::seconds(30)),
     )
     .await;
-    let dt4 = NaiveDateTime::parse_from_str("2022-01-04 02:10:08".into(), "%Y-%m-%d %H:%M:%S").unwrap();
+    let dt4 =
+        NaiveDateTime::parse_from_str("2022-01-04 02:10:08".into(), "%Y-%m-%d %H:%M:%S").unwrap();
     insert_irrigation_event(
         db.clone(),
         1,
@@ -70,7 +74,8 @@ pub async fn insert_irrigation_events(db: DbPool) {
         Some(dt4 + chrono::Duration::seconds(30)),
     )
     .await;
-    let dt5 = NaiveDateTime::parse_from_str("2022-01-05 12:34:56".into(), "%Y-%m-%d %H:%M:%S").unwrap();
+    let dt5 =
+        NaiveDateTime::parse_from_str("2022-01-05 12:34:56".into(), "%Y-%m-%d %H:%M:%S").unwrap();
     insert_irrigation_event(
         db.clone(),
         1,

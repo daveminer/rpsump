@@ -8,8 +8,8 @@ use wiremock::{Mock, MockGuard, ResponseTemplate};
 use crate::common::test_app::TestApp;
 
 use rpsump::auth::password::Password;
-use rpsump::database::DbPool;
 use rpsump::models::user::User;
+use rpsump::repository::DbPool;
 use serde_json::{Map, Value};
 
 pub mod auth;

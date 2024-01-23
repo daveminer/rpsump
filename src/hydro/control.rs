@@ -1,5 +1,6 @@
-use crate::hydro::gpio::{Gpio, Level, OutputPin};
+use crate::hydro::gpio::{Gpio, Level, OutputPin, Pin};
 use anyhow::{anyhow, Error};
+use async_trait::async_trait;
 use futures::Future;
 use std::fmt;
 use std::sync::{Arc, PoisonError};
@@ -47,14 +48,16 @@ impl fmt::Debug for Control {
     }
 }
 
+#[async_trait]
 pub trait Output {
     // TODO: verify these are Send
-    fn on(&mut self) -> impl Future<Output = Result<(), Error>> + Send;
-    fn off(&mut self) -> impl Future<Output = Result<(), Error>> + Send;
+    async fn on(&mut self) -> Result<(), Error>;
+    async fn off(&mut self) -> Result<(), Error>;
     fn is_on(&self) -> bool;
     fn is_off(&self) -> bool;
 }
 
+#[async_trait]
 impl Output for Control {
     // Set the pin high
     async fn on(&mut self) -> Result<(), Error> {

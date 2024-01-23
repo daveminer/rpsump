@@ -1,19 +1,11 @@
+use chrono::NaiveDateTime;
+use diesel::sql_types::{Bool, Integer, Nullable, Text};
+use diesel::{prelude::*, query_builder::SqlQuery, sql_query, sqlite::Sqlite};
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
-use anyhow::{anyhow, Error};
-use chrono::NaiveDateTime;
-use diesel::prelude::*;
-use diesel::query_builder::SqlQuery;
-use diesel::sql_query;
-use diesel::sql_types::{Bool, Integer, Nullable, Text};
-use diesel::sqlite::Sqlite;
-use serde::{Deserialize, Serialize};
-use tracing::error;
-
-use crate::hydro::schedule::Status;
+use crate::schema::irrigation_event;
 use crate::schema::irrigation_event::*;
-use crate::schema::{irrigation_event, irrigation_schedule};
-use crate::util::spawn_blocking_with_tracing;
 
 type BoxedQuery<'a> = irrigation_event::BoxedQuery<'a, Sqlite, irrigation_event::SqlType>;
 

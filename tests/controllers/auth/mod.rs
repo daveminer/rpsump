@@ -3,8 +3,8 @@ use serde_json::{Map, Value};
 
 use super::{TEST_EMAIL, TEST_PASSWORD};
 use rpsump::auth::password::Password;
-use rpsump::database::DbPool;
 use rpsump::models::user::User;
+use rpsump::repository::DbPool;
 
 use crate::controllers::user_params;
 

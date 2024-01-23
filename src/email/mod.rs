@@ -2,7 +2,7 @@ use actix_web::web::Data;
 use serde::{Deserialize, Serialize};
 
 use crate::config::MailerConfig;
-use crate::models::user::User;
+use crate::repository::models::user::User;
 pub mod sendinblue;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

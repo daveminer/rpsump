@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::hydro::debounce::Debouncer;
 use crate::hydro::{control::Output, Control, Level};
-use crate::models::sump_event::SumpEvent;
+use crate::repository::models::sump_event::SumpEvent;
 use crate::repository::Repo;
 
 pub fn handler(

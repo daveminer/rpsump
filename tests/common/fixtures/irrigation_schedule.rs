@@ -1,7 +1,7 @@
 use chrono::{NaiveDateTime, NaiveTime};
 use diesel::{ExpressionMethods, RunQueryDsl};
 use rpsump::{
-    database::DbPool,
+    repository::DbPool,
     schema::{irrigation_schedule, irrigation_schedule::*},
 };
 

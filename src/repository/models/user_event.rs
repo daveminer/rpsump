@@ -1,17 +1,10 @@
-use actix_web::web::Data;
-use anyhow::{anyhow, Error};
 use chrono::NaiveDateTime;
-use diesel::prelude::*;
-use diesel::AsExpression;
+use diesel::{prelude::*, sql_types::Text, AsExpression};
 use diesel_derive_enum::DbEnum;
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
-use crate::models::user::User;
 use crate::schema::user_event;
-use crate::schema::user_event::dsl::*;
-use crate::util::spawn_blocking_with_tracing;
-
 #[derive(Clone, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
 #[diesel(table_name = user_event)]
 pub struct UserEvent {
@@ -24,7 +17,7 @@ pub struct UserEvent {
 
 #[derive(Clone, Debug, DbEnum, AsExpression, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-#[diesel(sql_type = diesel::sql_types::Text)]
+#[diesel(sql_type = Text)]
 pub enum EventType {
     FailedLogin,
     Login,

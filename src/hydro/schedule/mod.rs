@@ -32,7 +32,7 @@ pub struct Status {
 ///
 pub fn start(repo: Repo, irrigator: Irrigator, frequency_ms: u64) -> JoinHandle<()> {
     tokio::spawn(async move {
-        check_schedule(repo, irrigator);
+        check_schedule(repo, irrigator).await;
         sleep(Duration::from_millis(frequency_ms)).await;
     })
 }

@@ -4,7 +4,7 @@ use crate::auth::authenticated_user::AuthenticatedUser;
 use crate::repository::Repo;
 
 #[get("/sump_event")]
-#[tracing::instrument(skip(_req_body, _user))]
+#[tracing::instrument(skip(repo, _req_body, _user))]
 pub async fn sump_event(
     _req_body: String,
     _user: AuthenticatedUser,
@@ -16,7 +16,7 @@ pub async fn sump_event(
             error = e.to_string(),
             "Error while getting sump events"
         );
-        error::ErrorInternalServerError("Internal server error.")
+        Ok(error::ErrorInternalServerError("Internal server error."))
     })?;
 
     Ok(HttpResponse::Ok().json(sump_events))

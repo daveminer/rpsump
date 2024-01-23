@@ -4,7 +4,6 @@ pub mod controllers;
 pub mod email;
 pub mod hydro;
 pub mod middleware;
-pub mod models;
 pub mod repository;
 pub mod schema;
 pub mod startup;

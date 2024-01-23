@@ -3,8 +3,8 @@ use diesel::{ExpressionMethods, RunQueryDsl};
 
 use rpsump::auth::token::Token;
 use rpsump::controllers::ApiResponse;
-use rpsump::database::DbConn;
 use rpsump::models::user::User;
+use rpsump::repository::DbConn;
 use rpsump::schema::user;
 
 use super::signup_params;

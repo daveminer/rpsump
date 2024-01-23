@@ -1,7 +1,6 @@
 use serde::Deserialize;
 
 use crate::hydro::{control::Output, Control, Level};
-use crate::models::sump_event::SumpEvent;
 use crate::repository::Repo;
 
 #[tracing::instrument(skip(repo))]
@@ -12,8 +11,8 @@ pub async fn update_sensor(level: Level, mut pump: Control, repo: Repo) {
 
         tracing::info!("Sump pump turned on.");
 
-        if let Err(e) =
-            SumpEvent::create("pump on".to_string(), "reservoir full".to_string(), repo).await
+        if let Err(e) = repo.create_sump_event().await
+        //SumpEvent::create("pump on".to_string(), "reservoir full".to_string(), repo).await
         {
             tracing::error!(
                 target = module_path!(),
@@ -40,17 +39,18 @@ pub async fn handle_sensor_signal(action: PumpAction, mut pump: Control, repo: R
 
     tracing::info!("Sump pump turned {:?}.", action);
 
-    if let Err(e) = SumpEvent::create(
-        format!("pump {:?}", action),
-        "reservoir full".to_string(),
-        repo,
-    )
-    .await
+    if let Err(e) = repo.create_sump_event().await
+    //      SumpEvent::create(
+    //     format!("pump {:?}", action),
+    //     "reservoir full".to_string(),
+    //     repo,
+    // )
+    // .await
     {
         tracing::error!(
             target = module_path!(),
             error = e.to_string(),
             "Failed to create sump event for pump on"
         );
-    };
+    }
 }

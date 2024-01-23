@@ -3,7 +3,7 @@ use chrono::NaiveTime;
 
 use crate::auth::authenticated_user::AuthenticatedUser;
 use crate::controllers::auth::helpers::error_response;
-use crate::models::irrigation_schedule::{DayOfWeek, IrrigationSchedule};
+use crate::repository::models::irrigation_schedule::{DayOfWeek, IrrigationSchedule};
 use crate::repository::Repo;
 use crate::util::ApiResponse;
 

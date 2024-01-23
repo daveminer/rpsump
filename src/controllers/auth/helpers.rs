@@ -1,23 +1,15 @@
-use actix_web::{web::ServiceConfig, HttpRequest, HttpResponse};
+use actix_web::{HttpRequest, HttpResponse};
 use anyhow::{anyhow, Error};
+use secrecy::ExposeSecret;
 use validator::ValidationError;
 
 use crate::{
     auth::password::Password,
-    controllers::auth::{email_verification, login, reset_password, signup},
     util::{
         ApiResponse, PASSWORD_LOWER, PASSWORD_NUMBER, PASSWORD_SPECIAL, PASSWORD_TOO_LONG,
         PASSWORD_TOO_SHORT, PASSWORD_UPPER,
     },
 };
-
-pub fn auth_routes(cfg: &mut ServiceConfig) {
-    cfg.service(email_verification::verify_email);
-    cfg.service(login::login);
-    cfg.service(reset_password::reset_password);
-    cfg.service(reset_password::request_password_reset);
-    cfg.service(signup::signup);
-}
 
 pub fn error_response(e: Error, msg: &str) -> HttpResponse {
     tracing::error!(target = module_path!(), error = e.to_string(), msg);

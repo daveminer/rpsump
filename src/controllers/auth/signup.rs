@@ -53,7 +53,7 @@ pub async fn signup(
     };
 
     // Create user
-    let new_user = match repo.create_user(&params.email, hash).await {
+    let new_user = match repo.create_user(params.email.clone(), hash, ip_addr).await {
         Ok(user) => user,
         Err(e) => return Ok(ApiResponse::bad_request(e.to_string())),
     };
@@ -62,7 +62,7 @@ pub async fn signup(
 
     // Send email verification
     match new_user
-        .send_email_verification(repo, mailer_settings, req.connection_info().host())
+        .send_email_verification(mailer_settings, req.connection_info().host())
         .await
     {
         Ok(_) => Ok(ApiResponse::ok("User created.".to_string())),

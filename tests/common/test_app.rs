@@ -8,7 +8,7 @@ use uuid::Uuid;
 use wiremock::MockServer;
 
 use rpsump::config::Settings;
-use rpsump::database::{new_pool, DbPool};
+use rpsump::repository::{new_pool, DbPool};
 use rpsump::startup::Application;
 
 // TODO: move to shared location

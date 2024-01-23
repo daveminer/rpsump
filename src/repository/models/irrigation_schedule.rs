@@ -1,14 +1,9 @@
-use actix_web::web::Data;
-use anyhow::{anyhow, Error};
 use chrono::{NaiveDateTime, NaiveTime};
-use diesel::prelude::*;
-use diesel::sqlite::Sqlite;
+use diesel::{prelude::*, sqlite::Sqlite};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
 use crate::schema::irrigation_schedule;
-use crate::schema::irrigation_schedule::*;
-use crate::util::spawn_blocking_with_tracing;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum DayOfWeek {
@@ -53,23 +48,23 @@ impl fmt::Display for DayOfWeek {
 
 impl IrrigationSchedule {
     // Composable queries
-    pub fn active() -> BoxedQuery<'static> {
-        IrrigationSchedule::all().filter(irrigation_schedule::active.eq(true))
-    }
+    // pub fn active() -> BoxedQuery<'static> {
+    //     IrrigationSchedule::all().filter(irrigation_schedule::active.eq(true))
+    // }
 
-    pub fn all() -> BoxedQuery<'static> {
-        irrigation_schedule::table.limit(100).into_boxed()
-    }
+    // pub fn all() -> BoxedQuery<'static> {
+    //     irrigation_schedule::table.limit(100).into_boxed()
+    // }
 
-    pub fn by_id(sched_id: i32) -> BoxedQuery<'static> {
-        irrigation_schedule::table.find(sched_id).into_boxed()
-    }
+    // pub fn by_id(sched_id: i32) -> BoxedQuery<'static> {
+    //     irrigation_schedule::table.find(sched_id).into_boxed()
+    // }
 
-    pub fn by_user_id(user_id: i32) -> BoxedQuery<'static> {
-        irrigation_schedule::table
-            .filter(irrigation_schedule::id.eq(user_id))
-            .into_boxed()
-    }
+    // pub fn by_user_id(user_id: i32) -> BoxedQuery<'static> {
+    //     irrigation_schedule::table
+    //         .filter(irrigation_schedule::id.eq(user_id))
+    //         .into_boxed()
+    // }
 
     //     #[tracing::instrument(skip(db))]
     //     pub async fn create<D>(

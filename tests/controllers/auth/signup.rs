@@ -3,9 +3,9 @@ use anyhow::Error;
 use diesel::RunQueryDsl;
 
 use rpsump::controllers::ApiResponse;
-use rpsump::database::DbPool;
 use rpsump::models::user::User;
 use rpsump::models::user_event::{EventType, UserEvent};
+use rpsump::repository::DbPool;
 
 use super::{create_test_user, signup_params, user_params};
 use crate::common::test_app::spawn_app;

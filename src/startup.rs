@@ -12,7 +12,7 @@ use crate::controllers::{
 };
 
 use crate::hydro::{gpio::Gpio, Hydro};
-use crate::repository::Repository;
+use crate::repository::Repo;
 
 pub struct Application {
     port: u16,
@@ -20,10 +20,9 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn build<G, R>(settings: Settings, gpio: &G, repo: R) -> Application
+    pub fn build<G>(settings: Settings, gpio: &G, repo: Repo) -> Application
     where
         G: Gpio,
-        R: Repository,
     {
         // Web server configuration
         let address = format!("{}:{}", settings.server.host, settings.server.port);
@@ -34,7 +33,7 @@ impl Application {
             .expect("Could not get server address.")
             .port();
 
-        let hydro = Hydro::new(repo, &settings.hydro, gpio).expect("Could not create hydro object");
+        let hydro = Hydro::new(&settings.hydro, gpio, repo).expect("Could not create hydro object");
 
         // TODO: fix clones
         //let db_clone = db_pool.clone();

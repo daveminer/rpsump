@@ -22,7 +22,7 @@ pub async fn irrigation_event(
     repo: Data<Repo>,
     _user: AuthenticatedUser,
 ) -> Result<HttpResponse> {
-    let filter = match Query::<Params>::from_query(req.query_string()) {
+    let _filter = match Query::<Params>::from_query(req.query_string()) {
         Ok(filter) => filter,
         Err(_e) => {
             return Ok(HttpResponse::BadRequest().body("invalid filter"));
@@ -31,7 +31,7 @@ pub async fn irrigation_event(
 
     let irrigation_events = match repo.irrigation_events().await {
         Ok(irrigation_events) => irrigation_events,
-        Err(e) => error_response(e, "Could not get irrigation events"),
+        Err(e) => return Ok(error_response(e, "Could not get irrigation events")),
     };
 
     Ok(HttpResponse::Ok().json(irrigation_events))

@@ -1,14 +1,8 @@
-use anyhow::{anyhow, Error};
 use chrono::NaiveDateTime;
-use diesel::backend::Backend;
-use diesel::dsl::*;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::schema::sump_event;
-use crate::schema::sump_event::dsl::*;
-use crate::schema::sump_event::*;
-use crate::util::spawn_blocking_with_tracing;
 
 #[derive(Clone, Debug, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
 #[diesel(table_name = sump_event)]

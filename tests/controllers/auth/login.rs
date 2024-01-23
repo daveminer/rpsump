@@ -4,9 +4,9 @@ use rpsump::models::user_event::UserEvent;
 use serde_json::Value;
 
 use rpsump::controllers::ApiResponse;
-use rpsump::database::DbPool;
 use rpsump::models::user::User;
 use rpsump::models::user_event::EventType;
+use rpsump::repository::DbPool;
 
 use super::{create_test_user, user_params};
 use crate::common::test_app::spawn_app;

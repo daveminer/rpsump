@@ -1,15 +1,16 @@
 use actix_web::{post, web, web::Data, HttpRequest, HttpResponse, Result};
 use anyhow::{anyhow, Error};
 use bcrypt::verify;
-use diesel::prelude::*;
 use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Serialize};
 
 use crate::auth::{claim::create_token, password::AuthParams};
 use crate::config::Settings;
 use crate::controllers::auth::helpers::{error_response, ip_address};
-use crate::models::{user::User, user_event::*};
-use crate::repository::Repo;
+use crate::repository::{
+    models::{user::User, user_event::*},
+    Repo,
+};
 use crate::util::{spawn_blocking_with_tracing, ApiResponse, BAD_CREDS, REQUIRED_FIELDS};
 
 #[derive(Serialize, Deserialize)]
@@ -31,14 +32,14 @@ pub async fn login(
         return Ok(ApiResponse::bad_request(REQUIRED_FIELDS.to_string()));
     }
 
-    let maybe_user = match repo.user_by_email(email) {
+    let maybe_user: Option<User> = match repo.user_by_email(email).await {
         Ok(maybe_user) => maybe_user,
-        Err(e) => {
+        Err(_e) => {
             return Ok(ApiResponse::bad_request(BAD_CREDS.to_string()));
         }
     };
 
-    if let Err(e) = verify_password(maybe_user, password) {
+    if let Err(e) = verify_password(maybe_user.clone(), password).await {
         return Ok(ApiResponse::bad_request(e.to_string()));
     };
 
@@ -54,8 +55,8 @@ pub async fn login(
         Err(e) => return Ok(error_response(e, "Could not create token for user")),
     };
 
-    let user_event = match repo
-        .create_user_event(user, EventType::Login, ip_addr)
+    let _user_event = match repo
+        .create_user_event(&user, EventType::Login, ip_addr)
         .await
     {
         Ok(user_event) => user_event,
@@ -72,13 +73,12 @@ async fn verify_password(user: Option<User>, password: Secret<String>) -> Result
     // Check if password is correct
     spawn_blocking_with_tracing(move || {
         // Resist timing attacks by always hashing the password
-        let provided_pw = if user.is_some() {
-            user.unwrap().password_hash.as_str()
-        } else {
-            ""
+        let provided_pw: String = match user {
+            Some(user) => user.password_hash,
+            None => "decoy".to_string(),
         };
 
-        match verify(password.expose_secret(), provided_pw) {
+        match verify(password.expose_secret(), &provided_pw) {
             Ok(true) => Ok(()),
             // Match on false and Err
             _ => Err(anyhow!(BAD_CREDS.to_string())),
