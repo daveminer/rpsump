@@ -1,10 +1,7 @@
 use actix_web::rt::Runtime;
 use anyhow::Error;
-use std::{
-    process::Command,
-    sync::{Arc, Mutex},
-};
-use tokio::sync::mpsc::Sender;
+use std::process::Command;
+use tokio::{runtime::Handle, sync::mpsc::Sender};
 
 use crate::{
     config::IrrigationConfig,
@@ -29,7 +26,7 @@ impl Irrigator {
     pub fn new<G>(
         config: &IrrigationConfig,
         tx: &Sender<Command>,
-        rt: Arc<Mutex<Runtime>>,
+        handle: Handle,
         gpio: &G,
     ) -> Result<Self, Error>
     where
@@ -37,12 +34,22 @@ impl Irrigator {
     {
         let pump = Control::new("Irrigation Pump".to_string(), config.pump_control_pin, gpio)?;
 
+        // let handle = match rt.lock() {
+        //     Ok(lock) => lock.handle().clone(),
+        //     Err(e) => {
+        //         return Err(anyhow::anyhow!(
+        //             "Could not get runtime handle: {}",
+        //             e.to_string()
+        //         ))
+        //     }
+        // };
+
         let low_sensor = Sensor::new(
             "Irrigator Empty".to_string(),
             config.low_sensor_pin,
             gpio,
             Trigger::Both,
-            rt,
+            handle,
             tx,
             0,
         )?;
@@ -112,6 +119,8 @@ mod tests {
             }))
         });
 
+        let rt = Runtime::new().unwrap();
+
         let _irrigator: Irrigator = Irrigator::new(
             &IrrigationConfig {
                 enabled: true,
@@ -125,7 +134,7 @@ mod tests {
                 valve_4_control_pin: 6,
             },
             &mpsc.tx,
-            Arc::from(Mutex::new(Runtime::new().unwrap())),
+            rt.tokio_runtime().handle().clone(),
             &mock_gpio,
         )
         .unwrap();

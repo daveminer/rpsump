@@ -6,7 +6,7 @@ use reqwest::StatusCode;
 use std::{env, str::FromStr};
 
 use rpsump::auth::claim::Claim;
-use rpsump::models::user::User;
+use rpsump::repository::models::user::User;
 
 use crate::common::test_app::spawn_app;
 use crate::controllers::auth::create_test_user;

@@ -14,8 +14,10 @@ pub(crate) async fn check_schedule(repo: Repo, irrigator: Irrigator) -> Result<(
     // Determine which statuses are due to run
     let events_to_insert = due_statuses(statuses, chrono::Utc::now().naive_utc());
 
-    let _rows_inserted = repo.insert_queued_events(events_to_insert).await?;
+    let _rows_inserted = repo.queue_irrigation_events(events_to_insert).await?;
 
     // Run irrigation events
     block_on(run_next_event(repo, irrigator));
+
+    Ok(())
 }

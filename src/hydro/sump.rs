@@ -1,11 +1,6 @@
-use std::{
-    process::Command,
-    sync::{Arc, Mutex},
-};
-
-use actix_web::rt::Runtime;
 use anyhow::Error;
-use tokio::sync::mpsc::Sender;
+use std::process::Command;
+use tokio::{runtime::Handle, sync::mpsc::Sender};
 
 use crate::{
     config::SumpConfig,
@@ -27,7 +22,7 @@ impl Sump {
     pub fn new<G>(
         config: &SumpConfig,
         tx: &Sender<Command>,
-        rt: Arc<Mutex<Runtime>>,
+        handle: Handle,
         gpio: &G,
     ) -> Result<Self, Error>
     where
@@ -40,7 +35,7 @@ impl Sump {
             config.high_sensor_pin,
             gpio,
             Trigger::Both,
-            rt,
+            handle.clone(),
             tx,
             0,
         )?;
@@ -50,7 +45,7 @@ impl Sump {
             config.low_sensor_pin,
             gpio,
             Trigger::Both,
-            rt,
+            handle,
             tx,
             // TODO: verify
             1000,

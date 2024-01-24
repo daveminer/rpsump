@@ -1,6 +1,6 @@
 use rstest::fixture;
 
-use crate::models::{
+use crate::repository::models::{
     irrigation_event::{IrrigationEvent, StatusQueryResult},
     irrigation_schedule::IrrigationSchedule,
 };

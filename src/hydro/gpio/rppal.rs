@@ -6,7 +6,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tokio::sync::mpsc::Sender;
+use tokio::{runtime::Handle, sync::mpsc::Sender};
 
 use crate::hydro::{
     debounce::Debouncer,
@@ -51,17 +51,22 @@ impl InputPin for rppal::gpio::InputPin {
         &mut self,
         name: String,
         trigger: Trigger,
-        rt: Arc<Mutex<Runtime>>,
+        handle: Handle,
         tx: &Sender<Command>,
         delay: u64,
     ) -> Result<(), Error> {
-        let rt = rt.borrow_mut();
-        let tx = tx.clone();
+        //let rt = rt.borrow_mut();
+        // let debouncer = Arc::clone(&debouncer);
+        // let rt = rt.clone();
+        // let tx = tx.clone();
         let debouncer: Arc<Mutex<Option<Debouncer>>> = Arc::from(Mutex::new(None));
+        let tx = tx.clone();
         let callback = move |level: rppal::gpio::Level| {
-            callback(level, &name, Arc::clone(&debouncer), delay, rt, &tx);
+            let debouncer = Arc::clone(&debouncer);
+            //let handle = rt.handle().clone();
+            callback(level, &name, debouncer, delay, handle.clone(), &tx);
         };
-        Ok(self.set_async_interrupt(trigger.into(), Box::new(callback))?)
+        Ok(self.set_async_interrupt(trigger.into(), callback)?)
     }
 }
 
@@ -70,7 +75,7 @@ fn callback(
     name: &str,
     debouncer: Arc<Mutex<Option<Debouncer>>>,
     delay: u64,
-    rt: Arc<Mutex<Runtime>>,
+    rt: Handle,
     tx: &Sender<Command>,
 ) {
     // let level = level.into();

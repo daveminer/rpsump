@@ -1,14 +1,18 @@
+use anyhow::anyhow;
 use std::sync::Mutex;
 
 use actix_web::{
     post,
     web::{self, Data},
-    HttpResponse, Responder, Result,
+    HttpResponse, Result,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::{auth::authenticated_user::AuthenticatedUser, hydro::Hydro};
+use crate::{
+    auth::authenticated_user::AuthenticatedUser, controllers::auth::helpers::error_response,
+    hydro::Hydro,
+};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -29,7 +33,16 @@ pub async fn heater(
     _user: AuthenticatedUser,
     maybe_hydro: Data<Mutex<Option<Hydro>>>,
 ) -> Result<HttpResponse> {
-    let mut lock = maybe_hydro.lock();
+    let mut lock = match maybe_hydro.lock() {
+        Ok(lock) => lock,
+        Err(e) => {
+            return Ok(error_response(
+                anyhow!(e.to_string()),
+                "Could not get hydro lock",
+            ));
+        }
+    };
+
     if lock.is_none() {
         return Ok(HttpResponse::Ok().body("Hydro not configured"));
     }

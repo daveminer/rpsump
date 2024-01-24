@@ -1,9 +1,6 @@
 use std::process::exit;
 
-use rpsump::config::Settings;
-use rpsump::database::new_pool;
-use rpsump::middleware::telemetry;
-use rpsump::startup::Application;
+use rpsump::{config::Settings, middleware::telemetry, repository, startup::Application};
 
 /// Start the application after loading settings, database, telemetry, and the RPi board.
 #[actix_web::main]
@@ -11,10 +8,26 @@ async fn main() -> std::io::Result<()> {
     init_exit_handler();
 
     let settings = Settings::new();
-    let db_pool = new_pool(&settings.database_url).expect("Could not create database pool.");
     telemetry::init_tracer(&settings).expect("Could not initialize telemetry.");
     let gpio = rppal::gpio::Gpio::new().expect("Could not initialize GPIO.");
-    let application = Application::build(settings, &db_pool, &gpio);
+    // let repo = Box::new(
+    //     repository::implementation(Some(settings.database_url))
+    //         .await
+    //         .expect("Could not initialize database."),
+    // );
+
+    // TODO: DB URI
+    // let repo = match &settings.database_url {
+    //     Some(database_url) => repository::implementation(database_url.clone())
+    //         .context("Cannot create a repository")?,
+    //     None => repository::mock()?,
+    // };
+
+    let repo = repository::implementation(Some(settings.database_url.clone()))
+        .await
+        .expect("Could not create repository.");
+
+    let application = Application::build(settings, &gpio, repo);
 
     application.run_until_stopped().await?;
 

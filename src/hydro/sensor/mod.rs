@@ -5,7 +5,7 @@ use std::{
     process::Command,
     sync::{Arc, Mutex},
 };
-use tokio::sync::mpsc::Sender;
+use tokio::{runtime::Handle, sync::mpsc::Sender};
 
 use crate::hydro::{
     debounce::Debouncer,
@@ -43,7 +43,7 @@ impl Sensor {
         pin_number: u8,
         gpio: &G,
         trigger: Trigger,
-        rt: Arc<Mutex<Runtime>>,
+        handle: Handle,
         tx: &Sender<Command>,
         delay: u64,
     ) -> Result<Self, Error>
@@ -56,7 +56,7 @@ impl Sensor {
             .into_input_pullup();
 
         let _ = pin_io
-            .set_async_interrupt(name.to_string(), trigger, rt, tx, delay)
+            .set_async_interrupt(name.to_string(), trigger, handle, tx, delay)
             .map_err(|e| anyhow!(e.to_string()))?;
 
         Ok(Self {

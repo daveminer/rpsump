@@ -47,7 +47,7 @@ async fn request_password_reset(
         Err(e) => return Ok(error_response(e, "User lookup failed")),
     };
 
-    let ip_addr: String = match ip_address(&req) {
+    let _ip_addr: String = match ip_address(&req) {
         Ok(ip) => ip,
         Err(e) => return Ok(error_response(e, "Getting ip address from request failed")),
     };

@@ -11,8 +11,9 @@ pub async fn update_sensor(level: Level, mut pump: Control, repo: Repo) {
 
         tracing::info!("Sump pump turned on.");
 
-        if let Err(e) = repo.create_sump_event().await
-        //SumpEvent::create("pump on".to_string(), "reservoir full".to_string(), repo).await
+        if let Err(e) = repo
+            .create_sump_event("pump on".to_string(), "reservoir full".to_string())
+            .await
         {
             tracing::error!(
                 target = module_path!(),
@@ -39,13 +40,9 @@ pub async fn handle_sensor_signal(action: PumpAction, mut pump: Control, repo: R
 
     tracing::info!("Sump pump turned {:?}.", action);
 
-    if let Err(e) = repo.create_sump_event().await
-    //      SumpEvent::create(
-    //     format!("pump {:?}", action),
-    //     "reservoir full".to_string(),
-    //     repo,
-    // )
-    // .await
+    if let Err(e) = repo
+        .create_sump_event(format!("pump {:?}", action), "reservoir full".to_string())
+        .await
     {
         tracing::error!(
             target = module_path!(),

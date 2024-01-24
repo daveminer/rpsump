@@ -1,12 +1,8 @@
-use std::{
-    process::Command,
-    sync::{Arc, Mutex},
-};
+use std::process::Command;
 
 use crate::hydro::gpio::{InputPin, Level, OutputPin, Pin, Trigger};
-use actix_web::rt::Runtime;
 use anyhow::Error;
-use tokio::sync::mpsc::Sender;
+use tokio::{runtime::Handle, sync::mpsc::Sender};
 
 use super::{input_pin::InputPinStub, output_pin::OutputPinStub};
 
@@ -47,7 +43,7 @@ impl InputPin for PinStub {
         &mut self,
         name: String,
         trigger: Trigger,
-        rt: Arc<Mutex<Runtime>>,
+        handle: Handle,
         tx: &Sender<Command>,
         delay: u64,
     ) -> Result<(), Error> {

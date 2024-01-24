@@ -30,6 +30,26 @@ pub struct IrrigationSchedule {
     pub updated_at: NaiveDateTime,
 }
 
+#[derive(Debug, serde::Deserialize)]
+pub struct CreateIrrigationScheduleParams {
+    pub active: bool,
+    pub days_of_week: Vec<DayOfWeek>,
+    pub hoses: Vec<i32>,
+    pub name: String,
+    pub duration: i32,
+    pub start_time: NaiveTime,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateIrrigationScheduleParams {
+    pub active: Option<bool>,
+    pub days_of_week: Option<Vec<DayOfWeek>>,
+    pub hoses: Option<Vec<i32>>,
+    pub name: Option<String>,
+    pub duration: Option<i32>,
+    pub start_time: Option<NaiveTime>,
+}
+
 type BoxedQuery<'a> = irrigation_schedule::BoxedQuery<'a, Sqlite, irrigation_schedule::SqlType>;
 
 impl fmt::Display for DayOfWeek {

@@ -59,7 +59,7 @@ impl Application {
                 .app_data(Self::json_cfg())
                 .app_data(Data::new(settings.clone()))
                 .app_data(Data::new(repo))
-                .app_data(Data::new(Some(hydro)));
+                .app_data(Data::new(Some(hydro.clone())));
 
             app
         })

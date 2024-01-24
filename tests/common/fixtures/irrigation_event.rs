@@ -1,20 +1,20 @@
 use chrono::NaiveDateTime;
 use diesel::{ExpressionMethods, RunQueryDsl};
 use rpsump::{
-    models::irrigation_event::IrrigationEventStatus,
-    repository::DbPool,
+    repository::{models::irrigation_event::IrrigationEventStatus, Repo},
     schema::irrigation_event::{self, *},
 };
 
 pub async fn insert_irrigation_event(
-    db: DbPool,
+    repo: Repo,
     hose: i32,
     schedule: i32,
     event_status: String,
     event_created_at: NaiveDateTime,
     event_end_time: Option<NaiveDateTime>,
 ) {
-    let mut conn = db.get().unwrap();
+    let mut conn = repo.pool.get().unwrap();
+
     diesel::insert_into(irrigation_event::table)
         .values((
             hose_id.eq(hose),
@@ -27,7 +27,7 @@ pub async fn insert_irrigation_event(
         .unwrap();
 }
 
-pub async fn insert_irrigation_events(db: DbPool) {
+pub async fn insert_irrigation_events(repo: Repo) {
     let complete_status: String = IrrigationEventStatus::Completed.to_string();
 
     let dt =

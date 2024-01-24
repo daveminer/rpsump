@@ -1,7 +1,9 @@
 use rstest::fixture;
 
 use crate::hydro::schedule::Status;
-use crate::models::{irrigation_event::IrrigationEvent, irrigation_schedule::IrrigationSchedule};
+use crate::repository::models::{
+    irrigation_event::IrrigationEvent, irrigation_schedule::IrrigationSchedule,
+};
 use crate::test_fixtures::irrigation::event::completed_event;
 use crate::test_fixtures::irrigation::schedule::{
     daily_schedule, deactivated_schedule, friday_schedule, tues_thurs_schedule, weekday_schedule,

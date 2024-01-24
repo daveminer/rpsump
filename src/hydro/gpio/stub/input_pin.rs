@@ -5,7 +5,7 @@ use std::{
 
 use actix_web::rt::Runtime;
 use anyhow::Error;
-use tokio::sync::mpsc::Sender;
+use tokio::{runtime::Handle, sync::mpsc::Sender};
 
 use crate::hydro::gpio::{InputPin, Level, Trigger};
 
@@ -31,7 +31,7 @@ impl InputPin for InputPinStub {
         &mut self,
         name: String,
         trigger: Trigger,
-        rt: Arc<Mutex<Runtime>>,
+        handle: Handle,
         tx: &Sender<Command>,
         delay: u64,
     ) -> Result<(), Error> {

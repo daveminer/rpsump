@@ -46,11 +46,15 @@ impl Hydro {
         let heater = Heater::new(&config.heater, gpio)?;
         let pool_pump = PoolPump::new(&config.pool_pump, gpio)?;
 
-        let rt = Arc::from(Mutex::new(
-            actix_web::rt::Runtime::new().expect("Could not create runtime"),
-        ));
-        let sump = Sump::new(&config.sump, &tx, rt, gpio)?;
-        let irrigator = Irrigator::new(&config.irrigation, &tx, rt, gpio)?;
+        let rt = actix_web::rt::Runtime::new().expect("Could not create runtime");
+        let rt_tokio = rt.tokio_runtime();
+        let handle = rt_tokio.handle();
+        // let rt = Arc::from(Mutex::new(
+        //     actix_web::rt::Runtime::new().expect("Could not create runtime"),
+        // ));
+
+        let sump = Sump::new(&config.sump, &tx, handle.clone(), gpio)?;
+        let irrigator = Irrigator::new(&config.irrigation, &tx, handle.clone(), gpio)?;
 
         Ok(Self {
             irrigator,

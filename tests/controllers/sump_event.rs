@@ -1,7 +1,7 @@
 use actix_web::web::Data;
 use serde_json::Value;
 
-use rpsump::models::sump_event::SumpEvent;
+use rpsump::repository::models::sump_event::SumpEvent;
 
 use crate::common::fixtures::sump_event::insert_sump_events;
 use crate::common::test_app::spawn_app;

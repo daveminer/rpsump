@@ -1,20 +1,12 @@
 use actix_web::{delete, get, patch, post, web, web::Data, HttpResponse, Result};
-use chrono::NaiveTime;
 
 use crate::auth::authenticated_user::AuthenticatedUser;
 use crate::controllers::auth::helpers::error_response;
-use crate::repository::models::irrigation_schedule::{DayOfWeek, IrrigationSchedule};
+use crate::repository::models::irrigation_schedule::{
+    CreateIrrigationScheduleParams, UpdateIrrigationScheduleParams,
+};
 use crate::repository::Repo;
 use crate::util::ApiResponse;
-
-#[derive(Debug, serde::Deserialize)]
-pub struct IrrigationScheduleParams {
-    pub days_of_week: Option<Vec<DayOfWeek>>,
-    pub hoses: Option<Vec<i32>>,
-    pub name: Option<String>,
-    pub duration: Option<i32>,
-    pub start_time: Option<NaiveTime>,
-}
 
 #[get("/schedule")]
 #[tracing::instrument(skip(_req_body, repo, _user))]
@@ -43,7 +35,7 @@ pub async fn irrigation_schedule(
     let id = path.into_inner();
     let irrigation_schedule = match repo.irrigation_schedule_by_id(id).await {
         Ok(irrigation_schedule) => irrigation_schedule,
-        Err(e) => return Ok(ApiResponse::not_found()),
+        Err(_e) => return Ok(ApiResponse::not_found()),
     };
 
     Ok(HttpResponse::Ok().json(irrigation_schedule))
@@ -73,22 +65,22 @@ pub async fn delete_irrigation_schedule(
 #[tracing::instrument(skip(req_body, repo, _user))]
 pub async fn edit_irrigation_schedule(
     path: web::Path<i32>,
-    req_body: web::Json<IrrigationScheduleParams>,
+    req_body: web::Json<UpdateIrrigationScheduleParams>,
     repo: Data<Repo>,
     _user: AuthenticatedUser,
 ) -> Result<HttpResponse> {
     let id = path.into_inner();
 
-    let params: IrrigationScheduleParams = req_body.into_inner();
+    let params: UpdateIrrigationScheduleParams = req_body.into_inner();
 
-    let irrigation_sched = match repo.update_irrigation_schedule(id, params).await {
-        Ok(irrigation_sched) => irrigation_sched,
-        Err(e) => {
-            return Ok(ApiResponse::bad_request(e.to_string()));
-        }
-    };
+    // let irrigation_sched = match repo.update_irrigation_schedule(id, params).await {
+    //     Ok(irrigation_sched) => irrigation_sched,
+    //     Err(e) => {
+    //         return Ok(ApiResponse::bad_request(e.to_string()));
+    //     }
+    // };
 
-    match irrigation_sched {
+    match repo.update_irrigation_schedule(id, params).await {
         Ok(None) => Ok(HttpResponse::NotFound().finish()),
         Ok(schedule) => Ok(HttpResponse::Ok().json(schedule)),
         Err(e) => {
@@ -106,15 +98,13 @@ pub async fn edit_irrigation_schedule(
 #[post("/schedule")]
 #[tracing::instrument(skip(req_body, repo, _user))]
 pub async fn new_irrigation_schedule(
-    req_body: web::Json<IrrigationScheduleParams>,
+    req_body: web::Json<CreateIrrigationScheduleParams>,
     repo: Data<Repo>,
     _user: AuthenticatedUser,
 ) -> Result<HttpResponse> {
-    let params: IrrigationScheduleParams = req_body.into_inner();
+    let params: CreateIrrigationScheduleParams = req_body.into_inner();
 
-    let new_irrigation_schedule = repo.create_irrigation_schedule(params);
-
-    let response = match new_irrigation_schedule {
+    let response = match repo.create_irrigation_schedule(params).await {
         Ok(schedule) => schedule,
         Err(e) => {
             // TODO: check bad request or ISE

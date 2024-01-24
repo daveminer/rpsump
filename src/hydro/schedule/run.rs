@@ -12,7 +12,12 @@ use crate::repository::Repo;
 pub async fn run_next_event(repo: Repo, irrigator: Irrigator) {
     // Get the next event
     let (duration, event) = match repo.next_queued_irrigation_event().await {
-        Ok(event) => event,
+        Ok(dur_event) => match dur_event {
+            Some(dur_event) => dur_event,
+            None => {
+                return;
+            }
+        },
         Err(e) => {
             tracing::error!(
                 target = module_path!(),

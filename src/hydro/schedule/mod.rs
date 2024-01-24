@@ -8,9 +8,13 @@ use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
 
 use crate::hydro::schedule::check::check_schedule;
-use crate::models::irrigation_event::StatusQueryResult;
-use crate::models::irrigation_schedule::IrrigationSchedule;
-use crate::{models::irrigation_event::IrrigationEvent, repository::Repo};
+use crate::repository::{
+    models::{
+        irrigation_event::{IrrigationEvent, StatusQueryResult},
+        irrigation_schedule::IrrigationSchedule,
+    },
+    Repo,
+};
 
 use super::irrigator::Irrigator;
 
@@ -189,7 +193,7 @@ mod tests {
 
     use crate::{
         hydro::schedule::{build_statuses, due_statuses, Status},
-        models::{
+        repository::models::{
             irrigation_event::{IrrigationEvent, StatusQueryResult},
             irrigation_schedule::IrrigationSchedule,
         },

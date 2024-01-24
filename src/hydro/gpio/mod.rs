@@ -1,10 +1,5 @@
-use actix_web::rt::Runtime;
-use std::{
-    fmt,
-    process::Command,
-    sync::{Arc, Mutex},
-};
-use tokio::sync::mpsc::Sender;
+use std::{fmt, process::Command};
+use tokio::{runtime::Handle, sync::mpsc::Sender};
 
 use anyhow::Error;
 use mockall::*;
@@ -54,7 +49,7 @@ pub trait InputPin: Send + Sync {
         &mut self,
         name: String,
         trigger: Trigger,
-        rt: Arc<Mutex<Runtime>>,
+        handle: Handle,
         tx: &Sender<Command>,
         delay: u64,
     ) -> Result<(), Error>;

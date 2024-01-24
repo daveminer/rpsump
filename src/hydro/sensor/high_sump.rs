@@ -7,7 +7,7 @@ use crate::repository::Repo;
 
 pub fn handler(
     level: Level,
-    handler: dyn FnOnce(Level, Control, Repo) + Send + 'static,
+    handler: impl FnOnce(Level, Control, Repo) + Send + 'static,
     shared_debouncer: Arc<Mutex<Option<Debouncer>>>,
     rt: &mut tokio::runtime::Runtime,
 ) {
@@ -19,10 +19,9 @@ pub fn handler(
         return;
     }
 
-    let sleep = deb_lock.as_ref().unwrap().sleep();
-
     rt.block_on(async {
-        sleep.await;
+        deb_lock.as_ref().unwrap().sleep().await;
+
         *deb_lock = None;
         drop(deb_lock);
 
@@ -65,8 +64,9 @@ pub async fn update_sensor(level: Level, mut pump: Control, repo: Repo) {
 
         tracing::info!("Sump pump turned on.");
 
-        if let Err(e) =
-            SumpEvent::create("pump on".to_string(), "reservoir full".to_string(), repo).await
+        if let Err(e) = repo
+            .create_sump_event("pump on".to_string(), "reservoir full".to_string())
+            .await
         {
             tracing::error!(
                 target = module_path!(),

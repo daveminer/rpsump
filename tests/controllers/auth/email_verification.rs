@@ -1,15 +1,12 @@
 use chrono::{Duration, NaiveDateTime};
 use diesel::{ExpressionMethods, RunQueryDsl};
 
-use rpsump::auth::token::Token;
-use rpsump::controllers::ApiResponse;
-use rpsump::models::user::User;
-use rpsump::repository::DbConn;
-use rpsump::schema::user;
+use rpsump::{auth::token::Token, repository::models::user::User, schema::user, util::ApiResponse};
 
-use super::signup_params;
 use crate::common::test_app::spawn_app;
-use crate::controllers::{email_link_from_mock_server, mock_email_verification_send};
+use crate::controllers::{
+    auth::signup_params, email_link_from_mock_server, mock_email_verification_send,
+};
 
 #[tokio::test]
 async fn email_verification_token_expired() {
@@ -106,6 +103,18 @@ async fn email_verification_succeeded() {
 
     assert!(body.message == "Email verified.");
 }
+
+// async fn set_email_verification_expiry(
+//     email: String,
+//     time: NaiveDateTime,
+//     mut conn: DbConn,
+// ) -> Result<usize, anyhow::Error> {
+//     diesel::update(user::table)
+//         .filter(user::email.eq(email))
+//         .set(user::email_verification_token_expires_at.eq(time.to_string()))
+//         .execute(&mut conn)
+//         .map_err(|e| anyhow::Error::new(e))
+// }
 
 async fn set_email_verification_expiry(
     email: String,
