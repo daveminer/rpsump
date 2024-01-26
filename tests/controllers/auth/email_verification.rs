@@ -1,6 +1,8 @@
 use chrono::{Duration, NaiveDateTime};
-use diesel::{ExpressionMethods, RunQueryDsl};
+use diesel::r2d2::{ConnectionManager, PooledConnection};
+use diesel::{ExpressionMethods, RunQueryDsl, SqliteConnection};
 
+use rpsump::repository::models::user::UserFilter;
 use rpsump::{auth::token::Token, repository::models::user::User, schema::user, util::ApiResponse};
 
 use crate::common::test_app::spawn_app;
@@ -12,7 +14,7 @@ use crate::controllers::{
 async fn email_verification_token_expired() {
     // Arrange
     let app = spawn_app().await;
-    let mut db = app.db_pool.get().unwrap();
+    let mut db = app.repo.pool().await.unwrap().get().unwrap();
     let params = signup_params();
     let _mock = mock_email_verification_send(&app).await;
 
@@ -21,9 +23,14 @@ async fn email_verification_token_expired() {
     let status = response.status();
     assert!(status.is_success());
 
-    let user: User = User::by_email(params["email"].as_str().unwrap().to_string())
-        .first(&mut db)
-        .unwrap();
+    let user_filter = UserFilter {
+        email: Some(params["email"].as_str().unwrap().to_string()),
+        ..Default::default()
+    };
+    let user = app.repo.users(user_filter).await.unwrap().pop().unwrap();
+    // let user: User = User::by_email(params["email"].as_str().unwrap().to_string())
+    //     .first(&mut db)
+    //     .unwrap();
 
     let token_expiry = user.email_verification_token_expires_at.unwrap();
     let yesterday = token_expiry - Duration::days(1);
@@ -119,8 +126,10 @@ async fn email_verification_succeeded() {
 async fn set_email_verification_expiry(
     email: String,
     time: NaiveDateTime,
-    mut conn: DbConn,
+    mut conn: PooledConnection<ConnectionManager<SqliteConnection>>,
 ) -> Result<usize, anyhow::Error> {
+    // let pool = repo.pool().await?;
+    // let mut conn = pool.get().unwrap();
     diesel::update(user::table)
         .filter(user::email.eq(email))
         .set(user::email_verification_token_expires_at.eq(time.to_string()))

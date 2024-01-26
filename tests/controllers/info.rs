@@ -1,17 +1,16 @@
-use actix_web::web::Data;
 use serde_json::Value;
 
 use crate::common::fixtures::sump_event::insert_sump_events;
 use crate::common::test_app::spawn_app;
-use crate::controllers::{create_test_user, user_params};
+use crate::controllers::auth::create_test_user;
+use crate::controllers::user_params;
 
 #[tokio::test]
 async fn info_success_sump_disabled() {
     // Arrange
     let app = spawn_app().await;
-    let db_pool = app.db_pool.clone();
-    let _user = create_test_user(Data::new(db_pool.clone())).await;
-    let _sump_events = insert_sump_events(db_pool.clone()).await;
+    let _user = create_test_user(app.repo).await;
+    let _sump_events = insert_sump_events(app.repo).await;
 
     // Act
     let response = app.post_login(&user_params()).await;

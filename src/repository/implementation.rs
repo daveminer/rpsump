@@ -2,9 +2,12 @@ use anyhow::{anyhow, Error};
 use async_trait::async_trait;
 use chrono::{NaiveDateTime, NaiveTime, Utc};
 
-use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
+use diesel::internal::table_macro::BoxedSelectStatement;
+use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
+use diesel::sql_types::{Bool, Nullable};
 use diesel::sqlite::SqliteConnection;
+use diesel::BoxableExpression;
 use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 
 use crate::auth::password::Password;
@@ -17,9 +20,11 @@ use crate::repository::models::{
     },
     sump_event::SumpEvent,
     user::User,
-    user_event::EventType,
+    user::UserFilter,
+    user_event::{EventType, UserEvent},
 };
 use crate::repository::Repository;
+use crate::schema::user::{email_verification_token, password_reset_token};
 use crate::schema::{irrigation_event, irrigation_schedule, sump_event, user, user_event};
 use crate::schema::{
     irrigation_event::dsl as irrigation_event_dsl,
@@ -27,10 +32,12 @@ use crate::schema::{
 };
 use crate::util::spawn_blocking_with_tracing;
 
+use super::models::user::UserUpdateFilter;
+
 type DbPool = Pool<ConnectionManager<SqliteConnection>>;
 
 pub struct Implementation {
-    pool: DbPool,
+    pub pool: DbPool,
 }
 
 impl Implementation {
@@ -369,6 +376,10 @@ impl Repository for Implementation {
         Ok(Implementation { pool })
     }
 
+    async fn pool(&self) -> Result<Pool<ConnectionManager<SqliteConnection>>, Error> {
+        Ok(self.pool.clone())
+    }
+
     // TODO: finish
     async fn queue_irrigation_events(&self, _events: Vec<Status>) -> Result<(), Error> {
         let mut conn = self
@@ -467,14 +478,12 @@ impl Repository for Implementation {
         Ok(sump_events)
     }
     // fn update_user(&self, user_id: i32, email: String) -> Result<User, Error>;
-    // fn update_irrigation_event(&self, event_id: i32) -> Result<IrrigationEvent, Error>;
     async fn update_irrigation_schedule(
         &self,
         schedule_id: i32,
         params: UpdateIrrigationScheduleParams,
     ) -> Result<Option<IrrigationSchedule>, Error> {
         let mut conn = self
-            .clone()
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
@@ -549,29 +558,97 @@ impl Repository for Implementation {
 
         Ok(irrigation_sched)
     }
-    // fn user_events(&self, user_id: i32, count: i64) -> Result<Vec<UserEvent>, Error>;
-    // fn users(&self) -> Result<Vec<User>, Error>;
-    async fn user_by_email(&self, email: String) -> Result<Option<User>, Error> {
+
+    async fn update_user(&self, updates: UserUpdateFilter) -> Result<(), Error> {
+        let pool = self.pool.clone();
+
+        let result = spawn_blocking_with_tracing(move || {
+            let mut conn = pool
+                .get()
+                .map_err(|e| anyhow!("Error getting database connection: {:?}", e))?;
+
+            conn.transaction::<_, diesel::result::Error, _>(|conn| {
+                // Look up the user
+                let user = user::table
+                    .filter(user::id.eq(updates.id))
+                    .first::<User>(conn)?;
+
+                // Apply the updates
+                diesel::update(&user).set(&updates).execute(conn)?;
+
+                Ok(())
+            })
+            .map_err(|e| anyhow!("Could not update user: {:?}", e))
+        })
+        .await?
+        .map_err(|e| anyhow!("Error while updating user: {:?}", e))?;
+
+        Ok(result)
+    }
+
+    async fn user_events(
+        &self,
+        user_id: i32,
+        event_type: Option<EventType>,
+        count: i64,
+    ) -> Result<Vec<UserEvent>, Error> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| anyhow!("Database error: {:?}", e))?;
+        let user_id = user_id.clone();
+
+        let user_events = spawn_blocking_with_tracing(move || {
+            let mut event_filter: BoxedSelectStatement<_, _, _, _> = user_event::table.into_boxed();
+
+            if let Some(event_type) = event_type {
+                let filter: Box<dyn BoxableExpression<user_event::table, _, SqlType = Bool>> =
+                    Box::new(user_event::event_type.eq(event_type.to_string()));
+                event_filter = event_filter.filter(filter);
+            }
+
+            event_filter
+                .filter(user_event::user_id.eq(user_id))
+                .order(user_event::created_at.desc())
+                .limit(count)
+                .load::<UserEvent>(&mut conn)
+                .map_err(|e| anyhow!(e.to_string()))
+        })
+        .await??;
+
+        Ok(user_events)
+    }
+
+    async fn users(&self, filter: UserFilter) -> Result<Vec<User>, Error> {
         let mut conn = self
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
 
-        spawn_blocking_with_tracing(move || {
-            let result = user::table
-                .filter(user::email.eq(email))
-                .first::<User>(&mut conn);
-            //.map_err(|e| anyhow!("Error when looking up user record: {:?}", e));
+        let users = spawn_blocking_with_tracing(move || {
+            let mut user_filter: BoxedSelectStatement<_, _, _, _> = user::table.into_boxed();
 
-            match result {
-                Ok(user) => Ok(Some(user)),
-                Err(e) => match e {
-                    DieselError::NotFound => Ok(None),
-                    _ => Err(anyhow!(e)),
-                },
+            if let Some(email) = filter.email {
+                let filter: Box<dyn BoxableExpression<user::table, _, SqlType = Bool>> =
+                    Box::new(user::email.eq(email));
+                user_filter = user_filter.filter(filter);
             }
+
+            if let Some(email_verif_token) = filter.email_verification_token {
+                let filter: Box<dyn BoxableExpression<user::table, _, SqlType = Nullable<Bool>>> =
+                    Box::new(user::email_verification_token.eq(email_verif_token));
+                user_filter = user_filter.filter(filter);
+            }
+
+            user_filter
+                .order(user::created_at.desc())
+                .limit(100)
+                .load::<User>(&mut conn)
+                .map_err(|e| anyhow!(e.to_string()))
         })
-        .await?
+        .await??;
+
+        Ok(users)
     }
 
     // TODO: review
@@ -710,3 +787,10 @@ fn build_statuses(results: Vec<StatusQueryResult>) -> Vec<Status> {
 
     statuses
 }
+
+// #[async_trait]
+// impl TestRepository for Implementation {
+//     async fn pool(&self) -> Result<Pool<ConnectionManager<SqliteConnection>>, Error> {
+//         Ok(self.pool.clone())
+//     }
+// }

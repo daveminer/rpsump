@@ -1,18 +1,18 @@
 use actix_web::web::Data;
-use rpsump::models::irrigation_event::IrrigationEvent;
+use rpsump::repository::models::irrigation_event::IrrigationEvent;
 use serde_json::Value;
 
 use crate::common::fixtures::irrigation_event::insert_irrigation_events;
 use crate::common::test_app::spawn_app;
-use crate::controllers::{create_test_user, user_params};
+use crate::controllers::auth::create_test_user;
+use crate::controllers::user_params;
 
 #[tokio::test]
 async fn list_events_success() {
     // Arrange
     let app = spawn_app().await;
-    let db_pool = app.db_pool.clone();
-    let _user = create_test_user(Data::new(db_pool.clone())).await;
-    insert_irrigation_events(db_pool.clone()).await;
+    let _user = create_test_user(app.repo).await;
+    insert_irrigation_events(app.repo).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -27,4 +27,3 @@ async fn list_events_success() {
     // Assert
     assert!(status.is_success());
 }
-

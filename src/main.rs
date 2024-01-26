@@ -11,19 +11,19 @@ async fn main() -> std::io::Result<()> {
     telemetry::init_tracer(&settings).expect("Could not initialize telemetry.");
     let gpio = rppal::gpio::Gpio::new().expect("Could not initialize GPIO.");
     // let repo = Box::new(
-    //     repository::implementation(Some(settings.database_url))
+    //     repository::implementation(Some(settings.database_path))
     //         .await
     //         .expect("Could not initialize database."),
     // );
 
     // TODO: DB URI
-    // let repo = match &settings.database_url {
-    //     Some(database_url) => repository::implementation(database_url.clone())
+    // let repo = match &settings.database_path {
+    //     Some(database_path) => repository::implementation(database_path.clone())
     //         .context("Cannot create a repository")?,
     //     None => repository::mock()?,
     // };
 
-    let repo = repository::implementation(Some(settings.database_url.clone()))
+    let repo = repository::implementation(Some(settings.database_path.clone()))
         .await
         .expect("Could not create repository.");
 

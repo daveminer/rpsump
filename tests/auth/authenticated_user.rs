@@ -62,7 +62,7 @@ fn create_valid_token(user: User) -> String {
 async fn protected_request_valid_token() {
     let app = spawn_app().await;
 
-    let user = create_test_user(Data::new(app.db_pool.clone())).await;
+    let user = create_test_user(app.repo).await;
 
     let token = create_valid_token(user);
     let (header_name, header_value) = create_auth_header(&token);
@@ -96,7 +96,7 @@ async fn protected_request_failed_no_token() {
 async fn protected_request_failed_expired_token() {
     let app = spawn_app().await;
 
-    let user = create_test_user(Data::new(app.db_pool.clone())).await;
+    let user = create_test_user(app.repo).await;
 
     let token = create_expired_token(user);
     let (header_name, header_value) = create_auth_header(&token);

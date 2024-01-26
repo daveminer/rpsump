@@ -1,55 +1,66 @@
+use anyhow::{anyhow, Error};
+use diesel::r2d2::{self, ConnectionManager, Pool};
+use diesel::SqliteConnection;
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use mockall::predicate::eq;
-use once_cell::sync::{Lazy, OnceCell};
+use once_cell::sync::Lazy;
 use rpsump::hydro::gpio::{Gpio, Level, MockGpio, MockInputPin, MockOutputPin, MockPin};
 use serde_json::{json, Value};
-use std::fs::copy;
-use tempfile::TempDir;
-use uuid::Uuid;
+use tokio::sync::OnceCell;
 use wiremock::MockServer;
 
 use rpsump::config::Settings;
-use rpsump::repository::{new_pool, DbPool};
+use rpsump::repository::{self, Repo};
 use rpsump::startup::Application;
 
 // TODO: move to shared location
 use crate::auth::authenticated_user::create_auth_header;
 
-pub struct TestApp {
+type DbPool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
+
+const DB_TEMPLATE_FILE: &str = "test.db";
+
+const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
+
+static TEST_DB_POOL: Lazy<OnceCell<DbPool>> = Lazy::new(OnceCell::new);
+
+pub struct App {
     pub address: String,
     pub port: u16,
-    pub db_pool: DbPool,
+    pub repo: Repo,
     pub email_server: MockServer,
     //pub test_user: TestUser,
     pub api_client: reqwest::Client,
     //pub email_client: EmailClient,
 }
 
-const DB_TEMPLATE_FILE: &str = "test.db";
+async fn setup_database() -> Result<DbPool, Error> {
+    let manager = ConnectionManager::<SqliteConnection>::new(":memory:");
+    let pool = r2d2::Pool::builder().build(manager)?;
 
-static TEST_DB_TEMPLATE: Lazy<TempDir> = Lazy::new(|| {
-    use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
+    // Get a connection from the pool
+    let mut conn = pool.get()?;
 
-    const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
-    let temp_dir = TempDir::new().unwrap();
-    let template_db_path = temp_dir.path().join(DB_TEMPLATE_FILE);
-
-    let mut conn = new_pool(&template_db_path.to_str().unwrap().to_string())
-        .unwrap()
-        .get()
-        .unwrap();
     conn.run_pending_migrations(MIGRATIONS)
-        .expect("diesel migrations");
+        .map_err(|e| anyhow!(e.to_string()))?;
 
-    temp_dir
-});
-
-static GPIO: OnceCell<MockGpio> = OnceCell::new();
-
-pub fn get_gpio() -> &'static MockGpio {
-    GPIO.get_or_init(|| spawn_test_gpio())
+    Ok(pool)
 }
 
-impl TestApp {
+pub async fn initialize_test_db() -> Result<(), Box<dyn std::error::Error>> {
+    TEST_DB_POOL
+        .get_or_init(|| async { setup_database().await.expect("Failed to setup database") })
+        .await;
+    Ok(())
+}
+
+static GPIO: Lazy<OnceCell<MockGpio>> = Lazy::new(OnceCell::new);
+
+pub async fn get_gpio() -> Result<&'static MockGpio, Error> {
+    Ok(GPIO.get_or_init(|| async { spawn_test_gpio() }).await)
+}
+
+impl App {
     pub async fn delete_irrigation_schedule(&self, token: String, id: i32) -> reqwest::Response {
         let (header_name, header_value) = create_auth_header(&token);
 
@@ -243,41 +254,24 @@ impl TestApp {
     }
 }
 
-pub fn spawn_test_db() -> String {
-    let test_db_dir = Lazy::force(&TEST_DB_TEMPLATE);
-    let test_db_path = test_db_dir.path().to_str().unwrap().to_string();
-    let template_db = format!("{}/{}", test_db_path, DB_TEMPLATE_FILE);
-
-    let db_instance_file = format!("{}.db", Uuid::new_v4().to_string());
-    let db_instance = format!("{}/{}", test_db_path, db_instance_file);
-    let pool = new_pool(&db_instance);
-    let _conn = pool.unwrap().get().unwrap();
-
-    // copy
-    copy(&template_db, &db_instance).unwrap();
-
-    db_instance
+pub async fn spawn_app() -> App {
+    spawn_app_with_gpio(get_gpio().await.expect("Couldn't get mock GPIO")).await
 }
 
-pub async fn spawn_app() -> TestApp {
-    spawn_app_with_gpio(get_gpio()).await
-}
-
-pub async fn spawn_app_with_gpio<G>(gpio: &G) -> TestApp
+pub async fn spawn_app_with_gpio<G>(gpio: &G) -> App
 where
     G: Gpio,
 {
     let email_server = MockServer::start().await;
-
     let mut settings = Settings::new();
-    settings.database_url = spawn_test_db();
     settings.server.port = 0;
-
     settings.mailer.server_url = email_server.uri();
 
-    let db_pool = new_pool(&spawn_test_db()).unwrap();
+    let repo = repository::implementation(None)
+        .await
+        .expect("Could not build in-memory repo.");
 
-    let application = Application::build(settings, &db_pool, gpio);
+    let application = Application::build(settings, gpio, repo);
     let port = application.port();
 
     let _ = tokio::spawn(application.run_until_stopped());
@@ -287,10 +281,10 @@ where
         .build()
         .unwrap();
 
-    let test_app = TestApp {
+    let test_app = App {
         address: format!("http://localhost:{}", port),
         port,
-        db_pool,
+        repo,
         email_server,
         api_client: client,
     };
@@ -329,7 +323,7 @@ fn expect_input_pin(gpio: &mut MockGpio, pin: u8) {
 
             input_pin
                 .expect_set_async_interrupt()
-                .returning(|_, _| Ok(()));
+                .returning(|_, _, _, _, _| Ok(()));
 
             input_pin.expect_read().returning(|| Level::Low);
 

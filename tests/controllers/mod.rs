@@ -5,7 +5,7 @@ use reqwest::Url;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockGuard, ResponseTemplate};
 
-use crate::common::test_app::TestApp;
+use crate::common::test_app::App;
 
 use rpsump::auth::password::Password;
 use rpsump::repository::models::user::User;
@@ -66,7 +66,7 @@ pub fn param_from_email_text<'a>(text: &str, param: &str) -> Vec<String> {
     return found_params;
 }
 
-async fn email_link_from_mock_server(app: &TestApp) -> String {
+async fn email_link_from_mock_server(app: &App) -> String {
     let verification_email = app
         .email_server
         .received_requests()
@@ -81,7 +81,7 @@ async fn email_link_from_mock_server(app: &TestApp) -> String {
     link[0].clone()
 }
 
-async fn mock_email_verification_send(app: &TestApp) -> MockGuard {
+async fn mock_email_verification_send(app: &App) -> MockGuard {
     Mock::given(path("/"))
         .and(method("POST"))
         .respond_with(ResponseTemplate::new(200))

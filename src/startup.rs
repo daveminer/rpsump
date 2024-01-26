@@ -12,7 +12,7 @@ use crate::controllers::{
 };
 
 use crate::hydro::{gpio::Gpio, Hydro};
-use crate::repository::Repo;
+use crate::repository::{Repo, TestRepo};
 
 pub struct Application {
     port: u16,

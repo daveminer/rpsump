@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::auth::{claim::create_token, password::AuthParams};
 use crate::config::Settings;
 use crate::controllers::auth::helpers::{error_response, ip_address};
+use crate::repository::models::user::UserFilter;
 use crate::repository::{
     models::{user::User, user_event::*},
     Repo,
@@ -32,10 +33,31 @@ pub async fn login(
         return Ok(ApiResponse::bad_request(REQUIRED_FIELDS.to_string()));
     }
 
-    let maybe_user: Option<User> = match repo.user_by_email(email).await {
-        Ok(maybe_user) => maybe_user,
-        Err(_e) => {
-            return Ok(ApiResponse::bad_request(BAD_CREDS.to_string()));
+    // let maybe_user: Option<User> = match repo.user_by_email(email).await {
+    //     Ok(maybe_user) => maybe_user,
+    //     Err(_e) => {
+    //         return Ok(ApiResponse::bad_request(BAD_CREDS.to_string()));
+    //     }
+    // };
+
+    let user_filter = UserFilter {
+        email: Some(email),
+        ..Default::default()
+    };
+
+    let maybe_user = match repo.users(user_filter).await {
+        Ok(users) => match users.len() {
+            0 => None,
+            1 => users.first().cloned(),
+            _ => {
+                return Ok(error_response(
+                    anyhow!("duplicate_email"),
+                    "More than one record found for email.",
+                ))
+            }
+        },
+        Err(e) => {
+            return Ok(ApiResponse::bad_request(e.to_string()));
         }
     };
 
@@ -70,14 +92,13 @@ pub async fn login(
 
 #[tracing::instrument(skip(user, password))]
 async fn verify_password(user: Option<User>, password: Secret<String>) -> Result<(), Error> {
+    let provided_pw: String = match user {
+        Some(user) => user.password_hash,
+        None => "decoy".to_string(),
+    };
+
     // Check if password is correct
     spawn_blocking_with_tracing(move || {
-        // Resist timing attacks by always hashing the password
-        let provided_pw: String = match user {
-            Some(user) => user.password_hash,
-            None => "decoy".to_string(),
-        };
-
         match verify(password.expose_secret(), &provided_pw) {
             Ok(true) => Ok(()),
             // Match on false and Err

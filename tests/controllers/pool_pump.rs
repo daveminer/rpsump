@@ -1,9 +1,9 @@
-use actix_web::web::Data;
 use rpsump::test_fixtures::gpio::mock_gpio_get;
 use serde_json::{json, Value};
 
 use crate::common::test_app::{spawn_app, spawn_app_with_gpio};
-use crate::controllers::{create_test_user, user_params};
+use crate::controllers::auth::create_test_user;
+use crate::controllers::user_params;
 
 #[tokio::test]
 async fn pool_pump_success() {
@@ -11,8 +11,7 @@ async fn pool_pump_success() {
     let gpio = mock_gpio_get(vec![1, 7, 8, 14, 15, 17, 18, 22, 23, 24, 25, 26, 27, 32]);
 
     let app = spawn_app_with_gpio(&gpio).await;
-    let db_pool = app.db_pool.clone();
-    let _user = create_test_user(Data::new(db_pool.clone())).await;
+    let _user = create_test_user(app.repo).await;
 
     // Act
     let response = app.post_login(&user_params()).await;

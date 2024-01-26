@@ -1,4 +1,5 @@
 use actix_web::{post, web, web::Data, HttpRequest, HttpResponse, Result};
+use anyhow::anyhow;
 use chrono::Utc;
 use diesel::RunQueryDsl;
 use serde::Deserialize;
@@ -11,6 +12,7 @@ use crate::controllers::auth::helpers::{
     error_response, invalid_token_response, ip_address, validate_password_strength,
 };
 use crate::email::sendinblue::send_password_reset;
+use crate::repository::models::user::UserFilter;
 use crate::repository::{models::user::User, Repo};
 use crate::util::{spawn_blocking_with_tracing, ApiResponse};
 
@@ -42,20 +44,31 @@ async fn request_password_reset(
     repo: Data<Repo>,
     settings: Data<Settings>,
 ) -> Result<HttpResponse> {
-    let maybe_user = match repo.user_by_email(params.email.clone()).await {
-        Ok(maybe_user) => maybe_user,
-        Err(e) => return Ok(error_response(e, "User lookup failed")),
-    };
-
     let _ip_addr: String = match ip_address(&req) {
         Ok(ip) => ip,
         Err(e) => return Ok(error_response(e, "Getting ip address from request failed")),
     };
 
-    match maybe_user {
-        Some(user) => {
+    let filter = UserFilter {
+        email: Some(params.email.clone()),
+        ..Default::default()
+    };
+
+    let users = match repo.users(filter).await {
+        Ok(users) => users,
+        Err(e) => return Ok(error_response(e, "User lookup failed")),
+    };
+
+    match users.len() {
+        0 => {
+            return Ok(ApiResponse::ok(
+                "A password reset email will be sent if the email address is valid.".to_string(),
+            ))
+        }
+        1 => {
+            let user = users.first().unwrap().clone();
             match repo.create_password_reset(user.clone()).await {
-                Ok(user) => user,
+                Ok(_) => (),
                 Err(e) => return Ok(error_response(e, "Could not save password reset token")),
             };
             let auth_token = &settings.mailer.auth_token.clone();
@@ -67,9 +80,10 @@ async fn request_password_reset(
                 auth_token,
             );
         }
-        None => {
-            return Ok(ApiResponse::ok(
-                "A password reset email will be sent if the email address is valid.".to_string(),
+        _ => {
+            return Ok(error_response(
+                anyhow!("Duplicate useremail."),
+                "Could not save password reset token.",
             ))
         }
     };

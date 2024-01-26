@@ -1,15 +1,14 @@
 use actix_web::web;
 use chrono::{Duration, Utc};
-use diesel::RunQueryDsl;
+use rpsump::util::ApiResponse;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
 
 use rpsump::auth::token::Token;
-use rpsump::controllers::ApiResponse;
-use rpsump::models::user::User;
+use rpsump::repository::models::user::{User, UserFilter, UserUpdateFilter};
 
 use super::signup_params;
-use crate::common::test_app::{spawn_app, TestApp};
+use crate::common::test_app::{spawn_app, App};
 use crate::controllers::{auth::password_reset_params, param_from_email_text};
 
 const NEW_PASSWORD: &str = "new_%Password53";
@@ -52,11 +51,21 @@ async fn reset_password_failed_token_expired() {
     let (app, _params) = signup_and_request_password_reset().await;
     let token = get_token_from_email(&app).await;
 
-    let mut db = app.db_pool.get().unwrap();
-
-    let user: User = User::by_password_reset_token(token.clone())
-        .first(&mut db)
-        .unwrap();
+    let filter = UserFilter {
+        id: None,
+        email: None,
+        email_verification_token: None,
+        password_hash: None,
+        password_reset_token: Some(token.clone()),
+    };
+    let user: User = app
+        .repo
+        .users(filter)
+        .await
+        .unwrap()
+        .first()
+        .unwrap()
+        .clone();
 
     let expired_token = Token {
         user_id: user.id,
@@ -64,13 +73,14 @@ async fn reset_password_failed_token_expired() {
         value: token.clone(),
     };
 
-    User::save_reset_token(
-        user.clone(),
-        expired_token.clone(),
-        web::Data::new(app.db_pool.clone()),
-    )
-    .await
-    .unwrap();
+    let user_update_filter = UserUpdateFilter {
+        id: user.id,
+        email: None,
+        email_verification_token: None,
+        password_hash: None,
+        password_reset_token: Some(Some(expired_token.value.clone())),
+    };
+    let _user_update = app.repo.update_user(user_update_filter).await.unwrap();
 
     // Validate the reset password response
     let reset_response = app
@@ -108,8 +118,7 @@ async fn reset_password_success() {
     assert!(new_login_response.status().is_success());
 }
 
-async fn signup_and_request_password_reset() -> (TestApp, serde_json::Map<String, serde_json::Value>)
-{
+async fn signup_and_request_password_reset() -> (App, serde_json::Map<String, serde_json::Value>) {
     let app = spawn_app().await;
     let params = signup_params();
 
@@ -136,7 +145,7 @@ async fn signup_and_request_password_reset() -> (TestApp, serde_json::Map<String
     (app, params)
 }
 
-async fn get_token_from_email(app: &TestApp) -> String {
+async fn get_token_from_email(app: &App) -> String {
     // Get the token from the email
     let reset_password_email = app
         .email_server

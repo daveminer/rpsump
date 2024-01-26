@@ -35,14 +35,14 @@ actix-web = "4.3.1"
 rppal = "0.17.0"
 
 # Database
-diesel = { version = "2.0.3", features = [
+diesel = { version = "2.1.4", features = [
   "chrono",
   "r2d2",
   "returning_clauses_for_sqlite_3_35",
   "sqlite",
 ] }
-diesel-derive-enum = { version = "2.0.1", features = ["sqlite"] }
-diesel_migrations = { version = "2.0.0", features = ["sqlite"] }
+diesel-derive-enum = { version = "2.1.0", features = ["sqlite"] }
+diesel_migrations = { version = "2.1.0", features = ["sqlite"] }
 
 # Telemetry
 actix-web-opentelemetry = "0.16.0"
