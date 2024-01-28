@@ -82,7 +82,15 @@ async fn email_verification_failed_no_token() {
     let status = response.status();
     assert!(status.is_success());
 
-    let email_verif_response = app.get_email_verification("".to_string()).await;
+    let user_filter = UserFilter {
+        email: Some(params["email"].as_str().unwrap().to_string()),
+        ..Default::default()
+    };
+    let user = app.repo.users(user_filter).await.unwrap().pop().unwrap();
+
+    let email_verif_response = app
+        .get_email_verification(user.email_verification_token.unwrap())
+        .await;
     let email_verif_status = email_verif_response.status();
     let body: ApiResponse = email_verif_response.json().await.unwrap();
 

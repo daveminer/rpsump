@@ -75,7 +75,6 @@ async fn protected_request_valid_token() {
         .await
         .expect("Failed to execute request.");
 
-    println!("RESULT: {:?}", result);
     assert!(result.status() == StatusCode::OK);
 }
 

@@ -24,7 +24,6 @@ use crate::repository::models::{
     user_event::{EventType, UserEvent},
 };
 use crate::repository::Repository;
-use crate::schema::user::{email_verification_token, password_reset_token};
 use crate::schema::{irrigation_event, irrigation_schedule, sump_event, user, user_event};
 use crate::schema::{
     irrigation_event::dsl as irrigation_event_dsl,
@@ -478,7 +477,7 @@ impl Repository for Implementation {
 
         Ok(sump_events)
     }
-    // fn update_user(&self, user_id: i32, email: String) -> Result<User, Error>;
+
     async fn update_irrigation_schedule(
         &self,
         schedule_id: i32,
@@ -545,15 +544,6 @@ impl Repository for Implementation {
                     _ => Err(anyhow!(e)),
                 },
             }
-            // .map_err(|e| match e {
-            //     DieselError::NotFound => None,
-            //     e => Err(anyhow!(
-            //         "Internal server error when fetching irrigation schedule: {}",
-            //         e
-            //     )),
-            // })?;
-
-            //Ok(result)
         })
         .await??;
 
@@ -788,10 +778,3 @@ fn build_statuses(results: Vec<StatusQueryResult>) -> Vec<Status> {
 
     statuses
 }
-
-// #[async_trait]
-// impl TestRepository for Implementation {
-//     async fn pool(&self) -> Result<Pool<ConnectionManager<SqliteConnection>>, Error> {
-//         Ok(self.pool.clone())
-//     }
-// }

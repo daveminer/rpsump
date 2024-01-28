@@ -383,7 +383,7 @@ where
         .await
         .expect("Could not create repository.");
 
-    let repo2 = repository::implementation(Some(test_repo.to_str().unwrap().to_string()))
+    let app_repo = repository::implementation(Some(test_repo.to_str().unwrap().to_string()))
         .await
         .expect("Could not create repository.");
 
@@ -400,7 +400,7 @@ where
     let test_app = TestApp {
         address: format!("http://localhost:{}", port),
         port,
-        repo: repo2,
+        repo: app_repo,
         email_server,
         repo_temp_dir: temp_dir,
         api_client: client,
