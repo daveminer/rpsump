@@ -9,6 +9,7 @@ use diesel::sql_types::{Bool, Nullable};
 use diesel::sqlite::SqliteConnection;
 use diesel::BoxableExpression;
 use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
+use thiserror::Error;
 
 use crate::auth::password::Password;
 use crate::auth::token::Token;
@@ -34,6 +35,20 @@ use crate::util::spawn_blocking_with_tracing;
 use super::models::user::UserUpdateFilter;
 
 type DbPool = Pool<ConnectionManager<SqliteConnection>>;
+
+#[derive(Error, Debug)]
+pub enum VerifyEmailError {
+    #[error("Invalid token.")]
+    EmailNotFound,
+    #[error("Email already verified.")]
+    EmailAlreadyVerified,
+    #[error("Database error: {0}")]
+    DatabaseError(anyhow::Error),
+    #[error("Internal server error when verifying email: {0}")]
+    InternalServerError(anyhow::Error),
+    #[error("Token expired.")]
+    TokenExpired,
+}
 
 #[derive(Clone)]
 pub struct Implementation {
@@ -663,28 +678,28 @@ impl Repository for Implementation {
         Ok(user)
     }
 
-    async fn verify_email(&self, token: String) -> Result<(), Error> {
+    async fn verify_email(&self, token: String) -> Result<(), VerifyEmailError> {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| anyhow!("Database error: {:?}", e))?;
+            .map_err(|e| VerifyEmailError::DatabaseError(anyhow!(e)))?;
 
         let _result = spawn_blocking_with_tracing(move || {
             let user: User = user::table
                 .filter(user::email_verification_token.eq(token.clone()))
                 .first::<User>(&mut conn)
                 .map_err(|e| match e {
-                    DieselError::NotFound => anyhow!("Invalid token."),
-                    e => anyhow!("Internal server error when verifying email: {}", e),
+                    DieselError::NotFound => VerifyEmailError::EmailNotFound,
+                    e => VerifyEmailError::DatabaseError(anyhow!(e)),
                 })?;
 
             if user.email_verified_at.is_some() {
-                return Err(anyhow!("Email already verified."));
+                return Err(VerifyEmailError::EmailAlreadyVerified);
             }
 
             // TODO: Reverse the comparison so it's not on a String, also remove unwrap
             if user.email_verification_token_expires_at.unwrap() < Utc::now().naive_utc() {
-                return Err(anyhow!("Token expired."));
+                return Err(VerifyEmailError::TokenExpired);
             }
 
             let _row_update_count = diesel::update(user::table)
@@ -694,11 +709,13 @@ impl Repository for Implementation {
                     user::email_verification_token_expires_at.eq(None::<String>),
                     user::email_verified_at.eq(Utc::now().to_string()),
                 ))
-                .execute(&mut conn)?;
+                .execute(&mut conn)
+                .map_err(|e| VerifyEmailError::DatabaseError(anyhow!(e)))?;
 
             Ok(())
         })
-        .await??;
+        .await
+        .map_err(|e| VerifyEmailError::InternalServerError(anyhow!(e)))??;
 
         Ok(())
     }

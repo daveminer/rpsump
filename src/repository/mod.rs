@@ -21,13 +21,15 @@ use crate::repository::models::{
     user::{UserFilter, UserUpdateFilter},
 };
 
+use self::implementation::VerifyEmailError;
+
 /// Used in the application to access the database
 pub type Repo = &'static dyn Repository;
 
 /// Exposes the pool for data setup in integration tests
 pub type TestRepo = &'static dyn TestRepository;
 
-/// Creates a testable interface for the database pool.
+/// Creates a testable interface for the database.
 #[automock]
 #[async_trait]
 pub trait Repository: Send + Sync + 'static {
@@ -68,7 +70,6 @@ pub trait Repository: Send + Sync + 'static {
     async fn queue_irrigation_events(&self, events: Vec<Status>) -> Result<(), Error>;
     async fn reset_password(&self, new_password: &Password, token: String) -> Result<(), Error>;
     async fn schedule_statuses(&self) -> Result<Vec<Status>, Error>;
-    //fn update_user(&self, user_id: i32, email: String) -> Result<User, Error>;
     async fn sump_events(&self) -> Result<Vec<SumpEvent>, Error>;
     async fn update_irrigation_schedule(
         &self,
@@ -84,7 +85,7 @@ pub trait Repository: Send + Sync + 'static {
     async fn update_user(&self, filter: UserUpdateFilter) -> Result<(), Error>;
     async fn users(&self, filter: UserFilter) -> Result<Vec<User>, Error>;
     async fn validate_login(&self, email: String, password: String) -> Result<User, Error>;
-    async fn verify_email(&self, token: String) -> Result<(), Error>;
+    async fn verify_email(&self, token: String) -> Result<(), VerifyEmailError>;
 }
 
 #[async_trait]

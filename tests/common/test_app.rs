@@ -41,26 +41,6 @@ pub struct TestApp {
     pub api_client: reqwest::Client,
 }
 
-// static MIGRATED_DB_TEMPLATE: Lazy<PathBuf> = Lazy::new(|| {
-//     // Create a file for the database
-//     let temp_dir = TempDir::new().unwrap();
-//     let db_path = temp_dir.path().join(DB_TEMPLATE_FILE);
-
-//     let manager = ConnectionManager::<SqliteConnection>::new(db_path.to_str().unwrap());
-//     // Initialize a repository with the database file and
-//     // use it to run migrations.
-//     let repo = implementation::Implementation::new(Some("/tmp/rpsump_test.db".to_string()))
-//         .await
-//         .expect("Couldn't get test repo");
-
-//     let mut conn = repo.pool().await.unwrap().get().unwrap();
-
-//     let _ = conn.run_pending_migrations(MIGRATIONS).unwrap();
-
-//     // Return the path to the migrated template database
-//     db_path
-// });
-
 static MIGRATED_DB_TEMPLATE: Lazy<OnceCell<(PathBuf, TempDir)>> = Lazy::new(OnceCell::new);
 
 // Call this function at the start of your program or before you need MIGRATED_DB_TEMPLATE
@@ -79,11 +59,6 @@ async fn initialize_db_template() -> (PathBuf, TempDir) {
     // TODO: check if temp_dir lifetime is needed
     (db_path, temp_dir)
 }
-
-// pub async fn initialize() -> Result<(), Box<dyn std::error::Error>> {
-//     TEST_APP.get_or_init(|| async { spawn_app().await }).await;
-//     Ok(())
-// }
 
 pub async fn migrated_pathbuf() -> (PathBuf, TempDir) {
     // MIGRATED_DB_TEMPLATE
@@ -108,58 +83,6 @@ pub async fn migrated_pathbuf() -> (PathBuf, TempDir) {
 
     (test_db_path, test_db_dir)
 }
-
-// pub async fn test_repo_clone(test_repo: Implementation) -> Implementation {
-
-//     let pool = repo.pool().await.unwrap();
-//     let mut conn = pool.get().unwrap();
-
-//     let _ = conn.run_pending_migrations(MIGRATIONS).unwrap();
-
-//     repo
-// }
-
-// pub async fn repo() -> &'static Implementation {
-//     TEST_REPO
-//         .get_or_init(|| async {
-//             // Delete the old database file, if it exists
-//             let _ = fs::remove_file("/tmp/rpsump_test.db");
-
-//             let repo = implementation::Implementation::new(Some("/tmp/rpsump_test.db".to_string()))
-//                 .await
-//                 .expect("Couldn't get test repo");
-
-//             let mut conn = repo.pool().await.unwrap().get().unwrap();
-
-//             let _ = conn.run_pending_migrations(MIGRATIONS).unwrap();
-
-//             repo
-//         })
-//         .await
-// }
-
-// async fn setup_database(reop) -> Result<DbPool, Error> {
-//     let manager = ConnectionManager::<SqliteConnection>::new("/tmp/rpsump_test.db");
-//     let pool = r2d2::Pool::builder().build(manager)?;
-
-//     // Get a connection from the pool
-//     let mut conn = pool.get()?;
-
-//     let result = conn
-//         .run_pending_migrations(MIGRATIONS)
-//         .map_err(|e| anyhow!(e.to_string()))?;
-
-//     println!("RESULT: {:?}", result);
-
-//     Ok(pool)
-// }
-
-// pub async fn initialize_test_db() -> Result<(), Box<dyn std::error::Error>> {
-//     TEST_DB_POOL
-//         .get_or_init(|| async { setup_database().await.expect("Failed to setup database") })
-//         .await;
-//     Ok(())
-// }
 
 static GPIO: Lazy<OnceCell<MockGpio>> = Lazy::new(OnceCell::new);
 

@@ -6,7 +6,7 @@ use actix_web::{
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::repository::Repo;
+use crate::repository::{implementation::VerifyEmailError, Repo};
 use crate::util::ApiResponse;
 
 #[derive(Debug, Deserialize)]
@@ -22,7 +22,7 @@ pub async fn verify_email(
 ) -> Result<HttpResponse> {
     match repo.verify_email(params.token.clone()).await {
         Ok(()) => Ok(HttpResponse::Ok().body(json!({"message": "Email verified."}).to_string())),
-        Err(e) => {
+        Err(VerifyEmailError::DatabaseError(e) | VerifyEmailError::InternalServerError(e)) => {
             tracing::error!(
                 target = module_path!(),
                 error = e.to_string(),
@@ -30,5 +30,6 @@ pub async fn verify_email(
             );
             Ok(ApiResponse::internal_server_error())
         }
+        Err(e) => Ok(ApiResponse::bad_request(e.to_string())),
     }
 }
