@@ -36,6 +36,7 @@ use super::models::user::UserUpdateFilter;
 
 type DbPool = Pool<ConnectionManager<SqliteConnection>>;
 
+#[derive(Clone)]
 pub struct Implementation {
     pub pool: DbPool,
 }

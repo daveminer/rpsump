@@ -8,7 +8,7 @@ use rpsump::auth::token::Token;
 use rpsump::repository::models::user::{User, UserFilter, UserUpdateFilter};
 
 use super::signup_params;
-use crate::common::test_app::{spawn_app, App};
+use crate::common::test_app::{spawn_app, TestApp};
 use crate::controllers::{auth::password_reset_params, param_from_email_text};
 
 const NEW_PASSWORD: &str = "new_%Password53";
@@ -118,7 +118,8 @@ async fn reset_password_success() {
     assert!(new_login_response.status().is_success());
 }
 
-async fn signup_and_request_password_reset() -> (App, serde_json::Map<String, serde_json::Value>) {
+async fn signup_and_request_password_reset() -> (TestApp, serde_json::Map<String, serde_json::Value>)
+{
     let app = spawn_app().await;
     let params = signup_params();
 
@@ -145,7 +146,7 @@ async fn signup_and_request_password_reset() -> (App, serde_json::Map<String, se
     (app, params)
 }
 
-async fn get_token_from_email(app: &App) -> String {
+async fn get_token_from_email(app: &TestApp) -> String {
     // Get the token from the email
     let reset_password_email = app
         .email_server

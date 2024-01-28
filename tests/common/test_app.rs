@@ -1,58 +1,165 @@
+use std::fs::{self, File};
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+
 use anyhow::{anyhow, Error};
-use diesel::r2d2::{self, ConnectionManager, Pool};
-use diesel::SqliteConnection;
+use diesel::r2d2::{self, ConnectionManager, Pool, PooledConnection};
+use diesel::{Connection, SqliteConnection};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use mockall::predicate::eq;
 use once_cell::sync::Lazy;
 use rpsump::hydro::gpio::{Gpio, Level, MockGpio, MockInputPin, MockOutputPin, MockPin};
+use rpsump::repository::implementation::Implementation;
 use serde_json::{json, Value};
+use tempfile::TempDir;
 use tokio::sync::OnceCell;
 use wiremock::MockServer;
 
 use rpsump::config::Settings;
-use rpsump::repository::{self, Repo};
+use rpsump::repository::{self, implementation, Repo, Repository};
 use rpsump::startup::Application;
 
 // TODO: move to shared location
 use crate::auth::authenticated_user::create_auth_header;
 
+type DbConn = PooledConnection<ConnectionManager<SqliteConnection>>;
 type DbPool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
 
-const DB_TEMPLATE_FILE: &str = "test.db";
+const DB_TEMPLATE_FILE: &str = "rpsump_test.db";
 
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 
 static TEST_DB_POOL: Lazy<OnceCell<DbPool>> = Lazy::new(OnceCell::new);
+static TEST_REPO: Lazy<OnceCell<implementation::Implementation>> = Lazy::new(OnceCell::new);
 
-pub struct App {
+pub struct TestApp {
     pub address: String,
     pub port: u16,
     pub repo: Repo,
+    repo_temp_dir: TempDir,
     pub email_server: MockServer,
-    //pub test_user: TestUser,
     pub api_client: reqwest::Client,
-    //pub email_client: EmailClient,
 }
 
-async fn setup_database() -> Result<DbPool, Error> {
-    let manager = ConnectionManager::<SqliteConnection>::new(":memory:");
-    let pool = r2d2::Pool::builder().build(manager)?;
+// static MIGRATED_DB_TEMPLATE: Lazy<PathBuf> = Lazy::new(|| {
+//     // Create a file for the database
+//     let temp_dir = TempDir::new().unwrap();
+//     let db_path = temp_dir.path().join(DB_TEMPLATE_FILE);
 
-    // Get a connection from the pool
-    let mut conn = pool.get()?;
+//     let manager = ConnectionManager::<SqliteConnection>::new(db_path.to_str().unwrap());
+//     // Initialize a repository with the database file and
+//     // use it to run migrations.
+//     let repo = implementation::Implementation::new(Some("/tmp/rpsump_test.db".to_string()))
+//         .await
+//         .expect("Couldn't get test repo");
 
-    conn.run_pending_migrations(MIGRATIONS)
-        .map_err(|e| anyhow!(e.to_string()))?;
+//     let mut conn = repo.pool().await.unwrap().get().unwrap();
 
-    Ok(pool)
+//     let _ = conn.run_pending_migrations(MIGRATIONS).unwrap();
+
+//     // Return the path to the migrated template database
+//     db_path
+// });
+
+static MIGRATED_DB_TEMPLATE: Lazy<OnceCell<(PathBuf, TempDir)>> = Lazy::new(OnceCell::new);
+
+// Call this function at the start of your program or before you need MIGRATED_DB_TEMPLATE
+async fn initialize_db_template() -> (PathBuf, TempDir) {
+    // Create a file for the database
+    let temp_dir = TempDir::new().unwrap();
+    let db_path = temp_dir.path().join(DB_TEMPLATE_FILE);
+
+    let manager = ConnectionManager::<SqliteConnection>::new(db_path.to_str().unwrap());
+    let pool = Pool::new(manager).unwrap();
+    let mut conn = pool.get().unwrap();
+
+    let _ = conn.run_pending_migrations(MIGRATIONS).unwrap();
+
+    // Return the path to the migrated template database
+    // TODO: check if temp_dir lifetime is needed
+    (db_path, temp_dir)
 }
 
-pub async fn initialize_test_db() -> Result<(), Box<dyn std::error::Error>> {
-    TEST_DB_POOL
-        .get_or_init(|| async { setup_database().await.expect("Failed to setup database") })
+// pub async fn initialize() -> Result<(), Box<dyn std::error::Error>> {
+//     TEST_APP.get_or_init(|| async { spawn_app().await }).await;
+//     Ok(())
+// }
+
+pub async fn migrated_pathbuf() -> (PathBuf, TempDir) {
+    // MIGRATED_DB_TEMPLATE
+    //     .get_or_init(initialize_db_template)
+    //     .await;
+
+    let test_db_dir = TempDir::new().unwrap();
+
+    // Create new file for the test app database
+    let test_db_path = test_db_dir.path().join(DB_TEMPLATE_FILE);
+
+    // Get the PathBuf from the OnceCell
+    let (template_path, _temp_dir) = MIGRATED_DB_TEMPLATE
+        .get_or_init(initialize_db_template)
         .await;
-    Ok(())
+
+    // Create a new file at template_path
+    File::create(&test_db_path).expect("Failed to create template file");
+
+    // Copy the migrated template database to the new file
+    fs::copy(template_path, &test_db_path).expect("Failed to copy template database");
+
+    (test_db_path, test_db_dir)
 }
+
+// pub async fn test_repo_clone(test_repo: Implementation) -> Implementation {
+
+//     let pool = repo.pool().await.unwrap();
+//     let mut conn = pool.get().unwrap();
+
+//     let _ = conn.run_pending_migrations(MIGRATIONS).unwrap();
+
+//     repo
+// }
+
+// pub async fn repo() -> &'static Implementation {
+//     TEST_REPO
+//         .get_or_init(|| async {
+//             // Delete the old database file, if it exists
+//             let _ = fs::remove_file("/tmp/rpsump_test.db");
+
+//             let repo = implementation::Implementation::new(Some("/tmp/rpsump_test.db".to_string()))
+//                 .await
+//                 .expect("Couldn't get test repo");
+
+//             let mut conn = repo.pool().await.unwrap().get().unwrap();
+
+//             let _ = conn.run_pending_migrations(MIGRATIONS).unwrap();
+
+//             repo
+//         })
+//         .await
+// }
+
+// async fn setup_database(reop) -> Result<DbPool, Error> {
+//     let manager = ConnectionManager::<SqliteConnection>::new("/tmp/rpsump_test.db");
+//     let pool = r2d2::Pool::builder().build(manager)?;
+
+//     // Get a connection from the pool
+//     let mut conn = pool.get()?;
+
+//     let result = conn
+//         .run_pending_migrations(MIGRATIONS)
+//         .map_err(|e| anyhow!(e.to_string()))?;
+
+//     println!("RESULT: {:?}", result);
+
+//     Ok(pool)
+// }
+
+// pub async fn initialize_test_db() -> Result<(), Box<dyn std::error::Error>> {
+//     TEST_DB_POOL
+//         .get_or_init(|| async { setup_database().await.expect("Failed to setup database") })
+//         .await;
+//     Ok(())
+// }
 
 static GPIO: Lazy<OnceCell<MockGpio>> = Lazy::new(OnceCell::new);
 
@@ -60,7 +167,7 @@ pub async fn get_gpio() -> Result<&'static MockGpio, Error> {
     Ok(GPIO.get_or_init(|| async { spawn_test_gpio() }).await)
 }
 
-impl App {
+impl TestApp {
     pub async fn delete_irrigation_schedule(&self, token: String, id: i32) -> reqwest::Response {
         let (header_name, header_value) = create_auth_header(&token);
 
@@ -254,22 +361,31 @@ impl App {
     }
 }
 
-pub async fn spawn_app() -> App {
+pub async fn spawn_app() -> TestApp {
     spawn_app_with_gpio(get_gpio().await.expect("Couldn't get mock GPIO")).await
 }
 
-pub async fn spawn_app_with_gpio<G>(gpio: &G) -> App
+pub async fn spawn_app_with_gpio<G>(gpio: &G) -> TestApp
 where
     G: Gpio,
 {
+    //initialize_db_template().await;
+
     let email_server = MockServer::start().await;
     let mut settings = Settings::new();
+    settings.database_path = "".into();
     settings.server.port = 0;
     settings.mailer.server_url = email_server.uri();
 
-    let repo = repository::implementation(None)
+    let (test_repo, temp_dir) = migrated_pathbuf().await;
+
+    let repo = repository::implementation(Some(test_repo.to_str().unwrap().to_string()))
         .await
-        .expect("Could not build in-memory repo.");
+        .expect("Could not create repository.");
+
+    let repo2 = repository::implementation(Some(test_repo.to_str().unwrap().to_string()))
+        .await
+        .expect("Could not create repository.");
 
     let application = Application::build(settings, gpio, repo);
     let port = application.port();
@@ -281,11 +397,12 @@ where
         .build()
         .unwrap();
 
-    let test_app = App {
+    let test_app = TestApp {
         address: format!("http://localhost:{}", port),
         port,
-        repo,
+        repo: repo2,
         email_server,
+        repo_temp_dir: temp_dir,
         api_client: client,
     };
 

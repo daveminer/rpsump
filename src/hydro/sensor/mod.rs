@@ -43,7 +43,7 @@ impl Sensor {
         pin_number: u8,
         gpio: &G,
         trigger: Trigger,
-        handle: Handle,
+        handle: &Handle,
         tx: &Sender<Command>,
         delay: u64,
     ) -> Result<Self, Error>
@@ -56,7 +56,7 @@ impl Sensor {
             .into_input_pullup();
 
         let _ = pin_io
-            .set_async_interrupt(name.to_string(), trigger, handle, tx, delay)
+            .set_async_interrupt(name.to_string(), trigger, handle.clone(), tx, delay)
             .map_err(|e| anyhow!(e.to_string()))?;
 
         Ok(Self {
@@ -340,23 +340,23 @@ impl Input for Sensor {
 //     tracing::error!(target = module_path!(), error = e.to_string(), msg);
 // }
 
-#[cfg(test)]
-mod tests {
-    use crate::{
-        hydro::{control::Control, gpio::Level},
-        repository::Repo,
-        test_fixtures::gpio::mock_gpio_get,
-    };
+// #[cfg(test)]
+// mod tests {
+//     use crate::{
+//         hydro::{control::Control, gpio::Level},
+//         repository::Repo,
+//         test_fixtures::gpio::mock_gpio_get,
+//     };
 
-    #[test]
-    fn test_new() {
-        let callback = |level: Level, control: Control, db: Repo, delay: u64| {
-            format!("{:?}", level);
-            ()
-        };
-        let mock_gpio = mock_gpio_get(vec![1]);
-        // TODO: finish
-        // let _sensor: Sensor =
-        //     Sensor::new(1, &mock_gpio, Some(callback), Some(Trigger::Both)).unwrap();
-    }
-}
+//     #[test]
+//     fn test_new() {
+//         let callback = |level: Level, control: Control, db: Repo, delay: u64| {
+//             format!("{:?}", level);
+//             ()
+//         };
+//         let mock_gpio = mock_gpio_get(vec![1]);
+//         // TODO: finish
+//         // let _sensor: Sensor =
+//         //     Sensor::new(1, &mock_gpio, Some(callback), Some(Trigger::Both)).unwrap();
+//     }
+// }

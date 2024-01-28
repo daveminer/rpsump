@@ -26,7 +26,7 @@ impl Irrigator {
     pub fn new<G>(
         config: &IrrigationConfig,
         tx: &Sender<Command>,
-        handle: Handle,
+        handle: &Handle,
         gpio: &G,
     ) -> Result<Self, Error>
     where
@@ -134,7 +134,7 @@ mod tests {
                 valve_4_control_pin: 6,
             },
             &mpsc.tx,
-            rt.tokio_runtime().handle().clone(),
+            &rt.tokio_runtime().handle().clone(),
             &mock_gpio,
         )
         .unwrap();

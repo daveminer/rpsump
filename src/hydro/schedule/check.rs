@@ -1,8 +1,6 @@
-use anyhow::Error;
-use futures::executor::block_on;
-
 use crate::hydro::Irrigator;
 use crate::repository::Repo;
+use anyhow::Error;
 
 use super::due_statuses;
 use super::run::run_next_event;
@@ -17,7 +15,7 @@ pub(crate) async fn check_schedule(repo: Repo, irrigator: Irrigator) -> Result<(
     let _rows_inserted = repo.queue_irrigation_events(events_to_insert).await?;
 
     // Run irrigation events
-    block_on(run_next_event(repo, irrigator));
+    tokio::task::spawn_blocking(move || run_next_event(repo, irrigator));
 
     Ok(())
 }

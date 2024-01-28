@@ -4,6 +4,7 @@ use actix_web::{cookie, dev::Server, web, web::Data, App, HttpServer};
 use actix_web::{error::ErrorBadRequest, web::JsonConfig};
 use actix_web_opentelemetry::RequestTracing;
 use serde_json::json;
+use tokio::runtime::Runtime;
 
 use crate::config::Settings;
 use crate::controllers::{
@@ -12,10 +13,12 @@ use crate::controllers::{
 };
 
 use crate::hydro::{gpio::Gpio, Hydro};
-use crate::repository::{Repo, TestRepo};
+use crate::repository::Repo;
 
 pub struct Application {
     port: u16,
+    pub repo: Repo,
+    _rt: Runtime,
     server: Server,
 }
 
@@ -33,7 +36,11 @@ impl Application {
             .expect("Could not get server address.")
             .port();
 
-        let hydro = Hydro::new(&settings.hydro, gpio, repo).expect("Could not create hydro object");
+        let rt = tokio::runtime::Runtime::new().expect("Could not create runtime");
+        let handle = rt.handle().clone();
+
+        let hydro =
+            Hydro::new(&settings.hydro, handle, gpio, repo).expect("Could not create hydro object");
 
         // TODO: fix clones
         //let db_clone = db_pool.clone();
@@ -67,7 +74,12 @@ impl Application {
         .expect(&format!("Could not listen on port {}", port))
         .run();
 
-        Application { server, port }
+        Application {
+            server,
+            port,
+            repo,
+            _rt: rt,
+        }
     }
 
     pub fn port(&self) -> u16 {

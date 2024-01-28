@@ -1,5 +1,5 @@
 use chrono::{NaiveDateTime, NaiveTime};
-use diesel::{prelude::*, sqlite::Sqlite};
+use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 

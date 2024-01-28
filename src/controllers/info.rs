@@ -1,6 +1,6 @@
 use std::sync::Mutex;
 
-use actix_web::{get, HttpRequest, HttpResponse, Responder};
+use actix_web::{get, HttpRequest, HttpResponse};
 use actix_web::{web::Data, Result};
 use serde_json::json;
 

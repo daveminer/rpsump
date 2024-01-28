@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use actix_web::{
     post,
     web::{self, Data},
-    HttpResponse, Responder, Result,
+    HttpResponse, Result,
 };
 use anyhow::Error;
 use serde::Deserialize;
