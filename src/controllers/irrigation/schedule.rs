@@ -51,6 +51,9 @@ pub async fn delete_irrigation_schedule(
     let id = path.into_inner();
 
     let id = match repo.delete_irrigation_schedule(id).await {
+        Ok(None) => {
+            return Ok(ApiResponse::not_found());
+        }
         Ok(id) => id,
         Err(e) => {
             // TODO: Handle not found

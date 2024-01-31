@@ -1,4 +1,3 @@
-use actix_web::web::Data;
 use serde::{Deserialize, Serialize};
 
 use crate::config::MailerConfig;

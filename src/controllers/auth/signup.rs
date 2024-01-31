@@ -53,12 +53,26 @@ pub async fn signup(
     };
 
     // Create user
-    let new_user = match repo.create_user(params.email.clone(), hash, ip_addr).await {
+    let mut new_user = match repo.create_user(params.email.clone(), hash, ip_addr).await {
         Ok(user) => user,
         Err(e) => return Ok(ApiResponse::bad_request(e.to_string())),
     };
 
     let mailer_settings = Arc::clone(&settings).mailer.clone();
+    // Generate an email verification token
+    let token = match repo.create_email_verification(&new_user).await {
+        Ok(token) => token,
+        Err(e) => {
+            return Ok(error_response(
+                e,
+                "Error while generating email verification token",
+            ));
+        }
+    };
+
+    // Add the token to the stale record before sending the email
+    new_user.email_verification_token = Some(token.value);
+    new_user.email_verification_token_expires_at = Some(token.expires_at);
 
     // Send email verification
     match new_user

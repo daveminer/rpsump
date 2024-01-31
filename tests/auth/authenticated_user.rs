@@ -1,15 +1,10 @@
 use actix_web::http::header::{HeaderName, HeaderValue};
-use actix_web::web::Data;
 use chrono::Utc;
 use jsonwebtoken::Algorithm;
-use reqwest::StatusCode;
 use std::{env, str::FromStr};
 
 use rpsump::auth::claim::Claim;
 use rpsump::repository::models::user::User;
-
-use crate::common::test_app::spawn_app;
-use crate::controllers::auth::create_test_user;
 
 pub fn create_auth_header(token: &str) -> (HeaderName, HeaderValue) {
     (
@@ -58,56 +53,66 @@ fn create_valid_token(user: User) -> String {
     .unwrap()
 }
 
-#[tokio::test]
-async fn protected_request_valid_token() {
-    let app = spawn_app().await;
+mod tests {
+    use reqwest::StatusCode;
 
-    let user = create_test_user(app.repo).await;
+    use crate::{
+        auth::authenticated_user::{create_auth_header, create_expired_token, create_valid_token},
+        common::test_app::spawn_app,
+        controllers::auth::create_test_user,
+    };
 
-    let token = create_valid_token(user);
-    let (header_name, header_value) = create_auth_header(&token);
+    #[tokio::test]
+    async fn protected_request_valid_token() {
+        let app = spawn_app().await;
 
-    let result = app
-        .api_client
-        .get(&format!("{}/info", &app.address))
-        .header(header_name, header_value)
-        .send()
-        .await
-        .expect("Failed to execute request.");
+        let user = create_test_user(app.repo).await;
 
-    assert!(result.status() == StatusCode::OK);
-}
+        let token = create_valid_token(user);
+        let (header_name, header_value) = create_auth_header(&token);
 
-#[tokio::test]
-async fn protected_request_failed_no_token() {
-    let app = spawn_app().await;
+        let result = app
+            .api_client
+            .get(&format!("{}/info", &app.address))
+            .header(header_name, header_value)
+            .send()
+            .await
+            .expect("Failed to execute request.");
 
-    let result = app
-        .api_client
-        .get(&format!("{}/info", &app.address))
-        .send()
-        .await
-        .expect("Failed to execute request.");
+        assert!(result.status() == StatusCode::OK);
+    }
 
-    assert!(result.status() == StatusCode::UNAUTHORIZED);
-}
+    #[tokio::test]
+    async fn protected_request_failed_no_token() {
+        let app = spawn_app().await;
 
-#[tokio::test]
-async fn protected_request_failed_expired_token() {
-    let app = spawn_app().await;
+        let result = app
+            .api_client
+            .get(&format!("{}/info", &app.address))
+            .send()
+            .await
+            .expect("Failed to execute request.");
 
-    let user = create_test_user(app.repo).await;
+        assert!(result.status() == StatusCode::UNAUTHORIZED);
+    }
 
-    let token = create_expired_token(user);
-    let (header_name, header_value) = create_auth_header(&token);
+    #[tokio::test]
+    async fn protected_request_failed_expired_token() {
+        let app = spawn_app().await;
 
-    let result = app
-        .api_client
-        .get(&format!("{}/info", &app.address))
-        .header(header_name, header_value)
-        .send()
-        .await
-        .expect("Failed to execute request.");
+        let user = create_test_user(app.repo).await;
 
-    assert!(result.status() == StatusCode::UNAUTHORIZED);
+        let token = create_expired_token(user);
+        let (header_name, header_value) = create_auth_header(&token);
+
+        let result = app
+            .api_client
+            .get(&format!("{}/info", &app.address))
+            .header(header_name, header_value)
+            .send()
+            .await
+            .expect("Failed to execute request.");
+
+        assert!(result.status() == StatusCode::UNAUTHORIZED);
+    }
 }

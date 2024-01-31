@@ -28,7 +28,8 @@ pub async fn insert_irrigation_event(
 }
 
 pub async fn insert_irrigation_events(repo: Repo) {
-    let complete_status: String = IrrigationEventStatus::Completed.to_string();
+    //  TODO: change to enum type instead of bool
+    let complete_status: String = "true".to_string();
 
     let dt =
         NaiveDateTime::parse_from_str("2022-01-01 12:34:56".into(), "%Y-%m-%d %H:%M:%S").unwrap();

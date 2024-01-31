@@ -1,4 +1,3 @@
-use actix_web::web::Data;
 use rpsump::repository::models::irrigation_schedule::IrrigationSchedule;
 
 use serde_json::Value;
@@ -26,7 +25,7 @@ async fn get_schedule_not_found() {
     let body: Value = schedule_response.json().await.unwrap();
 
     // Assert
-    assert!(body["message"] == "Irrigation schedule not found.");
+    assert!(body["message"] == "Not found");
     assert!(status == 404);
 }
 
@@ -101,10 +100,10 @@ async fn delete_schedule_success() {
         .delete_irrigation_schedule(token.to_string(), schedules[0].id)
         .await;
     let status = response.status();
-    let deleted_schedule: IrrigationSchedule = response.json().await.unwrap();
+    let deleted_schedule: usize = response.json().await.unwrap();
 
     // Assert
-    assert!(deleted_schedule.id == schedules[0].id);
+    assert!(deleted_schedule == schedules[0].id as usize);
     assert!(status.is_success());
 }
 
@@ -125,10 +124,8 @@ async fn delete_schedule_not_found() {
     let schedule_response: Value = response.json().await.unwrap();
 
     // Assert
-    assert!(
-        schedule_response["message"] == "Error deleting irrigation schedules: Record not found"
-    );
-    assert!(status == 400);
+    assert!(schedule_response["message"] == "Not found");
+    assert!(status == 404);
 }
 
 #[tokio::test]
@@ -236,6 +233,7 @@ async fn post_schedule_success() {
 
     let name = "New Schedule name";
     let body = serde_json::json!({
+        "active": true,
         "hoses": [2,3,5],
         "name": name,
         "start_time": "17:34:56",
@@ -244,6 +242,7 @@ async fn post_schedule_success() {
     });
 
     let schedule_response = app.post_irrigation_schedule(token.to_string(), body).await;
+
     let status = schedule_response.status();
     let new_schedule = schedule_response
         .json::<IrrigationSchedule>()

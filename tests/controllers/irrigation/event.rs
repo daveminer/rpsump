@@ -1,4 +1,3 @@
-use actix_web::web::Data;
 use rpsump::repository::models::irrigation_event::IrrigationEvent;
 use serde_json::Value;
 
@@ -24,6 +23,5 @@ async fn list_events_success() {
     let status = events_response.status();
     let _body: Vec<IrrigationEvent> = events_response.json().await.unwrap();
 
-    // Assert
     assert!(status.is_success());
 }

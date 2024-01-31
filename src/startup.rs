@@ -1,3 +1,5 @@
+use std::sync::Mutex;
+
 use actix_identity::IdentityMiddleware;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie, dev::Server, web, web::Data, App, HttpServer};
@@ -66,7 +68,7 @@ impl Application {
                 .app_data(Self::json_cfg())
                 .app_data(Data::new(settings.clone()))
                 .app_data(Data::new(repo))
-                .app_data(Data::new(Some(hydro.clone())));
+                .app_data(Data::new(Mutex::new(Some(hydro.clone()))));
 
             app
         })

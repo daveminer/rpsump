@@ -1,22 +1,24 @@
 use std::fs::{self, File};
-use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::path::PathBuf;
 
-use anyhow::{anyhow, Error};
+use anyhow::Error;
 use diesel::r2d2::{self, ConnectionManager, Pool, PooledConnection};
-use diesel::{Connection, SqliteConnection};
+use diesel::SqliteConnection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use mockall::predicate::eq;
 use once_cell::sync::Lazy;
-use rpsump::hydro::gpio::{Gpio, Level, MockGpio, MockInputPin, MockOutputPin, MockPin};
-use rpsump::repository::implementation::Implementation;
+use rpsump::hydro::{
+    gpio::{Gpio, Level, MockGpio, MockInputPin, MockOutputPin, MockPin},
+    Hydro,
+};
 use serde_json::{json, Value};
 use tempfile::TempDir;
+use tokio::runtime::Runtime;
 use tokio::sync::OnceCell;
 use wiremock::MockServer;
 
 use rpsump::config::Settings;
-use rpsump::repository::{self, implementation, Repo, Repository};
+use rpsump::repository::{self, implementation, Repo};
 use rpsump::startup::Application;
 
 // TODO: move to shared location
@@ -36,6 +38,7 @@ pub struct TestApp {
     pub address: String,
     pub port: u16,
     pub repo: Repo,
+    pub hydro: Hydro,
     repo_temp_dir: TempDir,
     pub email_server: MockServer,
     pub api_client: reqwest::Client,
@@ -309,11 +312,18 @@ where
     let app_repo = repository::implementation(Some(test_repo.to_str().unwrap().to_string()))
         .await
         .expect("Could not create repository.");
+    let hydro_repo = repository::implementation(Some(test_repo.to_str().unwrap().to_string()))
+        .await
+        .expect("Could not create repository.");
 
-    let application = Application::build(settings, gpio, repo);
+    let application = Application::build(settings.clone(), gpio, repo);
     let port = application.port();
 
     let _ = tokio::spawn(application.run_until_stopped());
+
+    let rt_handle = tokio::runtime::Handle::current();
+
+    let hydro = Hydro::new(&settings.hydro, rt_handle, gpio, hydro_repo).unwrap();
 
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
@@ -322,6 +332,8 @@ where
 
     let test_app = TestApp {
         address: format!("http://localhost:{}", port),
+        // TODO: not needed?
+        hydro,
         port,
         repo: app_repo,
         email_server,

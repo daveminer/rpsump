@@ -1,6 +1,9 @@
 use chrono::{NaiveDateTime, NaiveTime};
 use diesel::prelude::*;
-use serde::{Deserialize, Serialize};
+use serde::{
+    de::{self, Visitor},
+    Deserialize, Deserializer, Serialize, Serializer,
+};
 use std::fmt;
 
 use crate::schema::irrigation_schedule;
@@ -25,6 +28,10 @@ pub struct IrrigationSchedule {
     pub duration: i32,
     pub start_time: NaiveTime,
     pub days_of_week: String,
+    #[serde(
+        serialize_with = "serialize_hoses",
+        deserialize_with = "deserialize_hoses"
+    )]
     pub hoses: String,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
@@ -62,4 +69,43 @@ impl fmt::Display for DayOfWeek {
             DayOfWeek::Sunday => write!(f, "Sunday"),
         }
     }
+}
+
+fn serialize_hoses<S>(hoses: &String, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    let hoses: Vec<i32> = hoses.split(',').map(|s| s.parse().unwrap()).collect();
+    serializer.collect_seq(hoses)
+}
+
+struct HosesVisitor;
+
+impl<'de> Visitor<'de> for HosesVisitor {
+    type Value = String;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str("a sequence of integers separated by commas")
+    }
+
+    fn visit_seq<A>(self, mut seq: A) -> Result<String, A::Error>
+    where
+        A: de::SeqAccess<'de>,
+    {
+        let mut hoses = String::new();
+        while let Some(value) = seq.next_element::<i32>()? {
+            if !hoses.is_empty() {
+                hoses.push(',');
+            }
+            hoses.push_str(&value.to_string());
+        }
+        Ok(hoses)
+    }
+}
+
+fn deserialize_hoses<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    deserializer.deserialize_seq(HosesVisitor)
 }

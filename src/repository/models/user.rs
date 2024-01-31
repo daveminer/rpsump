@@ -34,8 +34,8 @@ pub struct UserUpdateFilter {
     pub id: i32,
     pub email: Option<String>,
     pub email_verification_token: Option<Option<String>>,
+    pub email_verification_token_expires_at: Option<NaiveDateTime>,
     pub password_hash: Option<String>,
     pub password_reset_token: Option<Option<String>>,
+    pub password_reset_token_expires_at: Option<NaiveDateTime>,
 }
-
-type BoxedQuery<'a> = user::BoxedQuery<'a, Sqlite, user::SqlType>;

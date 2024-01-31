@@ -20,18 +20,13 @@ async fn email_verification_token_expired() {
 
     // Act
     let response = app.post_signup(&params).await;
-    println!("RESPONSE: {:?}", response.text().await);
-    // let status = response.status();
-    // assert!(status.is_success());
+    assert!(response.status().is_success());
 
     let user_filter = UserFilter {
         email: Some(params["email"].as_str().unwrap().to_string()),
         ..Default::default()
     };
     let user = app.repo.users(user_filter).await.unwrap().pop().unwrap();
-    // let user: User = User::by_email(params["email"].as_str().unwrap().to_string())
-    //     .first(&mut db)
-    //     .unwrap();
 
     let token_expiry = user.email_verification_token_expires_at.unwrap();
     let yesterday = token_expiry - Duration::days(1);

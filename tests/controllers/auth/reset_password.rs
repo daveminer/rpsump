@@ -1,4 +1,3 @@
-use actix_web::web;
 use chrono::{Duration, Utc};
 use rpsump::util::ApiResponse;
 use wiremock::matchers::{method, path};
@@ -73,12 +72,16 @@ async fn reset_password_failed_token_expired() {
         value: token.clone(),
     };
 
+    let yesterday = Utc::now().naive_utc() - Duration::days(1);
+
     let user_update_filter = UserUpdateFilter {
         id: user.id,
         email: None,
         email_verification_token: None,
+        email_verification_token_expires_at: None,
         password_hash: None,
         password_reset_token: Some(Some(expired_token.value.clone())),
+        password_reset_token_expires_at: Some(yesterday),
     };
     let _user_update = app.repo.update_user(user_update_filter).await.unwrap();
 
@@ -89,7 +92,7 @@ async fn reset_password_failed_token_expired() {
 
     assert!(reset_response.status().is_client_error());
     let reset_body: ApiResponse = reset_response.json().await.unwrap();
-    assert!(reset_body.message == "Invalid token.");
+    assert!(reset_body.message == "Token expired.");
 }
 
 #[tokio::test]
@@ -101,6 +104,7 @@ async fn reset_password_success() {
     let reset_response = app
         .post_password_reset(&password_reset_params(token, NEW_PASSWORD.into()))
         .await;
+
     assert!(reset_response.status().is_success());
     let reset_body: ApiResponse = reset_response.json().await.unwrap();
     assert!(reset_body.message == "Password reset successfully.");
@@ -147,15 +151,11 @@ async fn signup_and_request_password_reset() -> (TestApp, serde_json::Map<String
 }
 
 async fn get_token_from_email(app: &TestApp) -> String {
-    // Get the token from the email
-    let reset_password_email = app
-        .email_server
-        .received_requests()
-        .await
-        .unwrap()
-        .pop()
-        .unwrap();
-    let body = std::str::from_utf8(&reset_password_email.body).unwrap();
+    let mut reqs = app.email_server.received_requests().await.unwrap();
+
+    let pw_confirm = reqs.pop().unwrap();
+
+    let body = std::str::from_utf8(&pw_confirm.body).unwrap();
     let params = param_from_email_text(body, "token");
     params[0].clone()
 }

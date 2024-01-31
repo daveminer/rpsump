@@ -2,15 +2,6 @@ use anyhow::{anyhow, Error};
 use async_trait::async_trait;
 use chrono::{NaiveDateTime, NaiveTime, Utc};
 
-use diesel::internal::table_macro::BoxedSelectStatement;
-use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::result::{DatabaseErrorKind, Error as DieselError};
-use diesel::sql_types::{Bool, Nullable};
-use diesel::sqlite::SqliteConnection;
-use diesel::BoxableExpression;
-use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
-use thiserror::Error;
-
 use crate::auth::password::Password;
 use crate::auth::token::Token;
 use crate::hydro::schedule::Status;
@@ -31,20 +22,41 @@ use crate::schema::{
     irrigation_schedule::dsl as irrigation_schedule_dsl, sump_event::dsl as sump_event_dsl,
 };
 use crate::util::spawn_blocking_with_tracing;
+use diesel::internal::table_macro::BoxedSelectStatement;
+use diesel::r2d2::{ConnectionManager, Pool};
+use diesel::result::{DatabaseErrorKind, Error as DieselError};
+use diesel::sql_types::{Bool, Nullable};
+use diesel::sqlite::SqliteConnection;
+use diesel::BoxableExpression;
+use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 
 use super::models::user::UserUpdateFilter;
 
 type DbPool = Pool<ConnectionManager<SqliteConnection>>;
 
-#[derive(Error, Debug)]
+#[derive(thiserror::Error, Debug)]
+pub enum ResetPasswordError {
+    #[error("Database error.")]
+    DatabaseError(anyhow::Error),
+    #[error("Internal server error.")]
+    InternalServerError(anyhow::Error),
+    #[error("Invalid password")]
+    InvalidPassword(anyhow::Error),
+    #[error("Invalid token.")]
+    InvalidToken,
+    #[error("Token expired.")]
+    TokenExpired,
+}
+
+#[derive(thiserror::Error, Debug)]
 pub enum VerifyEmailError {
+    #[error("Database error.")]
+    DatabaseError(anyhow::Error),
     #[error("Invalid token.")]
     EmailNotFound,
     #[error("Email already verified.")]
     EmailAlreadyVerified,
-    #[error("Database error: {0}")]
-    DatabaseError(anyhow::Error),
-    #[error("Internal server error when verifying email: {0}")]
+    #[error("Internal server error.")]
     InternalServerError(anyhow::Error),
     #[error("Token expired.")]
     TokenExpired,
@@ -72,6 +84,34 @@ impl Implementation {
 
 #[async_trait]
 impl Repository for Implementation {
+    async fn create_email_verification(&self, user_record: &User) -> Result<Token, Error> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| anyhow!("Database error: {:?}", e))?;
+        let user_id = user_record.id.clone();
+        let email = user_record.email.clone();
+
+        let token = Token::new_email_verification(user_id);
+        let token_value = token.value.clone();
+        let _: Result<usize, Error> = spawn_blocking_with_tracing(move || {
+            let result = diesel::update(user::table)
+                .filter(user::email.eq(email))
+                .set((
+                    user::email_verification_token.eq::<Option<String>>(Some(token_value)),
+                    user::email_verification_token_expires_at
+                        .eq::<Option<String>>(Some(token.expires_at.to_string())),
+                ))
+                .execute(&mut conn)
+                .map_err(|e| anyhow!("Error when updating user: {}", e))?;
+
+            Ok(result)
+        })
+        .await?;
+
+        Ok(token)
+    }
+
     async fn create_irrigation_event(
         &self,
         schedule: IrrigationSchedule,
@@ -102,13 +142,13 @@ impl Repository for Implementation {
         &self,
         // TODO: make type
         params: CreateIrrigationScheduleParams,
-    ) -> Result<(), Error> {
+    ) -> Result<IrrigationSchedule, Error> {
         let mut conn = self
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
 
-        let _irrigation_sched = spawn_blocking_with_tracing(move || {
+        let irrigation_sched = spawn_blocking_with_tracing(move || {
             let days = params
                 .days_of_week
                 .iter()
@@ -133,36 +173,38 @@ impl Repository for Implementation {
                     irrigation_schedule_dsl::hoses.eq(hoses),
                     //TODO: check created at
                 ))
-                .execute(&mut conn)
+                .get_result::<IrrigationSchedule>(&mut conn)
+                //.execute(&mut conn)
                 .map_err(|e| anyhow!("Error creating irrigation schedule: {}", e))
         })
         .await??;
 
-        Ok(())
+        Ok(irrigation_sched)
     }
 
-    async fn create_password_reset(&self, current_user: User) -> Result<(), Error> {
+    async fn create_password_reset(&self, current_user: User) -> Result<Token, Error> {
         let mut conn = self
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
 
-        let _row_updated = spawn_blocking_with_tracing(move || {
+        let token_result = spawn_blocking_with_tracing(move || {
             let token = Token::new_password_reset(current_user.id);
 
             diesel::update(user::table)
                 .filter(user::email.eq(current_user.email))
                 .set((
-                    user::password_reset_token.eq(token.value),
+                    user::password_reset_token.eq(token.value.clone()),
                     user::password_reset_token_expires_at.eq(token.expires_at),
                 ))
                 .execute(&mut conn)
-                .map_err(|e| anyhow!(e))
-        })
-        .await?
-        .map_err(|e| anyhow!("Error when updating user password: {}", e))?;
+                .map_err(|e| anyhow!(e))?;
 
-        Ok(())
+            Ok::<Token, Error>(token)
+        })
+        .await??;
+
+        Ok(token_result)
     }
 
     async fn create_sump_event(&self, info: String, kind: String) -> Result<(), Error> {
@@ -260,8 +302,26 @@ impl Repository for Implementation {
     }
 
     // TODO: implement
-    async fn delete_irrigation_schedule(&self, _sched_id: i32) -> Result<(), Error> {
-        Ok(())
+    async fn delete_irrigation_schedule(&self, sched_id: i32) -> Result<Option<usize>, Error> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| anyhow!("Database error: {:?}", e))?;
+
+        let maybe_row_deleted = spawn_blocking_with_tracing(move || {
+            match diesel::delete(irrigation_schedule::table)
+                .filter(irrigation_schedule::id.eq(sched_id))
+                .execute(&mut conn)
+            {
+                Ok(0) => Ok(None),
+                Ok(n) => Ok(Some(n)),
+                Err(e) => Err(e),
+            }
+        })
+        .await
+        .map_err(|e| anyhow!(e.to_string()))??;
+
+        Ok(maybe_row_deleted)
     }
 
     async fn finish_irrigation_event(&self) -> Result<(), Error> {
@@ -417,13 +477,19 @@ impl Repository for Implementation {
     }
 
     // TODO: move Token from auth module
-    async fn reset_password(&self, password: &Password, token: String) -> Result<(), Error> {
+    async fn reset_password(
+        &self,
+        password: &Password,
+        token: String,
+    ) -> Result<(), ResetPasswordError> {
         let mut conn = self
             .pool
             .get()
-            .map_err(|e| anyhow!("Database error: {:?}", e))?;
+            .map_err(|e| ResetPasswordError::DatabaseError(anyhow!(e)))?;
 
-        let pw_hash = password.hash()?;
+        let pw_hash = password
+            .hash()
+            .map_err(|e| ResetPasswordError::InvalidPassword(e))?;
 
         let _row_updated = spawn_blocking_with_tracing(move || {
             let current_user = match user::table
@@ -432,12 +498,16 @@ impl Repository for Implementation {
             {
                 Ok(current_user) => current_user,
                 Err(e) => match e {
-                    DieselError::NotFound => return Err(anyhow!("Invalid token.")),
-                    _ => return Err(anyhow!(e)),
+                    DieselError::NotFound => return Err(ResetPasswordError::InvalidToken),
+                    e => return Err(ResetPasswordError::DatabaseError(anyhow!(e))),
                 },
             };
 
-            diesel::update(user::table)
+            if current_user.password_reset_token_expires_at.unwrap() < Utc::now().naive_utc() {
+                return Err(ResetPasswordError::TokenExpired);
+            }
+
+            let result = diesel::update(user::table)
                 .filter(user::email.eq(current_user.email))
                 .set((
                     user::password_hash.eq(pw_hash),
@@ -445,10 +515,12 @@ impl Repository for Implementation {
                     user::password_reset_token_expires_at.eq::<Option<String>>(None),
                 ))
                 .execute(&mut conn)
-                .map_err(|e| anyhow!(e))
+                .map_err(|e| ResetPasswordError::DatabaseError(anyhow!(e)))?;
+
+            Ok::<usize, ResetPasswordError>(result)
         })
-        .await?
-        .map_err(|e| anyhow!("Error when updating user password: {}", e))?;
+        .await
+        .map_err(|e| ResetPasswordError::InternalServerError(anyhow!(e)))??;
 
         Ok(())
     }
@@ -466,12 +538,7 @@ impl Repository for Implementation {
                 .map_err(|e| anyhow!(e))
         })
         .await?
-        .map_err(|e| {
-            anyhow!(
-                "Internal server error when getting schedule statuses: {}",
-                e
-            )
-        })?;
+        .map_err(|e| anyhow!(e))?;
 
         Ok(statuses)
     }
@@ -684,9 +751,28 @@ impl Repository for Implementation {
             .get()
             .map_err(|e| VerifyEmailError::DatabaseError(anyhow!(e)))?;
 
+        let results = user::table
+            .select((
+                user::id,
+                user::email,
+                user::email_verification_token,
+                user::email_verification_token_expires_at,
+                user::email_verified_at,
+                user::password_hash,
+                user::password_reset_token,
+                user::password_reset_token_expires_at,
+                user::created_at,
+                user::updated_at,
+            ))
+            .load::<User>(&mut conn)
+            .map_err(|e| match e {
+                DieselError::NotFound => VerifyEmailError::EmailNotFound,
+                e => VerifyEmailError::DatabaseError(anyhow!(e)),
+            })?;
+
         let _result = spawn_blocking_with_tracing(move || {
             let user: User = user::table
-                .filter(user::email_verification_token.eq(token.clone()))
+                .filter(user::email_verification_token.eq(Some(token.clone())))
                 .first::<User>(&mut conn)
                 .map_err(|e| match e {
                     DieselError::NotFound => VerifyEmailError::EmailNotFound,

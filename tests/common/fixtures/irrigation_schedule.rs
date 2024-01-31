@@ -2,7 +2,9 @@ use chrono::{NaiveDateTime, NaiveTime};
 use diesel::{ExpressionMethods, RunQueryDsl};
 use rpsump::{
     repository::{
-        models::irrigation_schedule::{CreateIrrigationScheduleParams, DayOfWeek},
+        models::irrigation_schedule::{
+            CreateIrrigationScheduleParams, DayOfWeek, IrrigationSchedule,
+        },
         Repo,
     },
     schema::{irrigation_schedule, irrigation_schedule::*},
@@ -17,14 +19,21 @@ pub async fn insert_irrigation_schedule(
     sched_days: String,
     sched_hoses: String,
     sched_created_at: NaiveDateTime,
-) {
+) -> IrrigationSchedule {
+    let hose_vec: Vec<i32> = sched_hoses
+        .clone()
+        .split(',')
+        .map(|s| s.parse().unwrap())
+        .collect();
+
     let schedule = CreateIrrigationScheduleParams {
         active: sched_active,
         name: sched_name.clone(),
         start_time: sched_start_time,
         duration: sched_duration,
         days_of_week: vec![DayOfWeek::Monday, DayOfWeek::Tuesday],
-        hoses: vec![sched_hoses.clone().parse().unwrap()],
+        // TODO: create serde for this
+        hoses: hose_vec,
     };
 
     repo.create_irrigation_schedule(schedule).await.unwrap()

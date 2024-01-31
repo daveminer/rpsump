@@ -14,14 +14,14 @@ use models::{
     user_event::{EventType, UserEvent},
 };
 
-use crate::auth::password::Password;
+use crate::auth::{password::Password, token::Token};
 use crate::hydro::schedule::Status;
 use crate::repository::models::{
     irrigation_schedule::CreateIrrigationScheduleParams,
     user::{UserFilter, UserUpdateFilter},
 };
 
-use self::implementation::VerifyEmailError;
+use self::implementation::{ResetPasswordError, VerifyEmailError};
 
 /// Used in the application to access the database
 pub type Repo = &'static dyn Repository;
@@ -33,6 +33,7 @@ pub type TestRepo = &'static dyn TestRepository;
 #[automock]
 #[async_trait]
 pub trait Repository: Send + Sync + 'static {
+    async fn create_email_verification(&self, user: &User) -> Result<Token, Error>;
     async fn create_irrigation_event(
         &self,
         schedule: IrrigationSchedule,
@@ -41,9 +42,9 @@ pub trait Repository: Send + Sync + 'static {
     async fn create_irrigation_schedule(
         &self,
         params: CreateIrrigationScheduleParams,
-    ) -> Result<(), Error>;
+    ) -> Result<IrrigationSchedule, Error>;
     // TODO: move this import out of controllers module
-    async fn create_password_reset(&self, user: User) -> Result<(), Error>;
+    async fn create_password_reset(&self, user: User) -> Result<Token, Error>;
     async fn create_sump_event(&self, info: String, kind: String) -> Result<(), Error>;
     async fn create_user(
         &self,
@@ -57,7 +58,7 @@ pub trait Repository: Send + Sync + 'static {
         request_event_type: EventType,
         request_ip_address: String,
     ) -> Result<(), Error>;
-    async fn delete_irrigation_schedule(&self, sched_id: i32) -> Result<(), Error>;
+    async fn delete_irrigation_schedule(&self, sched_id: i32) -> Result<Option<usize>, Error>;
     async fn finish_irrigation_event(&self) -> Result<(), Error>;
     async fn irrigation_events(&self) -> Result<Vec<IrrigationEvent>, Error>;
     async fn irrigation_schedules(&self) -> Result<Vec<IrrigationSchedule>, Error>;
@@ -68,7 +69,11 @@ pub trait Repository: Send + Sync + 'static {
         Self: Sized;
     async fn pool(&self) -> Result<Pool<ConnectionManager<SqliteConnection>>, Error>;
     async fn queue_irrigation_events(&self, events: Vec<Status>) -> Result<(), Error>;
-    async fn reset_password(&self, new_password: &Password, token: String) -> Result<(), Error>;
+    async fn reset_password(
+        &self,
+        password: &Password,
+        token: String,
+    ) -> Result<(), ResetPasswordError>;
     async fn schedule_statuses(&self) -> Result<Vec<Status>, Error>;
     async fn sump_events(&self) -> Result<Vec<SumpEvent>, Error>;
     async fn update_irrigation_schedule(

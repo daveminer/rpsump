@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use actix_web::{get, HttpRequest, HttpResponse};
 use actix_web::{web::Data, Result};
@@ -10,7 +10,7 @@ use crate::get_hydro;
 use crate::hydro::Hydro;
 
 #[get("/info")]
-#[tracing::instrument(skip(_user, maybe_hydro))]
+#[tracing::instrument(skip(maybe_hydro, _user))]
 async fn info(
     _req: HttpRequest,
     _user: AuthenticatedUser,
@@ -29,5 +29,5 @@ async fn info(
     //     }
     // };
 
-    Ok(HttpResponse::Ok().json(json!({"heater": &hydro.heater.is_on()})))
+    Ok(HttpResponse::Ok().json(json!({"heater": hydro.heater.is_on()})))
 }
