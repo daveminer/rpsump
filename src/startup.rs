@@ -6,6 +6,7 @@ use actix_web::{cookie, dev::Server, web, web::Data, App, HttpServer};
 use actix_web::{error::ErrorBadRequest, web::JsonConfig};
 use actix_web_opentelemetry::RequestTracing;
 use serde_json::json;
+use std::net::TcpListener;
 use tokio::runtime::Runtime;
 
 use crate::config::Settings;
@@ -30,25 +31,15 @@ impl Application {
         G: Gpio,
     {
         // Web server configuration
-        let address = format!("{}:{}", settings.server.host, settings.server.port);
-        let listener =
-            std::net::TcpListener::bind(address).expect("Could not bind server address.");
-        let port = listener
-            .local_addr()
-            .expect("Could not get server address.")
-            .port();
+        let (_address, port, tcp_listener) = web_server_config(&settings);
 
-        let rt = tokio::runtime::Runtime::new().expect("Could not create runtime");
-        let handle = rt.handle().clone();
+        let hydro_rt = tokio::runtime::Runtime::new().expect("Could not create runtime");
+        let handle = hydro_rt.handle().clone();
 
         let hydro =
             Hydro::new(&settings.hydro, handle, gpio, repo).expect("Could not create hydro object");
 
-        // TODO: fix clones
-        //let db_clone = db_pool.clone();
         let server = HttpServer::new(move || {
-            //let db_clone = db_clone.clone();
-            //let hydro_clone = hydro.clone();
             let app = App::new()
                 .wrap(RequestTracing::new())
                 // Session tools
@@ -65,14 +56,18 @@ impl Application {
                 .service(web::scope("/auth").configure(auth_routes))
                 .service(web::scope("/irrigation").configure(irrigation_routes))
                 // Application configuration
-                .app_data(Self::json_cfg())
+                .app_data(JsonConfig::default().error_handler(|err, _req| {
+                    ErrorBadRequest(json!({
+                        "message": err.to_string()
+                    }))
+                }))
                 .app_data(Data::new(settings.clone()))
                 .app_data(Data::new(repo))
                 .app_data(Data::new(Mutex::new(Some(hydro.clone()))));
 
             app
         })
-        .listen(listener)
+        .listen(tcp_listener)
         .expect(&format!("Could not listen on port {}", port))
         .run();
 
@@ -80,7 +75,8 @@ impl Application {
             server,
             port,
             repo,
-            _rt: rt,
+            // Keep this runtime for the lifetime of Application
+            _rt: hydro_rt,
         }
     }
 
@@ -91,12 +87,17 @@ impl Application {
     pub async fn run_until_stopped(self) -> Result<(), std::io::Error> {
         self.server.await
     }
+}
 
-    fn json_cfg() -> JsonConfig {
-        web::JsonConfig::default().error_handler(|err, _req| {
-            ErrorBadRequest(json!({
-                "message": err.to_string()
-            }))
-        })
-    }
+fn web_server_config(settings: &Settings) -> (String, u16, TcpListener) {
+    let address = format!("{}:{}", settings.server.host, settings.server.port);
+    let address_clone = address.clone();
+    let listener = std::net::TcpListener::bind(address).expect("Could not bind server address.");
+
+    let port = listener
+        .local_addr()
+        .expect("Could not get server address.")
+        .port();
+
+    (address_clone, port, listener)
 }

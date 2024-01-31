@@ -7,26 +7,22 @@ use rpsump::{config::Settings, middleware::telemetry, repository, startup::Appli
 async fn main() -> std::io::Result<()> {
     init_exit_handler();
 
+    // Application config
     let settings = Settings::new();
+
+    // Observability
     telemetry::init_tracer(&settings).expect("Could not initialize telemetry.");
+
+    // Raspberry Pi
     let gpio = rppal::gpio::Gpio::new().expect("Could not initialize GPIO.");
-    // let repo = Box::new(
-    //     repository::implementation(Some(settings.database_path))
-    //         .await
-    //         .expect("Could not initialize database."),
-    // );
 
     // TODO: DB URI
-    // let repo = match &settings.database_path {
-    //     Some(database_path) => repository::implementation(database_path.clone())
-    //         .context("Cannot create a repository")?,
-    //     None => repository::mock()?,
-    // };
-
+    // Database
     let repo = repository::implementation(Some(settings.database_path.clone()))
         .await
         .expect("Could not create repository.");
 
+    // Application
     let application = Application::build(settings, &gpio, repo);
 
     application.run_until_stopped().await?;
