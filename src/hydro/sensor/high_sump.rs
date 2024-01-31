@@ -2,7 +2,6 @@ use std::sync::{Arc, Mutex};
 
 use crate::hydro::debounce::Debouncer;
 use crate::hydro::{control::Output, Control, Level};
-use crate::repository::models::sump_event::SumpEvent;
 use crate::repository::Repo;
 
 pub fn handler(
@@ -60,7 +59,7 @@ pub fn handler(
 pub async fn update_sensor(level: Level, mut pump: Control, repo: Repo) {
     // Turn the pump on
     if level == Level::High {
-        pump.on();
+        let _ = pump.on().await;
 
         tracing::info!("Sump pump turned on.");
 

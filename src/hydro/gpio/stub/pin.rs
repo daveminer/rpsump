@@ -41,11 +41,11 @@ impl InputPin for PinStub {
 
     fn set_async_interrupt(
         &mut self,
-        name: String,
-        trigger: Trigger,
-        handle: Handle,
-        tx: &Sender<Command>,
-        delay: u64,
+        #[allow(unused)] name: String,
+        #[allow(unused)] trigger: Trigger,
+        #[allow(unused)] handle: Handle,
+        #[allow(unused)] tx: &Sender<Command>,
+        #[allow(unused)] delay: u64,
     ) -> Result<(), Error> {
         Ok(())
     }

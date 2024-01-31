@@ -751,25 +751,6 @@ impl Repository for Implementation {
             .get()
             .map_err(|e| VerifyEmailError::DatabaseError(anyhow!(e)))?;
 
-        let results = user::table
-            .select((
-                user::id,
-                user::email,
-                user::email_verification_token,
-                user::email_verification_token_expires_at,
-                user::email_verified_at,
-                user::password_hash,
-                user::password_reset_token,
-                user::password_reset_token_expires_at,
-                user::created_at,
-                user::updated_at,
-            ))
-            .load::<User>(&mut conn)
-            .map_err(|e| match e {
-                DieselError::NotFound => VerifyEmailError::EmailNotFound,
-                e => VerifyEmailError::DatabaseError(anyhow!(e)),
-            })?;
-
         let _result = spawn_blocking_with_tracing(move || {
             let user: User = user::table
                 .filter(user::email_verification_token.eq(Some(token.clone())))

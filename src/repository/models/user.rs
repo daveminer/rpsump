@@ -1,5 +1,5 @@
 use chrono::NaiveDateTime;
-use diesel::{prelude::*, sqlite::Sqlite};
+use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::schema::user;

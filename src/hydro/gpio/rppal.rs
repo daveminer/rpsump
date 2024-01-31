@@ -1,7 +1,5 @@
-use actix_web::rt::Runtime;
 use anyhow::{anyhow, Error};
 use std::{
-    borrow::BorrowMut,
     process::Command,
     sync::{Arc, Mutex},
     time::Duration,
@@ -72,11 +70,11 @@ impl InputPin for rppal::gpio::InputPin {
 
 fn callback(
     level: rppal::gpio::Level,
-    name: &str,
+    _name: &str,
     debouncer: Arc<Mutex<Option<Debouncer>>>,
     delay: u64,
     rt: Handle,
-    tx: &Sender<Command>,
+    _tx: &Sender<Command>,
 ) {
     // let level = level.into();
     // let name = name.to_string();

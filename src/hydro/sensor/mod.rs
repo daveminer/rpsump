@@ -1,4 +1,3 @@
-use actix_web::rt::Runtime;
 use anyhow::{anyhow, Error};
 use std::{
     fmt::Debug,
@@ -37,6 +36,17 @@ pub trait Input {
 
 /// Represents a GPIO output for controlling stateful equipment. Water pump, etc.
 /// Can be read synchronously or listened to for events.
+///
+/// # Arguments
+///
+/// * `name` - The name of the sensor for labelling
+/// * `pin_number` - The GPIO pin number to listen to
+/// * `gpio` - The GPIO implementation to use
+/// * `trigger` - The trigger to listen for; rising, falling, or both
+/// * `handle` - handler function to run when the trigger is detected
+/// * `tx` - The channel to send commands to
+/// * `delay` - The debounce delay in milliseconds, if any. Used to
+///    leave the pump on momentarily after a low water level is detected.
 impl Sensor {
     pub fn new<G>(
         name: String,

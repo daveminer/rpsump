@@ -12,7 +12,7 @@ pub async fn update_sensor(level: Level, mut pump: Control, repo: Repo, delay: u
             sleep(Duration::from_secs(delay as u64)).await;
         }
 
-        pump.off();
+        let _ = pump.off().await;
         tracing::info!(target = module_path!(), "Sump pump turned off");
 
         if let Err(e) = repo

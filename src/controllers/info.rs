@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 use actix_web::{get, HttpRequest, HttpResponse};
 use actix_web::{web::Data, Result};

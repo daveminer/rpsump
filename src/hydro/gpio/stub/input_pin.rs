@@ -1,9 +1,5 @@
-use std::{
-    process::Command,
-    sync::{Arc, Mutex},
-};
+use std::process::Command;
 
-use actix_web::rt::Runtime;
 use anyhow::Error;
 use tokio::{runtime::Handle, sync::mpsc::Sender};
 
@@ -29,11 +25,11 @@ impl InputPin for InputPinStub {
 
     fn set_async_interrupt(
         &mut self,
-        name: String,
-        trigger: Trigger,
-        handle: Handle,
-        tx: &Sender<Command>,
-        delay: u64,
+        #[allow(unused)] name: String,
+        #[allow(unused)] trigger: Trigger,
+        #[allow(unused)] handle: Handle,
+        #[allow(unused)] tx: &Sender<Command>,
+        #[allow(unused)] delay: u64,
     ) -> Result<(), Error> {
         Ok(())
     }

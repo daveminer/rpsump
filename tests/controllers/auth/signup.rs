@@ -1,7 +1,6 @@
 use anyhow::Error;
 
 use rpsump::repository::{
-    models::user::User,
     models::{
         user::UserFilter,
         user_event::{EventType, UserEvent},

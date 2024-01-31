@@ -1,9 +1,7 @@
 pub mod check;
 pub mod run;
 
-use anyhow::{anyhow, Error};
 use chrono::{Datelike, NaiveDateTime, NaiveTime};
-use diesel::RunQueryDsl;
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
 
@@ -36,7 +34,9 @@ pub struct Status {
 ///
 pub fn start(repo: Repo, irrigator: Irrigator, frequency_ms: u64) -> JoinHandle<()> {
     tokio::spawn(async move {
-        check_schedule(repo, irrigator).await;
+        if let Err(e) = check_schedule(repo, irrigator).await {
+            tracing::error!("Could not check schedule: {}", e);
+        }
         sleep(Duration::from_millis(frequency_ms)).await;
     })
 }

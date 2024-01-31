@@ -1,13 +1,7 @@
 use chrono::{NaiveDateTime, NaiveTime};
-use diesel::{ExpressionMethods, RunQueryDsl};
-use rpsump::{
-    repository::{
-        models::irrigation_schedule::{
-            CreateIrrigationScheduleParams, DayOfWeek, IrrigationSchedule,
-        },
-        Repo,
-    },
-    schema::{irrigation_schedule, irrigation_schedule::*},
+use rpsump::repository::{
+    models::irrigation_schedule::{CreateIrrigationScheduleParams, DayOfWeek, IrrigationSchedule},
+    Repo,
 };
 
 pub async fn insert_irrigation_schedule(
@@ -16,9 +10,9 @@ pub async fn insert_irrigation_schedule(
     sched_name: String,
     sched_start_time: NaiveTime,
     sched_duration: i32,
-    sched_days: String,
+    #[allow(unused)] sched_days: String,
     sched_hoses: String,
-    sched_created_at: NaiveDateTime,
+    #[allow(unused)] sched_created_at: NaiveDateTime,
 ) -> IrrigationSchedule {
     let hose_vec: Vec<i32> = sched_hoses
         .clone()

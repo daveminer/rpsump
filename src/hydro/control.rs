@@ -1,7 +1,6 @@
-use crate::hydro::gpio::{Gpio, Level, OutputPin, Pin};
+use crate::hydro::gpio::{Gpio, Level, OutputPin};
 use anyhow::{anyhow, Error};
 use async_trait::async_trait;
-use futures::Future;
 use std::fmt;
 use std::sync::{Arc, PoisonError};
 use tokio::sync::{Mutex, MutexGuard};

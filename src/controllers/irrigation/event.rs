@@ -12,7 +12,7 @@ use crate::{controllers::auth::helpers::error_response, repository::Repo};
 
 #[derive(Debug, Deserialize)]
 pub struct Params {
-    status: Option<String>,
+    pub status: Option<String>,
 }
 
 #[get("/event")]

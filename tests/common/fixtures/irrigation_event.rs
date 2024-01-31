@@ -1,9 +1,5 @@
 use chrono::NaiveDateTime;
-use diesel::{ExpressionMethods, RunQueryDsl};
-use rpsump::repository::{
-    models::{irrigation_event::IrrigationEventStatus, irrigation_schedule::IrrigationSchedule},
-    Repo,
-};
+use rpsump::repository::{models::irrigation_schedule::IrrigationSchedule, Repo};
 
 pub async fn insert_irrigation_event(
     repo: Repo,

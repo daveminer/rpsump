@@ -1,6 +1,5 @@
 use serde_json::{Map, Value};
 
-use super::{TEST_EMAIL, TEST_PASSWORD};
 use crate::controllers::user_params;
 use rpsump::auth::password::Password;
 use rpsump::repository::{models::user::User, Repo};
@@ -9,6 +8,9 @@ mod email_verification;
 mod login;
 mod reset_password;
 mod signup;
+
+pub const TEST_EMAIL: &str = "test_acct@test.local";
+pub const TEST_PASSWORD: &str = "testing87_*Password";
 
 // TODO: Move this to a common module
 pub async fn create_test_user(repo: Repo) -> User {

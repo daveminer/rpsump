@@ -2,7 +2,7 @@ use std::fs::{self, File};
 use std::path::PathBuf;
 
 use anyhow::Error;
-use diesel::r2d2::{self, ConnectionManager, Pool, PooledConnection};
+use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::SqliteConnection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use mockall::predicate::eq;
@@ -13,32 +13,25 @@ use rpsump::hydro::{
 };
 use serde_json::{json, Value};
 use tempfile::TempDir;
-use tokio::runtime::Runtime;
 use tokio::sync::OnceCell;
 use wiremock::MockServer;
 
 use rpsump::config::Settings;
-use rpsump::repository::{self, implementation, Repo};
+use rpsump::repository::{self, Repo};
 use rpsump::startup::Application;
 
 // TODO: move to shared location
 use crate::auth::authenticated_user::create_auth_header;
 
-type DbConn = PooledConnection<ConnectionManager<SqliteConnection>>;
-type DbPool = r2d2::Pool<ConnectionManager<SqliteConnection>>;
-
 const DB_TEMPLATE_FILE: &str = "rpsump_test.db";
-
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
-
-static TEST_DB_POOL: Lazy<OnceCell<DbPool>> = Lazy::new(OnceCell::new);
-static TEST_REPO: Lazy<OnceCell<implementation::Implementation>> = Lazy::new(OnceCell::new);
 
 pub struct TestApp {
     pub address: String,
     pub port: u16,
     pub repo: Repo,
     pub hydro: Hydro,
+    #[allow(unused)]
     repo_temp_dir: TempDir,
     pub email_server: MockServer,
     pub api_client: reqwest::Client,

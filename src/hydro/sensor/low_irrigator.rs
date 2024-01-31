@@ -7,7 +7,7 @@ use crate::repository::Repo;
 pub async fn update_sensor(level: Level, mut pump: Control, repo: Repo) {
     // Turn the pump on
     if level == Level::High {
-        pump.on();
+        let _ = pump.on().await;
 
         tracing::info!("Sump pump turned on.");
 
@@ -33,7 +33,7 @@ enum PumpAction {
 
 #[tracing::instrument(skip(repo))]
 pub async fn handle_sensor_signal(action: PumpAction, mut pump: Control, repo: Repo) {
-    match action {
+    let _ = match action {
         PumpAction::On => pump.on().await,
         PumpAction::Off => pump.off().await,
     };

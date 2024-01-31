@@ -1,4 +1,3 @@
-use actix_web::rt::Runtime;
 use anyhow::Error;
 use std::process::Command;
 use tokio::{runtime::Handle, sync::mpsc::Sender};
@@ -88,8 +87,6 @@ impl Irrigator {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
-
     use actix_web::rt::Runtime;
 
     use crate::{
