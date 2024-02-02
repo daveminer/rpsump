@@ -54,21 +54,26 @@ impl PoolPump {
         try_join!(low, med, high, max).map(|_| ())
     }
 
+    /// Sets the new speed on the pump. This pump accepts four 5v inputs, and
+    /// will set the speed according to the highest speed input that is active.
+    /// For this reason, the new speed input is raised before lowering the pin
+    /// for the old speed as to avoid an extra shift to the "off" state
+    /// between speed changes.
     pub async fn on(mut self, speed: PoolPumpSpeed) -> Result<(), Error> {
-        match self.current {
-            PoolPumpSpeed::Off => (),
-            PoolPumpSpeed::Low => self.low.off().await?,
-            PoolPumpSpeed::Med => self.med.off().await?,
-            PoolPumpSpeed::High => self.high.off().await?,
-            PoolPumpSpeed::Max => self.max.off().await?,
-        };
-
         match speed {
             PoolPumpSpeed::Off => self.off().await?,
             PoolPumpSpeed::Low => self.low.on().await?,
             PoolPumpSpeed::Med => self.med.on().await?,
             PoolPumpSpeed::High => self.high.on().await?,
             PoolPumpSpeed::Max => self.max.on().await?,
+        };
+
+        match self.current {
+            PoolPumpSpeed::Off => (),
+            PoolPumpSpeed::Low => self.low.off().await?,
+            PoolPumpSpeed::Med => self.med.off().await?,
+            PoolPumpSpeed::High => self.high.off().await?,
+            PoolPumpSpeed::Max => self.max.off().await?,
         };
 
         self.current = speed;

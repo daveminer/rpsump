@@ -368,7 +368,7 @@ fn expect_input_pin(gpio: &mut MockGpio, pin: u8) {
 
             input_pin
                 .expect_set_async_interrupt()
-                .returning(|_, _, _, _, _| Ok(()));
+                .returning(|_, _, _| Ok(()));
 
             input_pin.expect_read().returning(|| Level::Low);
 

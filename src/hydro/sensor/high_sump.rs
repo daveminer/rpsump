@@ -6,7 +6,6 @@ use crate::repository::Repo;
 
 pub fn handler(
     level: Level,
-    handler: impl FnOnce(Level, Control, Repo) + Send + 'static,
     shared_debouncer: Arc<Mutex<Option<Debouncer>>>,
     rt: &mut tokio::runtime::Runtime,
 ) {

@@ -1,13 +1,12 @@
-use std::{fmt, process::Command};
-use tokio::{runtime::Handle, sync::mpsc::Sender};
-
 use anyhow::Error;
-use mockall::*;
+use mockall::automock;
+use std::fmt;
+use tokio::sync::mpsc::Sender;
+
+use crate::hydro::signal::Message;
 
 pub mod rppal;
 pub mod stub;
-
-type InputPinCallback = Box<dyn FnMut(Level, Sender<Command>, u64) + Send>;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Level {
@@ -47,11 +46,9 @@ pub trait InputPin: Send + Sync {
     fn read(&self) -> Level;
     fn set_async_interrupt(
         &mut self,
-        name: String,
+        message: Message,
         trigger: Trigger,
-        handle: Handle,
-        tx: &Sender<Command>,
-        delay: u64,
+        tx: &Sender<Message>,
     ) -> Result<(), Error>;
 }
 

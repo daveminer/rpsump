@@ -1,14 +1,14 @@
 use anyhow::{anyhow, Error};
 use std::{
-    process::Command,
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tokio::{runtime::Handle, sync::mpsc::Sender};
+use tokio::sync::mpsc::Sender;
 
 use crate::hydro::{
     debounce::Debouncer,
     gpio::{Gpio, InputPin, OutputPin, Pin, Trigger},
+    signal::Message,
 };
 
 impl Gpio for rppal::gpio::Gpio {
@@ -45,77 +45,61 @@ impl InputPin for rppal::gpio::InputPin {
         self.read().into()
     }
 
+    /// Wrapper around rppal's set_async_interrupt to allow for use of a shared
+    /// debouncer for each interrupt
+    ///
+    /// # Arguments
+    ///
+    /// * `name`    - The name of the pin; for logging and reporting
+    /// * `trigger` - The level(s) that trigger the interrupt
+    /// * `handle`  - The tokio runtime handle to use for async operations
+    /// * `tx`      - The channel to report triggers to the main channel
+    /// * `delay`   - The delay to use for debouncing the interrupt
     fn set_async_interrupt(
         &mut self,
-        name: String,
+        message: Message,
         trigger: Trigger,
-        handle: Handle,
-        tx: &Sender<Command>,
-        delay: u64,
+        tx: &Sender<Message>,
     ) -> Result<(), Error> {
-        //let rt = rt.borrow_mut();
-        // let debouncer = Arc::clone(&debouncer);
-        // let rt = rt.clone();
-        // let tx = tx.clone();
-        let debouncer: Arc<Mutex<Option<Debouncer>>> = Arc::from(Mutex::new(None));
+        let message = message.clone();
         let tx = tx.clone();
+
         let callback = move |level: rppal::gpio::Level| {
-            let debouncer = Arc::clone(&debouncer);
-            //let handle = rt.handle().clone();
-            callback(level, &name, debouncer, delay, handle.clone(), &tx);
+            // Create a debouncer instance for this interrupt
+            let debouncer: Arc<Mutex<Option<Debouncer>>> = Arc::from(Mutex::new(None));
+
+            callback(level, &message, debouncer, &tx);
         };
+
         Ok(self.set_async_interrupt(trigger.into(), callback)?)
     }
 }
 
 fn callback(
     level: rppal::gpio::Level,
-    _name: &str,
+    message: &Message,
     debouncer: Arc<Mutex<Option<Debouncer>>>,
-    delay: u64,
-    rt: Handle,
-    _tx: &Sender<Command>,
+    tx: &Sender<Message>,
 ) {
-    // let level = level.into();
-    // let name = name.to_string();
-    // let tx = tx.clone();
     let shared_deb = Arc::clone(&debouncer);
     let mut deb = shared_deb.lock().unwrap();
 
+    // If the debouncer is already present, reset the deadline and return
     if deb.is_some() {
         deb.as_mut().unwrap().reset_deadline(level.into());
         return;
     }
 
-    let debouncer = Debouncer::new(level.into(), Duration::new(2, 0));
+    let debouncer = Debouncer::new(
+        level.into(),
+        Duration::new(2, 0),
+        message.clone(),
+        tx.clone(),
+    );
     *deb = Some(debouncer);
 
-    let sleep = deb.as_ref().unwrap().sleep();
-    //let rt = Runtime::new().unwrap();
-    rt.block_on(sleep);
     *deb = None;
     drop(deb);
-
-    // TODO: send tx message
-    // rt.block_on(update_irrigation_low_sensor(
-    //     level,
-    //     Arc::clone(&irrigation_pump_control_pin),
-    //     Arc::clone(&sensor_state),
-    //     delay,
-    // ));
-    if delay > 0 {
-        rt.block_on(tokio::time::sleep(Duration::from_secs(delay as u64)));
-    }
-
-    // tokio::spawn(async move {
-    //     let cmd = Command::new("sleep").arg(delay.to_string()).output();
-    //     if let Err(e) = cmd {
-    //         log::error!("Error running sleep command: {}", e);
-    //     }
-    //     if let Err(e) = tx.send(Command::new("irrigator").arg(name).arg(level)) {
-    //         log::error!("Error sending command: {}", e);
-    //     }
-    // });
 }
 
 impl Into<rppal::gpio::Trigger> for Trigger {

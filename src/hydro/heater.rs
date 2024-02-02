@@ -15,6 +15,7 @@ impl Heater {
         let control = Control::new("pool pump".into(), config.control_pin, gpio)?;
         Ok(Self { control })
     }
+
     pub async fn on(&mut self) -> Result<(), Error> {
         self.control.level = Level::High;
         let mut lock = self.control.lock().await;

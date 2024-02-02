@@ -1,12 +1,12 @@
 use anyhow::Error;
-use std::process::Command;
-use tokio::{runtime::Handle, sync::mpsc::Sender};
+use tokio::sync::mpsc::Sender;
 
 use crate::{
     config::IrrigationConfig,
     hydro::{
         gpio::{Gpio, Trigger},
         sensor::Sensor,
+        signal::Message,
         Control,
     },
 };
@@ -22,12 +22,7 @@ pub struct Irrigator {
 }
 
 impl Irrigator {
-    pub fn new<G>(
-        config: &IrrigationConfig,
-        tx: &Sender<Command>,
-        handle: &Handle,
-        gpio: &G,
-    ) -> Result<Self, Error>
+    pub fn new<G>(config: &IrrigationConfig, tx: &Sender<Message>, gpio: &G) -> Result<Self, Error>
     where
         G: Gpio,
     {
@@ -44,13 +39,11 @@ impl Irrigator {
         // };
 
         let low_sensor = Sensor::new(
-            "Irrigator Empty".to_string(),
+            Message::IrrigatorEmpty,
             config.low_sensor_pin,
             gpio,
             Trigger::Both,
-            handle,
             tx,
-            0,
         )?;
 
         let valve1 = Control::new(
@@ -87,21 +80,16 @@ impl Irrigator {
 
 #[cfg(test)]
 mod tests {
-    use actix_web::rt::Runtime;
-
     use crate::{
         config::IrrigationConfig,
-        hydro::{
-            gpio::{stub::pin, Level, MockGpio},
-            message::Message,
-        },
+        hydro::gpio::{stub::pin, Level, MockGpio},
     };
 
     use super::Irrigator;
 
     #[test]
     fn test_new() {
-        let mpsc = Message::init();
+        let mpsc = tokio::sync::mpsc::channel(32);
 
         // let mut mock_db_pool = MockDbPool::new();
         // mock_db_pool
@@ -116,8 +104,6 @@ mod tests {
             }))
         });
 
-        let rt = Runtime::new().unwrap();
-
         let _irrigator: Irrigator = Irrigator::new(
             &IrrigationConfig {
                 enabled: true,
@@ -130,8 +116,7 @@ mod tests {
                 valve_3_control_pin: 5,
                 valve_4_control_pin: 6,
             },
-            &mpsc.tx,
-            &rt.tokio_runtime().handle().clone(),
+            &mpsc.0,
             &mock_gpio,
         )
         .unwrap();

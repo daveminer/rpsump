@@ -8,7 +8,6 @@ use crate::{
         gpio::{Gpio, Level},
         heater::Heater,
         irrigator::Irrigator,
-        message::Message,
         pool_pump::PoolPump,
         sump::Sump,
     },
@@ -20,10 +19,10 @@ pub mod debounce;
 pub mod gpio;
 pub mod heater;
 mod irrigator;
-mod message;
 pub mod pool_pump;
 pub mod schedule;
 pub mod sensor;
+pub mod signal;
 mod sump;
 
 #[derive(Clone)]
@@ -41,14 +40,22 @@ impl Hydro {
     where
         G: Gpio,
     {
-        let mpsc = Message::init();
-        let tx = mpsc.tx;
+        let mpsc = tokio::sync::mpsc::channel(32);
+        let tx = mpsc.0;
 
         let heater = Heater::new(&config.heater, gpio)?;
         let pool_pump = PoolPump::new(&config.pool_pump, gpio)?;
 
-        let sump = Sump::new(&config.sump, &tx, &handle, gpio)?;
-        let irrigator = Irrigator::new(&config.irrigation, &tx, &handle, gpio)?;
+        let sump = Sump::new(&config.sump, &tx, gpio)?;
+        let irrigator = Irrigator::new(&config.irrigation, &tx, gpio)?;
+
+        signal::listen(
+            mpsc.1,
+            handle.clone(),
+            irrigator.clone(),
+            sump.clone(),
+            config.sump.pump_shutoff_delay,
+        );
 
         Ok(Self {
             irrigator,

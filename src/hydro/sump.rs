@@ -1,12 +1,12 @@
 use anyhow::Error;
-use std::process::Command;
-use tokio::{runtime::Handle, sync::mpsc::Sender};
+use tokio::sync::mpsc::Sender;
 
 use crate::{
     config::SumpConfig,
     hydro::{
         gpio::{Gpio, Trigger},
         sensor::Sensor,
+        signal::Message,
         Control,
     },
 };
@@ -18,37 +18,39 @@ pub struct Sump {
     pub pump: Control,
 }
 
+/// Sumps controls the GPIOs for devices (water level sensors and a water pump)
+/// that measure the water in a reservoir and pump it out when it gets full.
+///
+/// # Arguments
+///
+/// * `config`  - The configuration for the sump
+/// * `tx`      - The channel used to report triggers to the main channel
+/// * `handle`  - The callback for trigger events. Uses the `tx` channel.
+/// * `gpio`    - The GPIO interface to use for the sump
+///
 impl Sump {
-    pub fn new<G>(
-        config: &SumpConfig,
-        tx: &Sender<Command>,
-        handle: &Handle,
-        gpio: &G,
-    ) -> Result<Self, Error>
+    /// Create a new instance of Sump with the provided configuration, GPIO,
+    /// trigger callback handle and tx channel to report triggers upon
+    pub fn new<G>(config: &SumpConfig, tx: &Sender<Message>, gpio: &G) -> Result<Self, Error>
     where
         G: Gpio,
     {
         let pump = Control::new("sump pump".into(), config.pump_control_pin, gpio)?;
 
         let high_sensor = Sensor::new(
-            "Sump Full".to_string(),
+            Message::SumpFull,
             config.high_sensor_pin,
             gpio,
             Trigger::Both,
-            handle,
             tx,
-            0,
         )?;
 
         let low_sensor = Sensor::new(
-            "Sump Empty".to_string(),
+            Message::SumpEmpty,
             config.low_sensor_pin,
             gpio,
             Trigger::Both,
-            handle,
             tx,
-            // TODO: verify
-            1000,
         )?;
 
         Ok(Self {

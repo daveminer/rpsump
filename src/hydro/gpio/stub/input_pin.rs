@@ -1,9 +1,10 @@
-use std::process::Command;
-
 use anyhow::Error;
-use tokio::{runtime::Handle, sync::mpsc::Sender};
+use tokio::sync::mpsc::Sender;
 
-use crate::hydro::gpio::{InputPin, Level, Trigger};
+use crate::hydro::{
+    gpio::{InputPin, Level, Trigger},
+    signal::Message,
+};
 
 pub struct InputPinStub {
     pub level: Level,
@@ -25,11 +26,9 @@ impl InputPin for InputPinStub {
 
     fn set_async_interrupt(
         &mut self,
-        #[allow(unused)] name: String,
+        #[allow(unused)] message: Message,
         #[allow(unused)] trigger: Trigger,
-        #[allow(unused)] handle: Handle,
-        #[allow(unused)] tx: &Sender<Command>,
-        #[allow(unused)] delay: u64,
+        #[allow(unused)] tx: &Sender<Message>,
     ) -> Result<(), Error> {
         Ok(())
     }
