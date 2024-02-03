@@ -1,12 +1,15 @@
 use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc::Sender;
 use tokio::time::{Duration, Instant};
 
-use rppal::gpio::Level;
+use crate::hydro::{gpio::Level, signal::Message};
 
 #[derive(Clone, Debug)]
 pub struct Debouncer {
     inner: Arc<Mutex<DebouncerInner>>,
+    message: Message,
     prev_reading: Level,
+    tx: Sender<Message>,
 }
 
 #[derive(Clone, Debug)]
@@ -17,15 +20,17 @@ struct DebouncerInner {
 
 /// Tracks the original level of a sensor pin and will reset deadline along with the new state
 /// when a change to the sensor pin state occurs before the deadline elapses. Otherwise, water
-/// turbulence may trigger multiple events where only one is desired.
+/// turbulence may trigger multiple events when only one is desired.
 impl Debouncer {
-    pub fn new(duration: Duration, level: Level) -> Self {
+    pub fn new(level: Level, duration: Duration, message: Message, tx: Sender<Message>) -> Self {
         Self {
             inner: Arc::new(Mutex::new(DebouncerInner {
                 deadline: Instant::now() + duration,
                 duration,
             })),
+            message,
             prev_reading: level,
+            tx,
         }
     }
 
@@ -39,7 +44,7 @@ impl Debouncer {
         }
     }
 
-    /// Sleeps until the deadline elapses.
+    /// Sleeps until the deadline elapses, then sends the trigger event.
     #[tracing::instrument]
     pub async fn sleep(&self) {
         // This uses a loop in case the deadline has been reset since the
@@ -47,7 +52,9 @@ impl Debouncer {
         loop {
             let deadline = self.get_deadline();
             if deadline <= Instant::now() {
-                // The deadline has elapsed; just return.
+                // The deadline has elapsed; send the trigger event.
+                self.tx.send(self.message.clone()).await.unwrap();
+
                 return;
             }
             tokio::time::sleep_until(deadline).await;
@@ -65,18 +72,32 @@ impl Debouncer {
 mod tests {
     use super::*;
     use std::time::Duration;
-    use tokio::time::Instant;
+    use tokio::{sync::mpsc::Receiver, time::Instant};
 
     #[tokio::test]
     async fn test_reset_deadline() {
-        let mut debouncer = Debouncer::new(Duration::from_secs(1), Level::High);
+        let mpsc: (Sender<Message>, Receiver<Message>) = tokio::sync::mpsc::channel(32);
+
+        let mut debouncer = Debouncer::new(
+            Level::High,
+            Duration::from_secs(1),
+            Message::SumpEmpty,
+            mpsc.0,
+        );
         debouncer.reset_deadline(Level::Low);
         assert_eq!(debouncer.prev_reading, Level::Low);
     }
 
     #[tokio::test]
     async fn test_sleep() {
-        let debouncer = Debouncer::new(Duration::from_secs(1), Level::High);
+        let mpsc: (Sender<Message>, Receiver<Message>) = tokio::sync::mpsc::channel(32);
+
+        let debouncer = Debouncer::new(
+            Level::High,
+            Duration::from_secs(1),
+            Message::SumpFull,
+            mpsc.0,
+        );
         let start = Instant::now();
         debouncer.sleep().await;
         assert!(Instant::now() - start >= Duration::from_secs(1));
@@ -84,7 +105,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_deadline() {
-        let debouncer = Debouncer::new(Duration::from_secs(1), Level::High);
+        let mpsc: (Sender<Message>, Receiver<Message>) = tokio::sync::mpsc::channel(32);
+
+        let debouncer = Debouncer::new(
+            Level::High,
+            Duration::from_secs(1),
+            Message::IrrigatorEmpty,
+            mpsc.0,
+        );
         let deadline = debouncer.get_deadline();
         assert!(deadline <= Instant::now() + Duration::from_secs(1));
     }

@@ -1,12 +1,9 @@
-use actix_web::web::Data;
 use anyhow::Error;
-use rpsump::models::user_event::UserEvent;
+use rpsump::{repository::models::user_event::UserEvent, repository::Repo};
 use serde_json::Value;
 
-use rpsump::controllers::ApiResponse;
-use rpsump::database::DbPool;
-use rpsump::models::user::User;
-use rpsump::models::user_event::EventType;
+use rpsump::repository::models::{user::User, user_event::EventType};
+use rpsump::util::ApiResponse;
 
 use super::{create_test_user, user_params};
 use crate::common::test_app::spawn_app;
@@ -30,8 +27,7 @@ async fn login_failed_username_not_found() {
 async fn login_password_incorrect() {
     // Arrange
     let app = spawn_app().await;
-    let db_pool = app.db_pool.clone();
-    let _user = create_test_user(Data::new(db_pool.clone())).await;
+    let _user = create_test_user(app.repo).await;
     let mut params = user_params();
     params["password"] = "wrong_password".into();
 
@@ -49,8 +45,7 @@ async fn login_password_incorrect() {
 async fn login_missing_email() {
     // Arrange
     let app = spawn_app().await;
-    let db_pool = app.db_pool.clone();
-    let _user = create_test_user(Data::new(db_pool.clone())).await;
+    let _user = create_test_user(app.repo).await;
     let mut params = user_params();
     params["email"] = "".into();
 
@@ -68,8 +63,7 @@ async fn login_missing_email() {
 async fn login_missing_password() {
     // Arrange
     let app = spawn_app().await;
-    let db_pool = app.db_pool.clone();
-    let _user = create_test_user(Data::new(db_pool.clone())).await;
+    let _user = create_test_user(app.repo).await;
     let mut params = user_params();
     params["password"] = "".into();
 
@@ -87,8 +81,7 @@ async fn login_missing_password() {
 async fn login_success() {
     // Arrange
     let app = spawn_app().await;
-    let db_pool = app.db_pool.clone();
-    let user = create_test_user(Data::new(db_pool.clone())).await;
+    let user = create_test_user(app.repo).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -98,17 +91,11 @@ async fn login_success() {
     // Assert
     assert!(status.is_success());
     assert!(body["token"].is_string());
-    let events = recent_login_events(user.clone(), db_pool).await.unwrap();
+    let events = recent_login_events(user.clone(), app.repo).await.unwrap();
     assert_eq!(events.len(), 1);
 }
 
-async fn recent_login_events(record: User, db_pool: DbPool) -> Result<Vec<UserEvent>, Error> {
-    UserEvent::recent_events(
-        Some(record),
-        None,
-        EventType::Login,
-        10,
-        actix_web::web::Data::new(db_pool),
-    )
-    .await
+async fn recent_login_events(record: User, repo: Repo) -> Result<Vec<UserEvent>, Error> {
+    repo.user_events(record.id, Some(EventType::Login), 10)
+        .await
 }

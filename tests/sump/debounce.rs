@@ -1,15 +1,15 @@
-use rppal::gpio::Level;
 use std::time::Duration;
 use tokio::time::Instant;
 
-use rpsump::hydro::debounce::Debouncer;
+use rpsump::hydro::{debounce::Debouncer, gpio::Level, signal::Message};
 
 const DURATION: Duration = Duration::from_secs(1);
 
 #[tokio::test]
 async fn test_sensor_debouncer_new() {
     let now = Instant::now();
-    let debouncer = Debouncer::new(DURATION, Level::Low);
+    let mpsc = tokio::sync::mpsc::channel(32);
+    let debouncer = Debouncer::new(Level::Low, DURATION, Message::SumpFull, mpsc.0);
 
     // Check that the deadline is correctly set
     assert!(debouncer.get_deadline() > now + DURATION);
@@ -17,7 +17,8 @@ async fn test_sensor_debouncer_new() {
 
 #[tokio::test]
 async fn test_sensor_debouncer_reset_deadline() {
-    let mut debouncer = Debouncer::new(DURATION, Level::Low);
+    let mpsc = tokio::sync::mpsc::channel(32);
+    let mut debouncer = Debouncer::new(Level::Low, DURATION, Message::SumpFull, mpsc.0);
 
     let now = Instant::now();
     // Reset the deadline with a new reading of High
@@ -29,7 +30,8 @@ async fn test_sensor_debouncer_reset_deadline() {
 
 #[tokio::test]
 async fn test_sensor_debouncer_sleep() {
-    let debouncer = Debouncer::new(DURATION, Level::Low);
+    let mpsc = tokio::sync::mpsc::channel(32);
+    let debouncer = Debouncer::new(Level::Low, DURATION, Message::SumpFull, mpsc.0);
 
     // Start sleeping and measure the time it takes
     let start_time = Instant::now();

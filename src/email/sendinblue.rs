@@ -1,22 +1,37 @@
-use actix_web::web::Data;
 use anyhow::{anyhow, Error};
+use chrono::Utc;
 
 use crate::auth::token::Token;
 use crate::config::MailerConfig;
-use crate::controllers::spawn_blocking_with_tracing;
-use crate::database::DbPool;
 use crate::email::{Contact, Email};
-use crate::models::user::User;
+use crate::repository::models::user::User;
+use crate::util::spawn_blocking_with_tracing;
 
 pub async fn send_email_verification(
     user: User,
-    db: Data<DbPool>,
     mailer: MailerConfig,
     app_server_url: &str,
 ) -> Result<(), Error> {
-    let token = Token::new_email_verification(user.id);
+    if user.email_verification_token.is_none() {
+        return Err(anyhow!("User does not have an email verification token."));
+    }
 
-    User::save_email_verification_token(user.email.clone(), token.clone(), db).await?;
+    if user.email_verification_token_expires_at.is_none() {
+        return Err(anyhow!(
+            "User does not have an email verification token expiry."
+        ));
+    }
+
+    if user.email_verification_token_expires_at.unwrap() < Utc::now().naive_utc() {
+        return Err(anyhow!("Token is expired."));
+    }
+
+    // TODO: refactor token creation
+    let token: Token = Token {
+        value: user.email_verification_token.unwrap(),
+        user_id: user.id,
+        expires_at: user.email_verification_token_expires_at.unwrap(),
+    };
 
     let email = new_email_verification_email(&user.email, &app_server_url, token);
     send(&mailer.auth_token, email, &mailer.server_url).await
@@ -29,16 +44,16 @@ pub async fn send_error_email(mailer: &MailerConfig, error_msg: &str) -> Result<
 
 pub async fn send_password_reset(
     user: User,
-    db: Data<DbPool>,
     mailer_url: &str,
     server_url: &str,
     auth_token: &str,
 ) -> Result<(), Error> {
-    let token = Token::new_password_reset(user.id);
+    if user.password_reset_token.is_none() {
+        return Err(anyhow!("User does not have a password reset token."));
+    }
 
-    User::save_reset_token(user.clone(), token.clone(), db).await?;
-
-    let email = new_password_reset_email(&user.email, server_url, token)?;
+    let email =
+        new_password_reset_email(&user.email, server_url, user.password_reset_token.unwrap())?;
 
     send(auth_token, email, mailer_url).await
 }
@@ -124,9 +139,9 @@ fn new_error_email(contact_email: &str, error_msg: &str) -> Email {
 fn new_password_reset_email(
     contact_email: &str,
     server_url: &str,
-    token: Token,
+    token: String,
 ) -> Result<Email, Error> {
-    let link = format!("{}/auth/reset_password?token={}", server_url, token.value);
+    let link = format!("{}/auth/reset_password?token={}", server_url, token);
 
     Ok(Email {
         to: vec![Contact{ email: contact_email.to_string(), name: None}],

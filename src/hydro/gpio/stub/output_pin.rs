@@ -6,12 +6,20 @@ pub struct OutputPinStub {
 }
 
 impl OutputPin for OutputPinStub {
-    fn set_high(&mut self) {
+    fn is_off(&self) -> bool {
+        self.level == Level::Low
+    }
+
+    fn is_on(&self) -> bool {
+        self.level == Level::High
+    }
+
+    fn on(&mut self) {
         println!("Set OutputPinStub {} high", self.index);
         self.level = Level::High;
     }
 
-    fn set_low(&mut self) {
+    fn off(&mut self) {
         println!("Set OutputPinStub {} low", self.index);
         self.level = Level::Low;
     }

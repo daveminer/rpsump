@@ -1,20 +1,20 @@
 use std::sync::Arc;
 
-use actix_web::{post, web, web::Data, HttpRequest, Responder, Result};
+use actix_web::{post, web, web::Data, HttpRequest, HttpResponse, Result};
 use serde::Deserialize;
 use validator::Validate;
 
-use crate::auth::{password::Password, validate_password};
+use crate::auth::password::Password;
 use crate::config::Settings;
-use crate::controllers::{auth::ip_address, ApiResponse};
-use crate::database::DbPool;
-use crate::models::user::User;
+use crate::controllers::auth::helpers::{error_response, ip_address, validate_password_strength};
+use crate::repository::Repo;
+use crate::util::ApiResponse;
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct SignupParams {
     #[validate(email)]
     email: String,
-    #[validate(custom = "validate_password")]
+    #[validate(custom = "validate_password_strength")]
     password: Password,
     #[validate(must_match(
         other = "password",
@@ -24,17 +24,22 @@ pub struct SignupParams {
 }
 
 #[post("/signup")]
-#[tracing::instrument(skip(params, db, settings))]
+#[tracing::instrument(skip(params, repo, settings))]
 pub async fn signup(
     req: HttpRequest,
     params: web::Json<SignupParams>,
-    db: Data<DbPool>,
+    repo: Data<Repo>,
     settings: Data<Settings>,
-) -> Result<impl Responder> {
+) -> Result<HttpResponse> {
     // Validate params
     match &params.validate() {
         Ok(_) => (),
         Err(e) => return Ok(ApiResponse::bad_request(e.to_string())),
+    };
+
+    let ip_addr: String = match ip_address(&req) {
+        Ok(ip) => ip,
+        Err(e) => return Ok(error_response(e, "User signup failed")),
     };
 
     // Hash password
@@ -47,41 +52,34 @@ pub async fn signup(
         }
     };
 
-    let ip_addr: String = match ip_address(&req) {
-        Ok(ip) => ip,
-        Err(e) => {
-            tracing::error!(
-                target = module_path!(),
-                error = e.to_string(),
-                "User signup failed"
-            );
-            return Ok(ApiResponse::internal_server_error());
-        }
-    };
-
     // Create user
-    let new_user = match User::create(params.email.to_string(), hash, ip_addr, db.clone()).await {
+    let mut new_user = match repo.create_user(params.email.clone(), hash, ip_addr).await {
         Ok(user) => user,
-        Err(e) => {
-            return Ok(ApiResponse::bad_request(e.to_string()));
-        }
+        Err(e) => return Ok(ApiResponse::bad_request(e.to_string())),
     };
 
     let mailer_settings = Arc::clone(&settings).mailer.clone();
+    // Generate an email verification token
+    let token = match repo.create_email_verification(&new_user).await {
+        Ok(token) => token,
+        Err(e) => {
+            return Ok(error_response(
+                e,
+                "Error while generating email verification token",
+            ));
+        }
+    };
+
+    // Add the token to the stale record before sending the email
+    new_user.email_verification_token = Some(token.value);
+    new_user.email_verification_token_expires_at = Some(token.expires_at);
 
     // Send email verification
     match new_user
-        .send_email_verification(db.clone(), mailer_settings, req.connection_info().host())
+        .send_email_verification(mailer_settings, req.connection_info().host())
         .await
     {
         Ok(_) => Ok(ApiResponse::ok("User created.".to_string())),
-        Err(e) => {
-            tracing::error!(
-                target = module_path!(),
-                error = e.to_string(),
-                "Email verification failed"
-            );
-            Ok(ApiResponse::internal_server_error())
-        }
+        Err(e) => Ok(error_response(e, "Email verification failed")),
     }
 }

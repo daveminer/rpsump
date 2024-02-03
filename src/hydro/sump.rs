@@ -1,10 +1,13 @@
 use anyhow::Error;
+use tokio::sync::mpsc::Sender;
 
 use crate::{
     config::SumpConfig,
     hydro::{
-        gpio::{Gpio, Level, Trigger},
-        Control, Sensor,
+        gpio::{Gpio, Trigger},
+        sensor::Sensor,
+        signal::Message,
+        Control,
     },
 };
 
@@ -15,30 +18,40 @@ pub struct Sump {
     pub pump: Control,
 }
 
+/// Sumps controls the GPIOs for devices (water level sensors and a water pump)
+/// that measure the water in a reservoir and pump it out when it gets full.
+///
+/// # Arguments
+///
+/// * `config`  - The configuration for the sump
+/// * `tx`      - The channel used to report triggers to the main channel
+/// * `handle`  - The callback for trigger events. Uses the `tx` channel.
+/// * `gpio`    - The GPIO interface to use for the sump
+///
 impl Sump {
-    pub fn new<C, G>(
-        config: &SumpConfig,
-        gpio: &G,
-        high_sensor_handler: C,
-        low_sensor_handler: C,
-    ) -> Result<Self, Error>
+    /// Create a new instance of Sump with the provided configuration, GPIO,
+    /// trigger callback handle and tx channel to report triggers upon
+    pub fn new<G>(config: &SumpConfig, tx: &Sender<Message>, gpio: &G) -> Result<Self, Error>
     where
-        C: FnMut(Level) -> () + Send + 'static,
         G: Gpio,
     {
+        let pump = Control::new("sump pump".into(), config.pump_control_pin, gpio)?;
+
         let high_sensor = Sensor::new(
+            Message::SumpFull,
             config.high_sensor_pin,
             gpio,
-            Some(high_sensor_handler),
-            Some(Trigger::Both),
+            Trigger::Both,
+            tx,
         )?;
+
         let low_sensor = Sensor::new(
+            Message::SumpEmpty,
             config.low_sensor_pin,
             gpio,
-            Some(low_sensor_handler),
-            Some(Trigger::Both),
+            Trigger::Both,
+            tx,
         )?;
-        let pump = Control::new("sump pump".into(), config.pump_control_pin, gpio)?;
 
         Ok(Self {
             high_sensor,
@@ -46,16 +59,6 @@ impl Sump {
             pump,
         })
     }
-
-    // fn status(&self) -> String {
-    //     if self.pump.is_on() {
-    //         "pumping".into()
-    //     } else if self.low_sensor.is_low() {
-    //         "empty".into()
-    //     } else {
-    //         "filling".into()
-    //     }
-    // }
 }
 
 #[cfg(test)]
@@ -77,6 +80,8 @@ mod tests {
             pump_shutoff_delay: 4,
         };
 
+        let mpsc = tokio::sync::mpsc::channel(32);
+
         let mut mock_gpio = MockGpio::new();
         mock_gpio.expect_get().times(3).returning(|_| {
             Ok(Box::new(pin::PinStub {
@@ -85,8 +90,6 @@ mod tests {
             }))
         });
 
-        let sensor_handler = |_| ();
-
-        let _sump: Sump = Sump::new(&config, &mock_gpio, sensor_handler, sensor_handler).unwrap();
+        let _sump: Sump = Sump::new(&config, &mpsc.0, &mock_gpio).unwrap();
     }
 }

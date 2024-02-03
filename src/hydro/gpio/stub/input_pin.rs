@@ -1,6 +1,10 @@
 use anyhow::Error;
+use tokio::sync::mpsc::Sender;
 
-use crate::hydro::gpio::{InputPin, InputPinCallback, Level, Trigger};
+use crate::hydro::{
+    gpio::{InputPin, Level, Trigger},
+    signal::Message,
+};
 
 pub struct InputPinStub {
     pub level: Level,
@@ -22,8 +26,9 @@ impl InputPin for InputPinStub {
 
     fn set_async_interrupt(
         &mut self,
-        _trigger: Trigger,
-        _callback: InputPinCallback,
+        #[allow(unused)] message: Message,
+        #[allow(unused)] trigger: Trigger,
+        #[allow(unused)] tx: &Sender<Message>,
     ) -> Result<(), Error> {
         Ok(())
     }

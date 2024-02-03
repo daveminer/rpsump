@@ -1,6 +1,6 @@
 use crate::hydro::gpio::{Gpio, Level, OutputPin};
 use anyhow::{anyhow, Error};
-use futures::Future;
+use async_trait::async_trait;
 use std::fmt;
 use std::sync::{Arc, PoisonError};
 use tokio::sync::{Mutex, MutexGuard};
@@ -47,21 +47,21 @@ impl fmt::Debug for Control {
     }
 }
 
+#[async_trait]
 pub trait Output {
-    // TODO: verify these are Send
-    fn on(&mut self) -> impl Future<Output = Result<(), Error>> + Send;
-    fn off(&mut self) -> impl Future<Output = Result<(), Error>> + Send;
+    async fn on(&mut self) -> Result<(), Error>;
+    async fn off(&mut self) -> Result<(), Error>;
     fn is_on(&self) -> bool;
     fn is_off(&self) -> bool;
 }
 
+#[async_trait]
 impl Output for Control {
-    // Set the pin high
     async fn on(&mut self) -> Result<(), Error> {
         self.level = Level::High;
         let mut pin = self.lock().await;
 
-        pin.set_high();
+        pin.on();
 
         Ok(())
     }
@@ -70,7 +70,7 @@ impl Output for Control {
         self.level = Level::Low;
         let mut pin = self.lock().await;
 
-        pin.set_low();
+        pin.off();
 
         Ok(())
     }
@@ -95,146 +95,36 @@ pub fn pin_lock_failure(e: &PoisonError<PinLock>, control: &Control) -> Error {
     anyhow!(e.to_string())
 }
 
-/// Applies a state change to a sensor by settting the pin level, creating a database event,
-/// and updating the sensor state.
-// #[tracing::instrument(skip(db))]
-// pub async fn update_sensor(
-//     signal: Level,
-//     control: Control,
-//     sensor: Sensor,
-//     trace_msg: String,
-//     db: DbPool,
-// ) {
-//     // T
-//     if signal != sensor.level {
-
-//         if let Err(e) =
-//             SumpEvent::create("pump on".to_string(), "reservoir full".to_string(), db).await
-//         {
-//             tracing::error!(
-//                 target = module_path!(),
-//                 error = e.to_string(),
-//                 "Failed to create sump event for pump on"
-//             );
-//         }
-//     }
-
-//     let mut sensors = sensor_state.lock().unwrap();
-
-//     sensors.high_sensor = level;
-// }
-
-/// Applies a state change to the high sensor by settting the pin level, creating a database event,
-/// and updating the sensor state.
-// #[tracing::instrument(skip(db))]
-// pub async fn update_high_sensor(
-//     level: Level,
-//     pump_control_pin: Arc<Mutex<OutputPin>>,
-//     sensor_state: Arc<Mutex<PinState>>,
-//     db: DbPool,
-// ) {
-//     // Turn the pump on
-//     if level == Level::High {
-//         let mut pin = pump_control_pin.lock().unwrap();
-//         pin.set_high();
-//         tracing::info!("Sump pump turned on.");
-
-//         if let Err(e) =
-//             SumpEvent::create("pump on".to_string(), "reservoir full".to_string(), db).await
-//         {
-//             tracing::error!(
-//                 target = module_path!(),
-//                 error = e.to_string(),
-//                 "Failed to create sump event for pump on"
-//             );
-//         }
-//     }
-
-//     let mut sensors = sensor_state.lock().unwrap();
-
-//     sensors.high_sensor = level;
-// }
-
-/// Applies a state change to the low sensor similar to the high sensor. The difference is that the
-/// low sensor accepts a delay that allows the pump to run long to lower the water level enough to
-/// prevent signal bouncing.
-// #[tracing::instrument(skip(db))]
-// pub async fn update_low_sensor(
-//     level: Level,
-//     pump_control_pin: Arc<Mutex<OutputPin>>,
-//     sensor_state: Arc<Mutex<PinState>>,
-//     delay: u64,
-//     db: DbPool,
-// ) {
-//     // Turn the pump off
-//     if level == Level::Low {
-//         if delay > 0 {
-//             thread::sleep(Duration::from_millis(delay as u64 * 1000));
-//         }
-
-//         let mut pin = pump_control_pin.lock().unwrap();
-//         pin.set_low();
-//         tracing::info!(target = module_path!(), "Sump pump turned off");
-
-//         if let Err(e) =
-//             SumpEvent::create("pump off".to_string(), "reservoir empty".to_string(), db).await
-//         {
-//             tracing::error!(
-//                 target = module_path!(),
-//                 error = e.to_string(),
-//                 "Failed to create sump event for pump off"
-//             );
-//         }
-//     }
-
-//     let mut sensors = sensor_state.lock().unwrap();
-
-//     sensors.low_sensor = level;
-// }
-
-// #[tracing::instrument()]
-// pub async fn update_irrigation_low_sensor(
-//     level: Level,
-//     irrigation_pump_control_pin: Arc<Mutex<OutputPin>>,
-//     sensor_state: Arc<Mutex<PinState>>,
-//     delay: u64,
-// ) {
-//     tracing::info!(
-//         target = module_path!(),
-//         level = level.to_string(),
-//         "Changing irrigation low sensor"
-//     );
-
-//     let mut sensors = sensor_state.lock().unwrap();
-//     sensors.irrigation_low_sensor = level;
-// }
-
 #[cfg(test)]
 mod tests {
-    use crate::test_fixtures::gpio::mock_gpio_get;
-
     use super::Control;
 
-    #[test]
-    fn test_format() {
-        let mock_gpio = mock_gpio_get(vec![1]);
+    #[cfg(test)]
+    mod tests {
+        use super::Control;
+        use crate::hydro::control::Output;
+        use crate::test_fixtures::gpio::mock_gpio_get;
 
-        let control: Control =
-            Control::new("control pin label".to_string(), 1, &mock_gpio).unwrap();
+        #[tokio::test]
+        async fn test_control_new() {
+            let mock_gpio = mock_gpio_get(vec![1]);
 
-        assert_eq!(
-            format!("{:?}", control),
-            "Control { label: \"control pin label\", level: Low }"
-        );
-    }
+            let control = Control::new("test control".to_string(), 1, &mock_gpio);
 
-    #[tokio::test]
-    async fn test_lock() {
-        let mock_gpio = mock_gpio_get(vec![1]);
+            assert!(control.is_ok());
+        }
 
-        let control: Control =
-            Control::new("control pin label".to_string(), 1, &mock_gpio).unwrap();
+        #[tokio::test]
+        async fn test_control_on_off() {
+            let mock_gpio = mock_gpio_get(vec![1]);
 
-        let _lock = control.lock().await;
+            let mut control = Control::new("test control".to_string(), 1, &mock_gpio).unwrap();
+
+            assert!(control.on().await.is_ok());
+            assert_eq!(control.is_on(), true);
+
+            assert!(control.off().await.is_ok());
+            assert_eq!(control.is_off(), true);
+        }
     }
 }

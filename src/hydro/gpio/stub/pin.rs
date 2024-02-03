@@ -1,5 +1,9 @@
-use crate::hydro::gpio::{InputPin, InputPinCallback, Level, OutputPin, Pin, Trigger};
+use crate::hydro::{
+    gpio::{InputPin, Level, OutputPin, Pin, Trigger},
+    signal::Message,
+};
 use anyhow::Error;
+use tokio::sync::mpsc::Sender;
 
 use super::{input_pin::InputPinStub, output_pin::OutputPinStub};
 
@@ -38,19 +42,28 @@ impl InputPin for PinStub {
 
     fn set_async_interrupt(
         &mut self,
-        _trigger: Trigger,
-        _callback: InputPinCallback,
+        #[allow(unused)] message: Message,
+        #[allow(unused)] trigger: Trigger,
+        #[allow(unused)] tx: &Sender<Message>,
     ) -> Result<(), Error> {
         Ok(())
     }
 }
 
 impl OutputPin for PinStub {
-    fn set_high(&mut self) {
-        self.level = Level::High;
+    fn is_on(&self) -> bool {
+        self.level == Level::High
     }
 
-    fn set_low(&mut self) {
+    fn is_off(&self) -> bool {
+        self.level == Level::Low
+    }
+
+    fn off(&mut self) {
         self.level = Level::Low;
+    }
+
+    fn on(&mut self) {
+        self.level = Level::High;
     }
 }

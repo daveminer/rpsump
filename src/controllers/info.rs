@@ -1,31 +1,22 @@
-use actix_web::{get, HttpRequest, HttpResponse, Responder};
+use std::sync::Mutex;
+
+use actix_web::{get, HttpRequest, HttpResponse};
 use actix_web::{web::Data, Result};
+use serde_json::json;
 
 use crate::auth::authenticated_user::AuthenticatedUser;
-use crate::controllers::ApiResponse;
+
+use crate::get_hydro;
 use crate::hydro::Hydro;
 
 #[get("/info")]
-async fn info(req: HttpRequest, _user: AuthenticatedUser) -> Result<impl Responder> {
-    let sump_arc = req.app_data::<Data<Option<Hydro>>>();
-    let maybe_sump = if sump_arc.is_none() {
-        return Ok(ApiResponse::ok("Sump disabled.".to_string()));
-    } else {
-        // If shared object is present then it should be populated
-        sump_arc.unwrap().as_ref()
-    };
-
-    let _sump = match maybe_sump {
-        Some(sump) => sump,
-        None => {
-            tracing::error!(
-                target = module_path!(),
-                "Sump AppData was found but Sump was None"
-            );
-            return Ok(ApiResponse::internal_server_error());
-        }
-    };
-
+#[tracing::instrument(skip(maybe_hydro, _user))]
+async fn info(
+    _req: HttpRequest,
+    _user: AuthenticatedUser,
+    maybe_hydro: Data<Mutex<Option<Hydro>>>,
+) -> Result<HttpResponse> {
+    let hydro = get_hydro!(maybe_hydro);
     // let sensor_state = match sump.sensor_state.lock() {
     //     Ok(sensor_state) => *sensor_state,
     //     Err(e) => {
@@ -38,6 +29,5 @@ async fn info(req: HttpRequest, _user: AuthenticatedUser) -> Result<impl Respond
     //     }
     // };
 
-    Ok(HttpResponse::Ok().json("r#{}"))
-    //Ok(HttpResponse::Ok().json(&sensor_state))
+    Ok(HttpResponse::Ok().json(json!({"heater": hydro.heater.is_on()})))
 }

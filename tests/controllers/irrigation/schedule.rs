@@ -1,19 +1,18 @@
-use actix_web::web::Data;
-use rpsump::models::irrigation_schedule::IrrigationSchedule;
+use rpsump::repository::models::irrigation_schedule::IrrigationSchedule;
 
 use serde_json::Value;
 
 use crate::common::fixtures::irrigation_schedule::insert_irrigation_schedules;
 use crate::common::test_app::spawn_app;
-use crate::controllers::{create_test_user, user_params};
+use crate::controllers::auth::create_test_user;
+use crate::controllers::user_params;
 
 #[tokio::test]
 async fn get_schedule_not_found() {
     // Arrange
     let app = spawn_app().await;
-    let db_pool = app.db_pool.clone();
-    let _user = create_test_user(Data::new(db_pool.clone())).await;
-    insert_irrigation_schedules(db_pool.clone(), 1).await;
+    let _user = create_test_user(app.repo).await;
+    insert_irrigation_schedules(app.repo, 1).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -26,7 +25,7 @@ async fn get_schedule_not_found() {
     let body: Value = schedule_response.json().await.unwrap();
 
     // Assert
-    assert!(body["message"] == "Irrigation schedule not found.");
+    assert!(body["message"] == "Not found");
     assert!(status == 404);
 }
 
@@ -34,9 +33,8 @@ async fn get_schedule_not_found() {
 async fn get_schedule_success() {
     // Arrange
     let app = spawn_app().await;
-    let db_pool = app.db_pool.clone();
-    let _user = create_test_user(Data::new(db_pool.clone())).await;
-    insert_irrigation_schedules(db_pool.clone(), 1).await;
+    let _user = create_test_user(app.repo).await;
+    insert_irrigation_schedules(app.repo, 1).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -63,9 +61,8 @@ async fn get_schedule_success() {
 async fn list_schedules_success() {
     // Arrange
     let app = spawn_app().await;
-    let db_pool = app.db_pool.clone();
-    let _user = create_test_user(Data::new(db_pool.clone())).await;
-    insert_irrigation_schedules(db_pool.clone(), 5).await;
+    let _user = create_test_user(app.repo).await;
+    insert_irrigation_schedules(app.repo, 5).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -85,9 +82,8 @@ async fn list_schedules_success() {
 async fn delete_schedule_success() {
     // Arrange
     let app = spawn_app().await;
-    let db_pool = app.db_pool.clone();
-    let _user = create_test_user(Data::new(db_pool.clone())).await;
-    insert_irrigation_schedules(db_pool.clone(), 1).await;
+    let _user = create_test_user(app.repo).await;
+    insert_irrigation_schedules(app.repo, 1).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -104,10 +100,10 @@ async fn delete_schedule_success() {
         .delete_irrigation_schedule(token.to_string(), schedules[0].id)
         .await;
     let status = response.status();
-    let deleted_schedule: IrrigationSchedule = response.json().await.unwrap();
+    let deleted_schedule: usize = response.json().await.unwrap();
 
     // Assert
-    assert!(deleted_schedule.id == schedules[0].id);
+    assert!(deleted_schedule == schedules[0].id as usize);
     assert!(status.is_success());
 }
 
@@ -115,8 +111,7 @@ async fn delete_schedule_success() {
 async fn delete_schedule_not_found() {
     // Arrange
     let app = spawn_app().await;
-    let db_pool = app.db_pool.clone();
-    let _user = create_test_user(Data::new(db_pool.clone())).await;
+    let _user = create_test_user(app.repo).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -129,19 +124,16 @@ async fn delete_schedule_not_found() {
     let schedule_response: Value = response.json().await.unwrap();
 
     // Assert
-    assert!(
-        schedule_response["message"] == "Error deleting irrigation schedules: Record not found"
-    );
-    assert!(status == 400);
+    assert!(schedule_response["message"] == "Not found");
+    assert!(status == 404);
 }
 
 #[tokio::test]
 async fn patch_schedule_success() {
     // Arrange
     let app = spawn_app().await;
-    let db_pool = app.db_pool.clone();
-    let _user = create_test_user(Data::new(db_pool.clone())).await;
-    insert_irrigation_schedules(db_pool.clone(), 1).await;
+    let _user = create_test_user(app.repo).await;
+    insert_irrigation_schedules(app.repo, 1).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -176,8 +168,7 @@ async fn patch_schedule_success() {
 async fn patch_schedule_not_found() {
     // Arrange
     let app = spawn_app().await;
-    let db_pool = app.db_pool.clone();
-    let _user = create_test_user(Data::new(db_pool.clone())).await;
+    let _user = create_test_user(app.repo).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -201,9 +192,8 @@ async fn patch_schedule_not_found() {
 async fn patch_schedule_invalid() {
     // Arrange
     let app = spawn_app().await;
-    let db_pool = app.db_pool.clone();
-    let _user = create_test_user(Data::new(db_pool.clone())).await;
-    insert_irrigation_schedules(db_pool.clone(), 1).await;
+    let _user = create_test_user(app.repo).await;
+    insert_irrigation_schedules(app.repo, 1).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -233,8 +223,7 @@ async fn patch_schedule_invalid() {
 async fn post_schedule_success() {
     // Arrange
     let app = spawn_app().await;
-    let db_pool = app.db_pool.clone();
-    let _user = create_test_user(Data::new(db_pool.clone())).await;
+    let _user = create_test_user(app.repo).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -244,6 +233,7 @@ async fn post_schedule_success() {
 
     let name = "New Schedule name";
     let body = serde_json::json!({
+        "active": true,
         "hoses": [2,3,5],
         "name": name,
         "start_time": "17:34:56",
@@ -252,6 +242,7 @@ async fn post_schedule_success() {
     });
 
     let schedule_response = app.post_irrigation_schedule(token.to_string(), body).await;
+
     let status = schedule_response.status();
     let new_schedule = schedule_response
         .json::<IrrigationSchedule>()
@@ -266,8 +257,7 @@ async fn post_schedule_success() {
 async fn post_schedule_invalid() {
     // Arrange
     let app = spawn_app().await;
-    let db_pool = app.db_pool.clone();
-    let _user = create_test_user(Data::new(db_pool.clone())).await;
+    let _user = create_test_user(app.repo).await;
 
     // Act
     let response = app.post_login(&user_params()).await;

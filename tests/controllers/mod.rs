@@ -1,5 +1,3 @@
-use actix_web::web::Data;
-
 use linkify::{LinkFinder, LinkKind};
 use reqwest::Url;
 use wiremock::matchers::{method, path};
@@ -7,29 +5,16 @@ use wiremock::{Mock, MockGuard, ResponseTemplate};
 
 use crate::common::test_app::TestApp;
 
-use rpsump::auth::password::Password;
-use rpsump::database::DbPool;
-use rpsump::models::user::User;
 use serde_json::{Map, Value};
 
+use self::auth::{TEST_EMAIL, TEST_PASSWORD};
+
 pub mod auth;
+pub mod heater;
 pub mod info;
 pub mod irrigation;
+pub mod pool_pump;
 pub mod sump_event;
-
-const TEST_EMAIL: &str = "test_acct@test.local";
-const TEST_PASSWORD: &str = "testing87_*Password";
-
-pub async fn create_test_user(db_pool: Data<DbPool>) -> User {
-    User::create(
-        TEST_EMAIL.into(),
-        Password::new(TEST_PASSWORD.into()).hash().unwrap(),
-        "127.0.0.1".into(),
-        db_pool,
-    )
-    .await
-    .unwrap()
-}
 
 pub fn link_from_email_text<'a>(text: &str) -> Vec<String> {
     let finder = LinkFinder::new();

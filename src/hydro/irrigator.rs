@@ -1,11 +1,15 @@
+use anyhow::Error;
+use tokio::sync::mpsc::Sender;
+
 use crate::{
     config::IrrigationConfig,
     hydro::{
         gpio::{Gpio, Trigger},
-        Control, Level, Sensor,
+        sensor::Sensor,
+        signal::Message,
+        Control,
     },
 };
-use anyhow::Error;
 
 #[derive(Clone, Debug)]
 pub struct Irrigator {
@@ -18,22 +22,20 @@ pub struct Irrigator {
 }
 
 impl Irrigator {
-    pub fn new<C, G>(
-        config: &IrrigationConfig,
-        gpio: &G,
-        low_sensor_handler: C,
-    ) -> Result<Self, Error>
+    pub fn new<G>(config: &IrrigationConfig, tx: &Sender<Message>, gpio: &G) -> Result<Self, Error>
     where
-        C: FnMut(Level) + Send + 'static,
         G: Gpio,
     {
+        let pump = Control::new("Irrigation Pump".to_string(), config.pump_control_pin, gpio)?;
+
         let low_sensor = Sensor::new(
+            Message::IrrigatorEmpty,
             config.low_sensor_pin,
             gpio,
-            Some(low_sensor_handler),
-            Some(Trigger::Both),
+            Trigger::Both,
+            tx,
         )?;
-        let pump = Control::new("irrigation pump".into(), config.pump_control_pin, gpio)?;
+
         let valve1 = Control::new(
             "irrigation valve 1".into(),
             config.valve_1_control_pin,
@@ -77,6 +79,8 @@ mod tests {
 
     #[test]
     fn test_new() {
+        let mpsc = tokio::sync::mpsc::channel(32);
+
         let mut mock_gpio = MockGpio::new();
         mock_gpio.expect_get().times(6).returning(|_| {
             Ok(Box::new(pin::PinStub {
@@ -97,8 +101,8 @@ mod tests {
                 valve_3_control_pin: 5,
                 valve_4_control_pin: 6,
             },
+            &mpsc.0,
             &mock_gpio,
-            |_| {},
         )
         .unwrap();
     }

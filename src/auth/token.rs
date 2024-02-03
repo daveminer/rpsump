@@ -5,7 +5,7 @@ pub const EMAIL_CONFIRM_TOKEN_VALIDITY_DURATION: i64 = 3600 * 24;
 pub const PASSWORD_RESET_TOKEN_VALIDITY_DURATION: i64 = 3600; // 1 hour in seconds
 pub const TOKEN_LENGTH: usize = 32;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Token {
     pub value: String,
     pub user_id: i32,

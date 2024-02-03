@@ -1,20 +1,18 @@
-use actix_web::{post, web, web::Data, HttpRequest, HttpResponse, Responder, Result};
+use actix_web::{post, web, web::Data, HttpRequest, HttpResponse, Result};
 use anyhow::{anyhow, Error};
 use bcrypt::verify;
-use diesel::prelude::*;
-use secrecy::ExposeSecret;
+use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Serialize};
 
-use super::super::spawn_blocking_with_tracing;
-use crate::auth::{claim::create_token, validate_credentials, AuthParams};
+use crate::auth::{claim::create_token, password::AuthParams};
 use crate::config::Settings;
-use crate::controllers::{auth::ip_address, ApiResponse};
-use crate::database::DbPool;
-use crate::models::user_event::*;
-use crate::new_conn;
-use crate::schema::user_event;
-
-const BAD_CREDS: &str = "Invalid email or password.";
+use crate::controllers::auth::helpers::{error_response, ip_address};
+use crate::repository::models::user::UserFilter;
+use crate::repository::{
+    models::{user::User, user_event::*},
+    Repo,
+};
+use crate::util::{spawn_blocking_with_tracing, ApiResponse, BAD_CREDS, REQUIRED_FIELDS};
 
 #[derive(Serialize, Deserialize)]
 struct Response {
@@ -22,97 +20,90 @@ struct Response {
 }
 
 #[post("/login")]
-#[tracing::instrument(skip(request, db, user_data, settings))]
+#[tracing::instrument(skip(request, user_data, repo, settings))]
 pub async fn login(
     request: HttpRequest,
     user_data: web::Json<AuthParams>,
-    db: Data<DbPool>,
     settings: Data<Settings>,
-) -> Result<impl Responder> {
-    let conn = new_conn!(db);
-
+    repo: Data<Repo>,
+) -> Result<HttpResponse> {
     // User lookup from params
-    let credentials: AuthParams = user_data.into_inner();
-    let user = match validate_credentials(&credentials, conn).await {
-        Ok(user) => user,
-        Err(e) => return Ok(ApiResponse::bad_request(e.to_string())),
+    let AuthParams { email, password } = user_data.into_inner();
+    if email.is_empty() || password.expose_secret().is_empty() {
+        return Ok(ApiResponse::bad_request(REQUIRED_FIELDS.to_string()));
+    }
+
+    // let maybe_user: Option<User> = match repo.user_by_email(email).await {
+    //     Ok(maybe_user) => maybe_user,
+    //     Err(_e) => {
+    //         return Ok(ApiResponse::bad_request(BAD_CREDS.to_string()));
+    //     }
+    // };
+
+    let user_filter = UserFilter {
+        email: Some(email),
+        ..Default::default()
     };
 
-    // Check if password is correct
-    match spawn_blocking_with_tracing(move || {
-        // Resist timing attacks by always hashing the password
-        match verify(
-            credentials.password.expose_secret(),
-            user.password_hash.as_str(),
-        ) {
-            Ok(true) => Ok(()),
-            // Match on false and Err
-            _ => Err(anyhow!(BAD_CREDS.to_string())),
-        }
-    })
-    .await
-    .unwrap()
-    {
-        Ok(()) => (),
+    let maybe_user = match repo.users(user_filter).await {
+        Ok(users) => match users.len() {
+            0 => None,
+            1 => users.first().cloned(),
+            _ => {
+                return Ok(error_response(
+                    anyhow!("duplicate_email"),
+                    "More than one record found for email.",
+                ))
+            }
+        },
         Err(e) => {
             return Ok(ApiResponse::bad_request(e.to_string()));
         }
     };
 
+    if let Err(e) = verify_password(maybe_user.clone(), password).await {
+        return Ok(ApiResponse::bad_request(e.to_string()));
+    };
+
     let ip_addr: String = match ip_address(&request) {
         Ok(ip) => ip,
-        Err(e) => {
-            tracing::error!(
-                target = module_path!(),
-                error = e.to_string(),
-                "User signup failed"
-            );
-            return Ok(ApiResponse::internal_server_error());
-        }
+        Err(e) => return Ok(error_response(e, "User signup failed")),
     };
 
-    // Create user event
-    let mut conn = new_conn!(db);
-    let user_event = spawn_blocking_with_tracing(move || {
-        return conn.transaction::<_, Error, _>(|conn| {
-            diesel::insert_into(user_event::table)
-                .values((
-                    user_event::user_id.eq(user.id),
-                    user_event::event_type.eq(EventType::Login.to_string()),
-                    user_event::ip_address.eq(ip_addr),
-                ))
-                .execute(conn)?;
-
-            Ok(())
-        });
-    });
-
-    match user_event.await {
-        Ok(_) => (),
-        Err(e) => {
-            tracing::error!(
-                target = module_path!(),
-                error = e.to_string(),
-                "Could not insert user event during signup"
-            );
-            return Ok(ApiResponse::internal_server_error());
-        }
-    };
-
+    let user = maybe_user.unwrap();
     // Create token
     let token = match create_token(user.id, settings.jwt_secret.clone()) {
         Ok(token) => token,
-        Err(e) => {
-            tracing::error!(
-                target = module_path!(),
-                error = e.to_string(),
-                "Could not create token for user"
-            );
-            return Ok(ApiResponse::internal_server_error());
-        }
+        Err(e) => return Ok(error_response(e, "Could not create token for user")),
+    };
+
+    let _user_event = match repo
+        .create_user_event(&user, EventType::Login, ip_addr)
+        .await
+    {
+        Ok(user_event) => user_event,
+        Err(e) => return Ok(error_response(e, "Could not create user event")),
     };
 
     tracing::info!(target = module_path!(), user_id = user.id, "User logged in");
 
     Ok(HttpResponse::Ok().json(Response { token }))
+}
+
+#[tracing::instrument(skip(user, password))]
+async fn verify_password(user: Option<User>, password: Secret<String>) -> Result<(), Error> {
+    let provided_pw: String = match user {
+        Some(user) => user.password_hash,
+        None => "decoy".to_string(),
+    };
+
+    // Check if password is correct
+    spawn_blocking_with_tracing(move || {
+        match verify(password.expose_secret(), &provided_pw) {
+            Ok(true) => Ok(()),
+            // Match on false and Err
+            _ => Err(anyhow!(BAD_CREDS.to_string())),
+        }
+    })
+    .await?
 }

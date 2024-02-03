@@ -1,17 +1,23 @@
+use anyhow::{anyhow, Error};
 use std::time::{Duration as StdDuration, SystemTime};
 
-use anyhow::{anyhow, Error};
 use tokio::{sync::MutexGuard, task::JoinHandle, time::sleep};
 
-use crate::database::DbPool;
-use crate::hydro::gpio::OutputPin;
-use crate::hydro::{control::Control, schedule::IrrigationEvent, sensor::Input, Irrigator};
+use crate::hydro::{
+    control::Control, gpio::OutputPin, schedule::IrrigationEvent, sensor::Input, Irrigator,
+};
+use crate::repository::Repo;
 
-#[tracing::instrument(skip(db))]
-pub async fn run_next_event(db: DbPool, irrigator: Irrigator) {
+#[tracing::instrument(skip(repo))]
+pub async fn run_next_event(repo: Repo, irrigator: Irrigator) {
     // Get the next event
-    let (duration, event) = match IrrigationEvent::next_queued(db.clone()).await {
-        Ok(event) => event,
+    let (duration, event) = match repo.next_queued_irrigation_event().await {
+        Ok(dur_event) => match dur_event {
+            Some(dur_event) => dur_event,
+            None => {
+                return;
+            }
+        },
         Err(e) => {
             tracing::error!(
                 target = module_path!(),
@@ -31,12 +37,12 @@ pub async fn run_next_event(db: DbPool, irrigator: Irrigator) {
     }
 
     // Start the irrigation
-    let _irrigation_job = start_irrigation(db, event, duration, irrigator);
+    let _irrigation_job = start_irrigation(repo, event, duration, irrigator);
 }
 
-#[tracing::instrument(skip(db))]
+#[tracing::instrument(skip(repo))]
 async fn start_irrigation(
-    db: DbPool,
+    repo: Repo,
     event: IrrigationEvent,
     duration: i32,
     irrigator: Irrigator,
@@ -70,8 +76,8 @@ async fn start_irrigation(
             }
         };
 
-        hose_lock.set_high();
-        pump_lock.set_high();
+        hose_lock.on();
+        pump_lock.on();
         drop(hose_lock);
         drop(pump_lock);
 
@@ -96,11 +102,11 @@ async fn start_irrigation(
         tracing::error!(target = module_path!(), "Stopping irrigation job");
 
         // Stop the pump and close the solenoid
-        hose_lock.set_low();
-        pump_lock.set_low();
+        hose_lock.off();
+        pump_lock.off();
 
         // Move the job out of "in progress" status
-        if let Err(e) = IrrigationEvent::finish(db).await {
+        if let Err(e) = repo.finish_irrigation_event().await {
             tracing::error!(
                 target = module_path!(),
                 error = e.to_string(),

@@ -1,46 +1,45 @@
 use chrono::{NaiveDateTime, NaiveTime};
-use diesel::{ExpressionMethods, RunQueryDsl};
-use rpsump::{
-    database::DbPool,
-    schema::{irrigation_schedule, irrigation_schedule::*},
+use rpsump::repository::{
+    models::irrigation_schedule::{CreateIrrigationScheduleParams, DayOfWeek, IrrigationSchedule},
+    Repo,
 };
 
 pub async fn insert_irrigation_schedule(
-    db: DbPool,
+    repo: Repo,
     sched_active: bool,
     sched_name: String,
     sched_start_time: NaiveTime,
     sched_duration: i32,
-    sched_days: String,
+    #[allow(unused)] sched_days: String,
     sched_hoses: String,
-    sched_created_at: NaiveDateTime,
-) -> usize {
-    let mut conn = db.get().unwrap();
-    let schedule = diesel::insert_into(irrigation_schedule::table)
-        .values((
-            active.eq(sched_active),
-            name.eq(sched_name),
-            start_time.eq(sched_start_time.to_string()),
-            duration.eq(sched_duration),
-            days_of_week.eq(sched_days),
-            hoses.eq(sched_hoses),
-            created_at.eq(sched_created_at),
-            updated_at.eq(sched_created_at),
-        ))
-        .returning(id)
-        .execute(&mut conn)
-        .unwrap();
+    #[allow(unused)] sched_created_at: NaiveDateTime,
+) -> IrrigationSchedule {
+    let hose_vec: Vec<i32> = sched_hoses
+        .clone()
+        .split(',')
+        .map(|s| s.parse().unwrap())
+        .collect();
 
-    return schedule;
+    let schedule = CreateIrrigationScheduleParams {
+        active: sched_active,
+        name: sched_name.clone(),
+        start_time: sched_start_time,
+        duration: sched_duration,
+        days_of_week: vec![DayOfWeek::Monday, DayOfWeek::Tuesday],
+        // TODO: create serde for this
+        hoses: hose_vec,
+    };
+
+    repo.create_irrigation_schedule(schedule).await.unwrap()
 }
 
-pub async fn insert_irrigation_schedules(db: DbPool, count: u8) {
+pub async fn insert_irrigation_schedules(repo: Repo, count: u8) {
     let now =
         NaiveDateTime::parse_from_str("2021-01-01 12:34:56".into(), "%Y-%m-%d %H:%M:%S").unwrap();
 
     let dt1 = NaiveTime::parse_from_str("12:34:56".into(), "%H:%M:%S").unwrap();
     insert_irrigation_schedule(
-        db.clone(),
+        repo,
         true,
         "Schedule 1".to_string(),
         dt1,
@@ -56,7 +55,7 @@ pub async fn insert_irrigation_schedules(db: DbPool, count: u8) {
     }
     let dt2 = NaiveTime::parse_from_str("12:34:56".into(), "%H:%M:%S").unwrap();
     insert_irrigation_schedule(
-        db.clone(),
+        repo,
         true,
         "Schedule 2".to_string(),
         dt2,
@@ -72,7 +71,7 @@ pub async fn insert_irrigation_schedules(db: DbPool, count: u8) {
     }
     let dt3 = NaiveTime::parse_from_str("12:34:56".into(), "%H:%M:%S").unwrap();
     insert_irrigation_schedule(
-        db.clone(),
+        repo,
         true,
         "Schedule 3".to_string(),
         dt3,
@@ -88,7 +87,7 @@ pub async fn insert_irrigation_schedules(db: DbPool, count: u8) {
     }
     let dt4 = NaiveTime::parse_from_str("12:34:56".into(), "%H:%M:%S").unwrap();
     insert_irrigation_schedule(
-        db.clone(),
+        repo,
         false,
         "Schedule 4".to_string(),
         dt4,

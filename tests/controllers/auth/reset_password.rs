@@ -1,12 +1,10 @@
-use actix_web::web;
 use chrono::{Duration, Utc};
-use diesel::RunQueryDsl;
+use rpsump::util::ApiResponse;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
 
 use rpsump::auth::token::Token;
-use rpsump::controllers::ApiResponse;
-use rpsump::models::user::User;
+use rpsump::repository::models::user::{User, UserFilter, UserUpdateFilter};
 
 use super::signup_params;
 use crate::common::test_app::{spawn_app, TestApp};
@@ -52,11 +50,21 @@ async fn reset_password_failed_token_expired() {
     let (app, _params) = signup_and_request_password_reset().await;
     let token = get_token_from_email(&app).await;
 
-    let mut db = app.db_pool.get().unwrap();
-
-    let user: User = User::by_password_reset_token(token.clone())
-        .first(&mut db)
-        .unwrap();
+    let filter = UserFilter {
+        id: None,
+        email: None,
+        email_verification_token: None,
+        password_hash: None,
+        password_reset_token: Some(token.clone()),
+    };
+    let user: User = app
+        .repo
+        .users(filter)
+        .await
+        .unwrap()
+        .first()
+        .unwrap()
+        .clone();
 
     let expired_token = Token {
         user_id: user.id,
@@ -64,13 +72,18 @@ async fn reset_password_failed_token_expired() {
         value: token.clone(),
     };
 
-    User::save_reset_token(
-        user.clone(),
-        expired_token.clone(),
-        web::Data::new(app.db_pool.clone()),
-    )
-    .await
-    .unwrap();
+    let yesterday = Utc::now().naive_utc() - Duration::days(1);
+
+    let user_update_filter = UserUpdateFilter {
+        id: user.id,
+        email: None,
+        email_verification_token: None,
+        email_verification_token_expires_at: None,
+        password_hash: None,
+        password_reset_token: Some(Some(expired_token.value.clone())),
+        password_reset_token_expires_at: Some(yesterday),
+    };
+    let _user_update = app.repo.update_user(user_update_filter).await.unwrap();
 
     // Validate the reset password response
     let reset_response = app
@@ -79,7 +92,7 @@ async fn reset_password_failed_token_expired() {
 
     assert!(reset_response.status().is_client_error());
     let reset_body: ApiResponse = reset_response.json().await.unwrap();
-    assert!(reset_body.message == "Invalid token.");
+    assert!(reset_body.message == "Token expired.");
 }
 
 #[tokio::test]
@@ -91,6 +104,7 @@ async fn reset_password_success() {
     let reset_response = app
         .post_password_reset(&password_reset_params(token, NEW_PASSWORD.into()))
         .await;
+
     assert!(reset_response.status().is_success());
     let reset_body: ApiResponse = reset_response.json().await.unwrap();
     assert!(reset_body.message == "Password reset successfully.");
@@ -137,15 +151,11 @@ async fn signup_and_request_password_reset() -> (TestApp, serde_json::Map<String
 }
 
 async fn get_token_from_email(app: &TestApp) -> String {
-    // Get the token from the email
-    let reset_password_email = app
-        .email_server
-        .received_requests()
-        .await
-        .unwrap()
-        .pop()
-        .unwrap();
-    let body = std::str::from_utf8(&reset_password_email.body).unwrap();
+    let mut reqs = app.email_server.received_requests().await.unwrap();
+
+    let pw_confirm = reqs.pop().unwrap();
+
+    let body = std::str::from_utf8(&pw_confirm.body).unwrap();
     let params = param_from_email_text(body, "token");
     params[0].clone()
 }

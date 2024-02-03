@@ -1,70 +1,38 @@
-use actix_web::{error, get, web::Data, HttpResponse, Responder, Result};
-use actix_web::{web, HttpRequest};
-use anyhow::{anyhow, Error};
-use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+use actix_web::HttpRequest;
+use actix_web::{
+    get,
+    web::{Data, Query},
+    HttpResponse, Result,
+};
+
 use serde::Deserialize;
 
 use crate::auth::authenticated_user::AuthenticatedUser;
-use crate::controllers::spawn_blocking_with_tracing;
-use crate::database::{self, DbPool};
-use crate::models::irrigation_event::IrrigationEvent;
-use crate::schema::irrigation_event::status;
+use crate::{controllers::auth::helpers::error_response, repository::Repo};
 
 #[derive(Debug, Deserialize)]
 pub struct Params {
-    status: Option<String>,
+    pub status: Option<String>,
 }
 
 #[get("/event")]
-#[tracing::instrument(skip(req, db, _user))]
+#[tracing::instrument(skip(req, repo, _user))]
 pub async fn irrigation_event(
     req: HttpRequest,
-    db: Data<DbPool>,
+    repo: Data<Repo>,
     _user: AuthenticatedUser,
-) -> Result<impl Responder> {
-    let filter = match web::Query::<Params>::from_query(req.query_string()) {
+) -> Result<HttpResponse> {
+    let _filter = match Query::<Params>::from_query(req.query_string()) {
         Ok(filter) => filter,
         Err(_e) => {
             return Ok(HttpResponse::BadRequest().body("invalid filter"));
         }
     };
 
-    let irrigation_events =
-        spawn_blocking_with_tracing(move || irrigation_events(db, filter.status.clone()))
-            .await
-            .map_err(|e| {
-                tracing::error!(
-                    target = module_path!(),
-                    error = e.to_string(),
-                    "Error while spawning a blocking task"
-                );
-                error::ErrorInternalServerError("Internal server error.")
-            })?
-            .map_err(|e| {
-                tracing::error!(
-                    target = module_path!(),
-                    error = e.to_string(),
-                    "Error while getting sump events"
-                );
-                error::ErrorInternalServerError("Internal server error.")
-            })?;
+    let irrigation_events = match repo.irrigation_events().await {
+        Ok(irrigation_events) => irrigation_events,
+        Err(e) => return Ok(error_response(e, "Could not get irrigation events")),
+    };
 
     Ok(HttpResponse::Ok().json(irrigation_events))
-}
-
-fn irrigation_events(
-    db: Data<DbPool>,
-    filter_status: Option<String>,
-) -> Result<Vec<IrrigationEvent>, Error> {
-    let mut conn = database::conn(db)?;
-    let mut query = IrrigationEvent::all().limit(100);
-    if let Some(filter_status) = filter_status {
-        query = query.filter(status.eq(filter_status))
-    }
-
-    let events = query
-        .load::<IrrigationEvent>(&mut conn)
-        .map_err(|e| anyhow!(e))?;
-
-    Ok(events)
 }

@@ -1,11 +1,13 @@
-use actix_web::web::Data;
 use anyhow::Error;
-use diesel::RunQueryDsl;
 
-use rpsump::controllers::ApiResponse;
-use rpsump::database::DbPool;
-use rpsump::models::user::User;
-use rpsump::models::user_event::{EventType, UserEvent};
+use rpsump::repository::{
+    models::{
+        user::UserFilter,
+        user_event::{EventType, UserEvent},
+    },
+    Repo,
+};
+use rpsump::util::ApiResponse;
 
 use super::{create_test_user, signup_params, user_params};
 use crate::common::test_app::spawn_app;
@@ -15,7 +17,7 @@ use crate::controllers::mock_email_verification_send;
 async fn signup_failed_email_taken() {
     // Arrange
     let app = spawn_app().await;
-    let user = create_test_user(Data::new(app.db_pool.clone())).await;
+    let user = create_test_user(app.repo).await;
     let mut params = signup_params();
     params["email"] = serde_json::json!(user.email);
 
@@ -73,7 +75,6 @@ async fn signup_failed_missing_confirm_password() {
 async fn signup_success() {
     // Arrange
     let app = spawn_app().await;
-    let db_pool = app.db_pool.clone();
     let params = signup_params();
     let email = params.get("email").unwrap().as_str().unwrap();
     let _mock = mock_email_verification_send(&app).await;
@@ -87,22 +88,21 @@ async fn signup_success() {
     assert!(status.is_success());
     assert_eq!(body.message, "User created.");
 
-    let events = recent_signup_events(email.to_string(), db_pool)
+    let events = recent_signup_events(email.to_string(), app.repo)
         .await
         .unwrap();
     assert_eq!(events.len(), 1);
 }
 
-async fn recent_signup_events(email: String, db_pool: DbPool) -> Result<Vec<UserEvent>, Error> {
-    let mut conn = db_pool.get().unwrap();
-    let user = User::by_email(email).first(&mut conn).unwrap();
+async fn recent_signup_events(email: String, repo: Repo) -> Result<Vec<UserEvent>, Error> {
+    //let mut conn = db_pool.get().unwrap();
+    //let user = User::by_email(email).first(&mut conn).unwrap();
+    let user_filter = UserFilter {
+        email: Some(email),
+        ..Default::default()
+    };
 
-    UserEvent::recent_events(
-        Some(user),
-        None,
-        EventType::Signup,
-        10,
-        actix_web::web::Data::new(db_pool),
-    )
-    .await
+    let user = repo.users(user_filter).await.unwrap().pop().unwrap();
+
+    repo.user_events(user.id, Some(EventType::Signup), 10).await
 }

@@ -1,22 +1,20 @@
-use actix_web::{post, web, web::Data, HttpRequest, HttpResponse, Responder, Result};
-use chrono::Utc;
-use diesel::RunQueryDsl;
+use actix_web::{post, web, web::Data, HttpRequest, HttpResponse, Result};
+use anyhow::anyhow;
 use serde::Deserialize;
 use validator::Validate;
 
-use crate::auth::{password::Password, validate_password};
+use crate::auth::password::Password;
 use crate::config::Settings;
-use crate::controllers::spawn_blocking_with_tracing;
-use crate::controllers::{auth::ip_address, ApiResponse};
-use crate::database::DbPool;
-use crate::models::user::User;
-use crate::models::user_event::{EventType, UserEvent};
-use crate::new_conn;
+use crate::controllers::auth::helpers::{error_response, ip_address, validate_password_strength};
+use crate::email::sendinblue::send_password_reset;
+use crate::repository::models::user::UserFilter;
+use crate::repository::Repo;
+use crate::util::ApiResponse;
 
 #[derive(Deserialize, Validate)]
 pub struct ResetPasswordParams {
     pub token: String,
-    #[validate(custom = "validate_password")]
+    #[validate(custom = "validate_password_strength")]
     pub new_password: Password,
     #[validate(must_match(
         other = "new_password",
@@ -32,90 +30,65 @@ pub struct RequestPasswordResetParams {
 
 /// Request a password reset by sending an email with a reset link to the
 /// provided email address.
+// TODO: combine db calls
 #[post("/request_password_reset")]
-#[tracing::instrument(skip(req, params, db, settings))]
+#[tracing::instrument(skip(req, params, repo, settings))]
 async fn request_password_reset(
     req: HttpRequest,
     params: web::Json<RequestPasswordResetParams>,
-    db: Data<DbPool>,
+    repo: Data<Repo>,
     settings: Data<Settings>,
-) -> Result<impl Responder> {
-    let mut conn = new_conn!(db);
-    let db_clone = db.clone();
-
-    let thread_result = spawn_blocking_with_tracing(move || {
-        User::by_email(params.email.clone()).first::<User>(&mut conn)
-    })
-    .await;
-
-    let user_lookup = match thread_result {
-        Ok(user) => user,
-        Err(e) => {
-            tracing::error!(
-                target = module_path!(),
-                error = e.to_string(),
-                "User lookup thread failed"
-            );
-            return Ok(ApiResponse::internal_server_error());
-        }
-    };
-
-    let user: User = match user_lookup {
-        Ok(user) => user,
-        Err(e) => {
-            tracing::error!(
-                target = module_path!(),
-                error = e.to_string(),
-                "User lookup thread"
-            );
-            return Ok(ApiResponse::internal_server_error());
-        }
-    };
-
-    let user_clone = user.clone();
-    let ip_addr: String = match ip_address(&req) {
+) -> Result<HttpResponse> {
+    let _ip_addr: String = match ip_address(&req) {
         Ok(ip) => ip,
-        Err(e) => {
-            tracing::error!(
-                target = module_path!(),
-                error = e.to_string(),
-                "Getting ip address from request failed"
-            );
-            return Ok(ApiResponse::internal_server_error());
-        }
+        Err(e) => return Ok(error_response(e, "Getting ip address from request failed")),
     };
 
-    match UserEvent::create(user_clone, ip_addr, EventType::PasswordReset, db_clone).await {
-        Ok(_) => (),
-        Err(e) => {
-            tracing::error!(
-                target = module_path!(),
-                error = e.to_string(),
-                "Creating user event for password reset failed"
-            );
-            return Ok(ApiResponse::internal_server_error());
-        }
+    let filter = UserFilter {
+        email: Some(params.email.clone()),
+        ..Default::default()
+    };
+
+    let users = match repo.users(filter).await {
+        Ok(users) => users,
+        Err(e) => return Ok(error_response(e, "User lookup failed")),
+    };
+
+    if users.len() > 1 {
+        return Ok(error_response(
+            anyhow!("Duplicate email."),
+            "Could not save password reset token.",
+        ));
     }
 
-    match user
-        .send_password_reset(
-            db.clone(),
+    if users.len() == 1 {
+        let mut user = users.first().unwrap().clone();
+
+        if let Some(token) = user.password_reset_token_expires_at.clone() {
+            if token < chrono::Utc::now().naive_utc() {
+                return Ok(ApiResponse::bad_request(
+                    "Password reset request expired; please try again.".to_string(),
+                ));
+            }
+        }
+
+        let token = match repo.create_password_reset(user.clone()).await {
+            Ok(token) => token,
+            Err(e) => return Ok(error_response(e, "Could not save password reset token")),
+        };
+        let auth_token = &settings.mailer.auth_token.clone();
+
+        user.password_reset_token = Some(token.value);
+        let _ = send_password_reset(
+            user,
             &settings.mailer.server_url,
             req.connection_info().host(),
-            &settings.mailer.auth_token.clone(),
+            auth_token,
         )
-        .await
-    {
-        Ok(_) => (),
-        Err(e) => {
-            tracing::error!(
-                target = module_path!(),
-                error = e.to_string(),
-                "Sending password reset email failed"
-            );
-            return Ok(ApiResponse::internal_server_error());
-        }
+        .await;
     }
+
+    // TODO: write event with ip_addr
 
     Ok(ApiResponse::ok(
         "A password reset email will be sent if the email address is valid.".to_string(),
@@ -124,62 +97,21 @@ async fn request_password_reset(
 
 /// Use a token provided in an email to reset a user's password.
 #[post("/reset_password")]
-#[tracing::instrument(skip(params, db))]
+#[tracing::instrument(skip(params, repo))]
 async fn reset_password(
     params: web::Json<ResetPasswordParams>,
-    db: Data<DbPool>,
-) -> Result<impl Responder> {
-    let token_clone = params.token.clone();
-    let mut conn = new_conn!(db);
-    let db_clone = db.clone();
+    repo: Data<Repo>,
+) -> Result<HttpResponse> {
+    let password = &params.new_password;
+    let token = &params.token;
 
-    if let Err(e) = validate_password(&params.new_password) {
+    if let Err(e) = validate_password_strength(password) {
         return Ok(ApiResponse::bad_request(e.to_string()));
-    }
-
-    let thread_request = spawn_blocking_with_tracing(move || {
-        User::by_password_reset_token(token_clone.clone()).first::<User>(&mut conn)
-    })
-    .await;
-
-    let user_lookup = match thread_request {
-        Ok(user) => user,
-        Err(e) => {
-            tracing::error!(
-                target = module_path!(),
-                error = e.to_string(),
-                "Password reset thread failed"
-            );
-            return Ok(ApiResponse::internal_server_error());
-        }
     };
 
-    let user: User = match user_lookup {
-        Ok(user) => user,
-        Err(_) => return Ok(invalid_token_response()),
-    };
-    let user_id = user.id;
-
-    if user.password_reset_token_expires_at > Some(Utc::now().naive_utc()) {
-        match user.set_password(&params.new_password, db_clone).await {
-            Ok(_) => {
-                tracing::info!(target = module_path!(), user_id, "Password reset for user");
-                return Ok(ApiResponse::ok("Password reset successfully.".to_string()));
-            }
-            Err(e) => {
-                tracing::error!(
-                    target = module_path!(),
-                    error = e.to_string(),
-                    "Password reset failed"
-                );
-                return Ok(ApiResponse::internal_server_error());
-            }
-        }
+    // TODO: type these errors
+    match repo.reset_password(password, token.clone()).await {
+        Ok(_) => Ok(ApiResponse::ok("Password reset successfully.".to_string())),
+        Err(e) => Ok(ApiResponse::bad_request(e.to_string())),
     }
-
-    Ok(invalid_token_response())
-}
-
-fn invalid_token_response() -> HttpResponse {
-    ApiResponse::bad_request("Invalid token.".to_string())
 }

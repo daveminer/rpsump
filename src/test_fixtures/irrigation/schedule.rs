@@ -1,7 +1,7 @@
 use chrono::{NaiveDateTime, NaiveTime};
 use rstest::fixture;
 
-use crate::models::irrigation_schedule::IrrigationSchedule;
+use crate::repository::models::irrigation_schedule::IrrigationSchedule;
 
 #[fixture]
 pub fn daily_schedule(

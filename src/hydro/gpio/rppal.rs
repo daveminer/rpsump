@@ -1,8 +1,14 @@
 use anyhow::{anyhow, Error};
+use std::{
+    sync::{Arc, Mutex},
+    time::Duration,
+};
+use tokio::sync::mpsc::Sender;
 
 use crate::hydro::{
+    debounce::Debouncer,
     gpio::{Gpio, InputPin, OutputPin, Pin, Trigger},
-    Level,
+    signal::Message,
 };
 
 impl Gpio for rppal::gpio::Gpio {
@@ -26,15 +32,6 @@ impl Pin for rppal::gpio::Pin {
     }
 }
 
-impl Into<Level> for rppal::gpio::Level {
-    fn into(self) -> Level {
-        match self {
-            rppal::gpio::Level::Low => Level::Low,
-            rppal::gpio::Level::High => Level::High,
-        }
-    }
-}
-
 impl InputPin for rppal::gpio::InputPin {
     fn is_high(&self) -> bool {
         self.is_high()
@@ -44,20 +41,65 @@ impl InputPin for rppal::gpio::InputPin {
         self.is_low()
     }
 
-    fn read(&self) -> Level {
+    fn read(&self) -> crate::hydro::Level {
         self.read().into()
     }
 
+    /// Wrapper around rppal's set_async_interrupt to allow for use of a shared
+    /// debouncer for each interrupt
+    ///
+    /// # Arguments
+    ///
+    /// * `name`    - The name of the pin; for logging and reporting
+    /// * `trigger` - The level(s) that trigger the interrupt
+    /// * `handle`  - The tokio runtime handle to use for async operations
+    /// * `tx`      - The channel to report triggers to the main channel
+    /// * `delay`   - The delay to use for debouncing the interrupt
     fn set_async_interrupt(
         &mut self,
+        message: Message,
         trigger: Trigger,
-        mut callback: super::InputPinCallback,
+        tx: &Sender<Message>,
     ) -> Result<(), Error> {
-        let converted_callback = Box::new(move |level: rppal::gpio::Level| callback(level.into()));
+        let message = message.clone();
+        let tx = tx.clone();
 
-        self.set_async_interrupt(trigger.into(), converted_callback)
-            .map_err(|e| anyhow!(e.to_string()))
+        let callback = move |level: rppal::gpio::Level| {
+            // Create a debouncer instance for this interrupt
+            let debouncer: Arc<Mutex<Option<Debouncer>>> = Arc::from(Mutex::new(None));
+
+            callback(level, &message, debouncer, &tx);
+        };
+
+        Ok(self.set_async_interrupt(trigger.into(), callback)?)
     }
+}
+
+fn callback(
+    level: rppal::gpio::Level,
+    message: &Message,
+    debouncer: Arc<Mutex<Option<Debouncer>>>,
+    tx: &Sender<Message>,
+) {
+    let shared_deb = Arc::clone(&debouncer);
+    let mut deb = shared_deb.lock().unwrap();
+
+    // If the debouncer is already present, reset the deadline and return
+    if deb.is_some() {
+        deb.as_mut().unwrap().reset_deadline(level.into());
+        return;
+    }
+
+    let debouncer = Debouncer::new(
+        level.into(),
+        Duration::new(2, 0),
+        message.clone(),
+        tx.clone(),
+    );
+    *deb = Some(debouncer);
+
+    *deb = None;
+    drop(deb);
 }
 
 impl Into<rppal::gpio::Trigger> for Trigger {
@@ -72,11 +114,28 @@ impl Into<rppal::gpio::Trigger> for Trigger {
 }
 
 impl OutputPin for rppal::gpio::OutputPin {
-    fn set_high(&mut self) {
+    fn is_on(&self) -> bool {
+        self.is_set_high()
+    }
+
+    fn is_off(&self) -> bool {
+        self.is_set_low()
+    }
+
+    fn on(&mut self) {
         self.set_high()
     }
 
-    fn set_low(&mut self) {
+    fn off(&mut self) {
         self.set_low()
+    }
+}
+
+impl From<rppal::gpio::Level> for crate::hydro::Level {
+    fn from(level: rppal::gpio::Level) -> Self {
+        match level {
+            rppal::gpio::Level::Low => crate::hydro::Level::Low,
+            rppal::gpio::Level::High => crate::hydro::Level::High,
+        }
     }
 }

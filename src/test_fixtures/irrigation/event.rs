@@ -1,7 +1,7 @@
 use chrono::NaiveDateTime;
 use rstest::fixture;
 
-use crate::models::irrigation_event::{IrrigationEvent, IrrigationEventStatus};
+use crate::repository::models::irrigation_event::{IrrigationEvent, IrrigationEventStatus};
 
 #[fixture]
 pub fn completed_event(
