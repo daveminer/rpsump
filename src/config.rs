@@ -84,7 +84,7 @@ impl Settings {
     pub fn new() -> Self {
         set_application_environment();
 
-        let database_path = load_system_var("DATABASE_URL");
+        let database_path = load_system_var("DATABASE_PATH");
         let jwt_secret = load_system_var("JWT_SECRET");
         let server_host = load_system_var("SERVER_HOST");
         let server_port: u16 = load_system_var("SERVER_PORT")
