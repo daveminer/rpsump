@@ -26,13 +26,13 @@ use self::implementation::{ResetPasswordError, VerifyEmailError};
 /// Used in the application to access the database
 pub type Repo = &'static dyn Repository;
 
-/// Exposes the pool for data setup in integration tests
-pub type TestRepo = &'static dyn TestRepository;
-
 /// Creates a testable interface for the database.
 #[automock]
 #[async_trait]
 pub trait Repository: Send + Sync + 'static {
+    async fn create(path: Option<String>) -> Result<Self, Error>
+    where
+        Self: Sized;
     async fn create_email_verification(&self, user: &User) -> Result<Token, Error>;
     async fn create_irrigation_event(
         &self,
@@ -64,9 +64,7 @@ pub trait Repository: Send + Sync + 'static {
     async fn irrigation_schedules(&self) -> Result<Vec<IrrigationSchedule>, Error>;
     async fn irrigation_schedule_by_id(&self, sched_id: i32) -> Result<IrrigationSchedule, Error>;
     async fn next_queued_irrigation_event(&self) -> Result<Option<(i32, IrrigationEvent)>, Error>;
-    async fn new(path: Option<String>) -> Result<Self, Error>
-    where
-        Self: Sized;
+
     async fn pool(&self) -> Result<Pool<ConnectionManager<SqliteConnection>>, Error>;
     async fn queue_irrigation_events(&self, events: Vec<Status>) -> Result<(), Error>;
     async fn reset_password(
@@ -93,25 +91,9 @@ pub trait Repository: Send + Sync + 'static {
     async fn verify_email(&self, token: String) -> Result<(), VerifyEmailError>;
 }
 
-#[async_trait]
-pub trait TestRepository: Repository {
-    async fn pool(&self) -> Result<Pool<ConnectionManager<SqliteConnection>>, Error>;
-    // Other test-specific methods
-}
-
 pub async fn implementation(database_uri: Option<String>) -> Result<Repo, Error> {
-    let implementation = implementation::Implementation::new(database_uri).await?;
+    let implementation = implementation::Implementation::create(database_uri).await?;
     let repository = Box::new(implementation);
 
     Ok(Box::leak(repository))
-}
-
-pub async fn mock() -> Repo {
-    let repository = Box::new(
-        MockRepository::new(None)
-            .await
-            .expect("Could not create mock repository."),
-    );
-
-    Box::leak(repository)
 }

@@ -84,6 +84,19 @@ impl Implementation {
 
 #[async_trait]
 impl Repository for Implementation {
+    async fn create(path: Option<String>) -> Result<Self, Error> {
+        let path = if path.is_some() {
+            path.unwrap()
+        } else {
+            ":memory:".to_string()
+        };
+
+        let manager = ConnectionManager::<SqliteConnection>::new(path);
+        let pool = Pool::new(manager)?;
+
+        Ok(Implementation { pool })
+    }
+
     async fn create_email_verification(&self, user_record: &User) -> Result<Token, Error> {
         let mut conn = self
             .pool
@@ -301,7 +314,6 @@ impl Repository for Implementation {
         Ok(())
     }
 
-    // TODO: implement
     async fn delete_irrigation_schedule(&self, sched_id: i32) -> Result<Option<usize>, Error> {
         let mut conn = self
             .pool
@@ -436,19 +448,6 @@ impl Repository for Implementation {
         .await??;
 
         Ok(result)
-    }
-
-    async fn new(path: Option<String>) -> Result<Self, Error> {
-        let path = if path.is_some() {
-            path.unwrap()
-        } else {
-            ":memory:".to_string()
-        };
-
-        let manager = ConnectionManager::<SqliteConnection>::new(path);
-        let pool = Pool::new(manager)?;
-
-        Ok(Implementation { pool })
     }
 
     async fn pool(&self) -> Result<Pool<ConnectionManager<SqliteConnection>>, Error> {
@@ -862,3 +861,70 @@ fn build_statuses(results: Vec<StatusQueryResult>) -> Vec<Status> {
 
     statuses
 }
+
+// mod tests {
+//     use chrono::NaiveDateTime;
+//     use rstest::rstest;
+
+//     use crate::{
+//         hydro::schedule::Status,
+//         repository::{
+//             implementation::build_statuses,
+//             models::{
+//                 irrigation_event::{IrrigationEvent, StatusQueryResult},
+//                 irrigation_schedule::IrrigationSchedule,
+//             },
+//         },
+//         test_fixtures::{
+//             irrigation::{
+//                 event::completed_event,
+//                 schedule::{daily_schedule, tues_thurs_schedule},
+//                 status::all_schedules_statuses,
+//                 status_query::status_query_results,
+//             },
+//             tests::time,
+//         },
+//     };
+
+//     #[rstest]
+//     fn build_statuses_success(
+//         #[from(status_query_results)] status_query_results: Vec<StatusQueryResult>,
+//         #[from(completed_event)] completed_event: IrrigationEvent,
+//         #[from(daily_schedule)] daily_schedule: IrrigationSchedule,
+//         #[from(tues_thurs_schedule)] tues_thurs_schedule: IrrigationSchedule,
+//     ) {
+//         let due = build_statuses(status_query_results);
+//         assert!(
+//             due == vec![
+//                 Status {
+//                     schedule: daily_schedule,
+//                     last_event: Some(completed_event.clone())
+//                 },
+//                 Status {
+//                     schedule: tues_thurs_schedule,
+//                     last_event: Some(completed_event)
+//                 },
+//             ]
+//         )
+//     }
+
+//     // "Test Schedule Friday" has an event that has run already; the others
+//     // are deactivated or not run on Fridays. This leaves two schedules due.
+//     #[rstest]
+//     fn due_statuses_success(
+//         #[from(all_schedules_statuses)] statuses: Vec<Status>,
+//         #[from(time)] time: NaiveDateTime,
+//     ) {
+//         let due = due_statuses(statuses, time);
+
+//         assert!(due.len() == 2);
+//         assert!(due
+//             .iter()
+//             .find(|s| s.schedule.name == "Test Schedule Daily")
+//             .is_some());
+//         assert!(due
+//             .iter()
+//             .find(|s| s.schedule.name == "Test Schedule Weekday")
+//             .is_some());
+//     }
+// }

@@ -76,8 +76,8 @@ async fn start_irrigation(
             }
         };
 
-        hose_lock.set_high();
-        pump_lock.set_high();
+        hose_lock.on();
+        pump_lock.on();
         drop(hose_lock);
         drop(pump_lock);
 
@@ -102,8 +102,8 @@ async fn start_irrigation(
         tracing::error!(target = module_path!(), "Stopping irrigation job");
 
         // Stop the pump and close the solenoid
-        hose_lock.set_low();
-        pump_lock.set_low();
+        hose_lock.off();
+        pump_lock.off();
 
         // Move the job out of "in progress" status
         if let Err(e) = repo.finish_irrigation_event().await {

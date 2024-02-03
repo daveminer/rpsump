@@ -64,9 +64,12 @@ impl fmt::Debug for dyn InputPin {
         Ok(pin)
     }
 }
-// TODO: check traits
+
 #[automock]
 pub trait OutputPin: Send + Sync {
-    fn set_high(&mut self);
-    fn set_low(&mut self);
+    fn is_on(&self) -> bool;
+    fn is_off(&self) -> bool;
+
+    fn on(&mut self);
+    fn off(&mut self);
 }

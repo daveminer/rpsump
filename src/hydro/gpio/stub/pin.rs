@@ -51,11 +51,19 @@ impl InputPin for PinStub {
 }
 
 impl OutputPin for PinStub {
-    fn set_high(&mut self) {
-        self.level = Level::High;
+    fn is_on(&self) -> bool {
+        self.level == Level::High
     }
 
-    fn set_low(&mut self) {
+    fn is_off(&self) -> bool {
+        self.level == Level::Low
+    }
+
+    fn off(&mut self) {
         self.level = Level::Low;
+    }
+
+    fn on(&mut self) {
+        self.level = Level::High;
     }
 }

@@ -114,11 +114,19 @@ impl Into<rppal::gpio::Trigger> for Trigger {
 }
 
 impl OutputPin for rppal::gpio::OutputPin {
-    fn set_high(&mut self) {
+    fn is_on(&self) -> bool {
+        self.is_set_high()
+    }
+
+    fn is_off(&self) -> bool {
+        self.is_set_low()
+    }
+
+    fn on(&mut self) {
         self.set_high()
     }
 
-    fn set_low(&mut self) {
+    fn off(&mut self) {
         self.set_low()
     }
 }

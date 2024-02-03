@@ -385,7 +385,7 @@ fn expect_output_pin(gpio: &mut MockGpio, pin: u8) {
 
         pin.expect_into_output_low().returning(|| {
             let mut output_pin = MockOutputPin::new();
-            output_pin.expect_set_low().returning(|| ());
+            output_pin.expect_off().returning(|| ());
             Box::new(output_pin)
         });
 

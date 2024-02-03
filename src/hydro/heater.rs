@@ -19,7 +19,7 @@ impl Heater {
     pub async fn on(&mut self) -> Result<(), Error> {
         self.control.level = Level::High;
         let mut lock = self.control.lock().await;
-        lock.set_high();
+        lock.on();
 
         Ok(())
     }
@@ -27,7 +27,7 @@ impl Heater {
     pub async fn off(&mut self) -> Result<(), Error> {
         self.control.level = Level::Low;
         let mut lock = self.control.lock().await;
-        lock.set_low();
+        lock.off();
 
         Ok(())
     }
@@ -46,6 +46,16 @@ mod tests {
     use crate::{config::HeaterConfig, hydro::heater::Heater, test_fixtures::gpio::mock_gpio_get};
 
     #[tokio::test]
+    async fn test_heater_new() {
+        let config = HeaterConfig { control_pin: 1 };
+        let mock_gpio = mock_gpio_get(vec![1]);
+
+        let heater = Heater::new(&config, &mock_gpio);
+
+        assert!(heater.is_ok());
+    }
+
+    #[tokio::test]
     async fn test_heater_on() {
         let config = HeaterConfig { control_pin: 1 };
         let mock_gpio = mock_gpio_get(vec![1]);
@@ -58,6 +68,27 @@ mod tests {
 
     #[tokio::test]
     async fn test_heater_off() {
+        let config = HeaterConfig { control_pin: 1 };
+        let mock_gpio = mock_gpio_get(vec![1]);
+
+        let heater = Heater::new(&config, &mock_gpio).unwrap();
+
+        assert_eq!(heater.is_off(), true);
+    }
+
+    #[tokio::test]
+    async fn test_heater_is_on() {
+        let config = HeaterConfig { control_pin: 1 };
+        let mock_gpio = mock_gpio_get(vec![1]);
+
+        let mut heater = Heater::new(&config, &mock_gpio).unwrap();
+        let _ = heater.on().await.unwrap();
+
+        assert_eq!(heater.is_on(), true);
+    }
+
+    #[tokio::test]
+    async fn test_heater_is_off() {
         let config = HeaterConfig { control_pin: 1 };
         let mock_gpio = mock_gpio_get(vec![1]);
 

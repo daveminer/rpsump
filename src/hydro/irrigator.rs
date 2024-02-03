@@ -28,16 +28,6 @@ impl Irrigator {
     {
         let pump = Control::new("Irrigation Pump".to_string(), config.pump_control_pin, gpio)?;
 
-        // let handle = match rt.lock() {
-        //     Ok(lock) => lock.handle().clone(),
-        //     Err(e) => {
-        //         return Err(anyhow::anyhow!(
-        //             "Could not get runtime handle: {}",
-        //             e.to_string()
-        //         ))
-        //     }
-        // };
-
         let low_sensor = Sensor::new(
             Message::IrrigatorEmpty,
             config.low_sensor_pin,
@@ -90,11 +80,6 @@ mod tests {
     #[test]
     fn test_new() {
         let mpsc = tokio::sync::mpsc::channel(32);
-
-        // let mut mock_db_pool = MockDbPool::new();
-        // mock_db_pool
-        //     .expect_get_conn()
-        //     .returning(|| Ok(MockDbConn::new())); // Replace with your mock connection
 
         let mut mock_gpio = MockGpio::new();
         mock_gpio.expect_get().times(6).returning(|_| {

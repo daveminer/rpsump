@@ -61,32 +61,35 @@ impl Sump {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use crate::{
-//         config::SumpConfig,
-//         hydro::gpio::{stub::pin, Level, MockGpio},
-//     };
+#[cfg(test)]
+mod tests {
+    use crate::{
+        config::SumpConfig,
+        hydro::gpio::{stub::pin, Level, MockGpio},
+    };
 
-//     #[test]
-//     fn test_new() {
-//         let config = SumpConfig {
-//             enabled: true,
-//             high_sensor_pin: 1,
-//             low_sensor_pin: 2,
-//             pump_control_pin: 3,
-//             pump_shutoff_delay: 4,
-//         };
+    use super::Sump;
 
-//         let mut mock_gpio = MockGpio::new();
-//         mock_gpio.expect_get().times(3).returning(|_| {
-//             Ok(Box::new(pin::PinStub {
-//                 index: 0,
-//                 level: Level::Low,
-//             }))
-//         });
+    #[test]
+    fn test_new() {
+        let config = SumpConfig {
+            enabled: true,
+            high_sensor_pin: 1,
+            low_sensor_pin: 2,
+            pump_control_pin: 3,
+            pump_shutoff_delay: 4,
+        };
 
-//         //TODO: finish
-//         //let _sump: Sump = Sump::new(&config, &mock_gpio, ).unwrap();
-//     }
-// }
+        let mpsc = tokio::sync::mpsc::channel(32);
+
+        let mut mock_gpio = MockGpio::new();
+        mock_gpio.expect_get().times(3).returning(|_| {
+            Ok(Box::new(pin::PinStub {
+                index: 0,
+                level: Level::Low,
+            }))
+        });
+
+        let _sump: Sump = Sump::new(&config, &mpsc.0, &mock_gpio).unwrap();
+    }
+}
