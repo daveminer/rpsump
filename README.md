@@ -12,7 +12,9 @@ Later stages of this application will output the reclaimed water to a reservoir 
 
 ## Requirements
 
-SQlite >= 3.35
+SQlite >= 3.35: `sudo apt-get install libsqlite3-dev`
+
+OpenSSL: `sudo apt install libssl-dev`
 
 ## Components
 
