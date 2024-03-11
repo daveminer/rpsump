@@ -33,13 +33,6 @@ pub async fn login(
         return Ok(ApiResponse::bad_request(REQUIRED_FIELDS.to_string()));
     }
 
-    // let maybe_user: Option<User> = match repo.user_by_email(email).await {
-    //     Ok(maybe_user) => maybe_user,
-    //     Err(_e) => {
-    //         return Ok(ApiResponse::bad_request(BAD_CREDS.to_string()));
-    //     }
-    // };
-
     let user_filter = UserFilter {
         email: Some(email),
         ..Default::default()

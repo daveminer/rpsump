@@ -7,7 +7,7 @@ coverage:
 	cargo llvm-cov report --lcov --ignore-filename-regex 'main.rs' --output-path lcov.info
 
 deploy-swag:
-	bash ./deploy/deploy-prod.sh
+	bash ./deploy/deploy-prod.sh $(pi3)
 
 test:
 	cargo test --features stub

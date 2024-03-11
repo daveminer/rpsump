@@ -773,7 +773,7 @@ impl Repository for Implementation {
                 .set((
                     user::email_verification_token.eq(None::<String>),
                     user::email_verification_token_expires_at.eq(None::<String>),
-                    user::email_verified_at.eq(Utc::now().to_string()),
+                    user::email_verified_at.eq(Utc::now().naive_utc()),
                 ))
                 .execute(&mut conn)
                 .map_err(|e| VerifyEmailError::DatabaseError(anyhow!(e)))?;

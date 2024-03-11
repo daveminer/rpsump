@@ -24,8 +24,15 @@ if [[ -f "$project_root/deploy/config/subdomains-secret" ]]; then
   docker_run+=" -e FILE__SUBDOMAINS=/config/subdomains-secret"
 fi
 
+
+
 docker_run+=" -v $project_root/deploy/config:/config"
-docker_run+=" lscr.io/linuxserver/swag:arm32v7-2.6.0"
+
+if [ -z "$1" ]; then
+  docker_run+=" lscr.io/linuxserver/swag:2.9.0"
+else
+  docker_run+=" lscr.io/linuxserver/swag:arm32v7-2.6.0"
+fi
 
 eval "${docker_run}"
 
