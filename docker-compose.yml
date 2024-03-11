@@ -1,0 +1,22 @@
+version: '3'
+services:
+  web:
+    image: lscr.io/linuxserver/swag:2.9.0
+    container_name: swag
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - 443:443
+      - 80:80
+    volumes:
+      - ./swag_config:/deploy/config
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Etc/UTC
+      - URL=halyard.systems
+      - VALIDATION=http
+      - SUBDOMAINS=base,
+      - EMAIL=dave@halyard.systems
+      - ONLY_SUBDOMAINS=true
+    restart: unless-stopped
