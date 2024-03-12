@@ -63,6 +63,7 @@ pub struct PoolPumpConfig {
 pub struct ServerConfig {
     pub host: String,
     pub port: u16,
+    pub public_host: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -131,6 +132,7 @@ impl Settings {
             server: ServerConfig {
                 host: server_host,
                 port: server_port,
+                public_host: load_system_var("PUBLIC_HOST"),
             },
             telemetry: TelemetryConfig {
                 api_key: load_system_var("TELEMETRY_API_KEY"),

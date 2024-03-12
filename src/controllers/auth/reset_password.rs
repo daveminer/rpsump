@@ -82,7 +82,7 @@ async fn request_password_reset(
         let _ = send_password_reset(
             user,
             &settings.mailer.server_url,
-            req.connection_info().host(),
+            settings.server.public_host.as_str(),
             auth_token,
         )
         .await;

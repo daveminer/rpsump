@@ -76,7 +76,7 @@ pub async fn signup(
 
     // Send email verification
     match new_user
-        .send_email_verification(mailer_settings, req.connection_info().host())
+        .send_email_verification(mailer_settings, settings.server.public_host.as_str())
         .await
     {
         Ok(_) => Ok(ApiResponse::ok("User created.".to_string())),
