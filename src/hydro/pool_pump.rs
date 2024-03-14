@@ -83,11 +83,7 @@ impl PoolPump {
 }
 
 async fn turn_off(speed_pin: &mut Control) -> Result<(), Error> {
-    if speed_pin.is_on() {
-        return speed_pin.off().await;
-    }
-
-    Ok(())
+    speed_pin.off().await
 }
 
 #[cfg(test)]

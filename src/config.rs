@@ -221,9 +221,7 @@ fn load_system_var(env: &str) -> String {
 }
 
 fn set_application_environment() {
-    let environment = env::var("RPSUMP_ENVIRONMENT").unwrap_or_else(|_e| "development".to_string());
-
-    if environment == "test" {
+    if std::env::var("RPSUMP_TEST").is_ok() {
         dotenv::from_filename(".env.test").ok();
         return;
     }

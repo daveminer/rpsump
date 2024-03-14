@@ -1,3 +1,4 @@
+use std::env;
 use std::fs::{self, File};
 use std::path::PathBuf;
 
@@ -57,10 +58,6 @@ async fn initialize_db_template() -> (PathBuf, TempDir) {
 }
 
 pub async fn migrated_pathbuf() -> (PathBuf, TempDir) {
-    // MIGRATED_DB_TEMPLATE
-    //     .get_or_init(initialize_db_template)
-    //     .await;
-
     let test_db_dir = TempDir::new().unwrap();
 
     // Create new file for the test app database
@@ -288,7 +285,8 @@ pub async fn spawn_app_with_gpio<G>(gpio: &G) -> TestApp
 where
     G: Gpio,
 {
-    //initialize_db_template().await;
+    // TODO: move this to a settings input
+    env::set_var("RPSUMP_TEST", "true");
 
     let email_server = MockServer::start().await;
     let mut settings = Settings::new();

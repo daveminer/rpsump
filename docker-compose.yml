@@ -14,9 +14,9 @@ services:
       - PUID=1000
       - PGID=1000
       - TZ=Etc/UTC
-      - URL=halyard.systems
+      - URL=<<domain-goes-here>>
       - VALIDATION=http
       - SUBDOMAINS=base,
-      - EMAIL=dave@halyard.systems
+      - EMAIL=<<email-goes-here>>
       - ONLY_SUBDOMAINS=true
     restart: unless-stopped

@@ -187,7 +187,6 @@ impl Repository for Implementation {
                     //TODO: check created at
                 ))
                 .get_result::<IrrigationSchedule>(&mut conn)
-                //.execute(&mut conn)
                 .map_err(|e| anyhow!("Error creating irrigation schedule: {}", e))
         })
         .await??;
