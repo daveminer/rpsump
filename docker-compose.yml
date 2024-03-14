@@ -5,18 +5,16 @@ services:
     container_name: swag
     cap_add:
       - NET_ADMIN
-    ports:
-      - 443:443
-      - 80:80
+    network_mode: host
     volumes:
       - ./swag_config:/deploy/config
     environment:
       - PUID=1000
       - PGID=1000
       - TZ=Etc/UTC
-      - URL=<<domain-goes-here>>
+      - URL=example.com
       - VALIDATION=http
-      - SUBDOMAINS=base,
-      - EMAIL=<<email-goes-here>>
+      - SUBDOMAINS=subdomain,
+      - EMAIL=email@example.com
       - ONLY_SUBDOMAINS=true
     restart: unless-stopped
