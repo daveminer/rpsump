@@ -46,12 +46,16 @@ impl PoolPump {
     }
 
     pub async fn off(&mut self) -> Result<(), Error> {
-        let low = turn_off(&mut self.low);
-        let med = turn_off(&mut self.med);
-        let high = turn_off(&mut self.high);
-        let max = turn_off(&mut self.max);
+        let low = self.low.off();
+        let med = self.med.off();
+        let high = self.high.off();
+        let max = self.max.off();
 
-        try_join!(low, med, high, max).map(|_| ())
+        try_join!(low, med, high, max)?;
+
+        self.current = PoolPumpSpeed::Off;
+
+        Ok(())
     }
 
     /// Sets the new speed on the pump. This pump accepts four 5v inputs, and
@@ -60,6 +64,10 @@ impl PoolPump {
     /// for the old speed as to avoid an extra shift to the "off" state
     /// between speed changes.
     pub async fn on(&mut self, speed: PoolPumpSpeed) -> Result<(), Error> {
+        if speed == self.current {
+            return Ok(());
+        }
+
         match speed {
             PoolPumpSpeed::Off => self.off().await?,
             PoolPumpSpeed::Low => self.low.on().await?,
@@ -80,10 +88,6 @@ impl PoolPump {
 
         Ok(())
     }
-}
-
-async fn turn_off(speed_pin: &mut Control) -> Result<(), Error> {
-    speed_pin.off().await
 }
 
 #[cfg(test)]
@@ -119,6 +123,8 @@ mod tests {
         let mock_gpio = mock_gpio_get(vec![1, 2, 3, 4]);
 
         let mut pool_pump = PoolPump::new(&config, &mock_gpio).unwrap();
+        pool_pump.on(PoolPumpSpeed::Max).await.unwrap();
+        assert_eq!(pool_pump.current, PoolPumpSpeed::Max);
         pool_pump.off().await.unwrap();
 
         assert_eq!(pool_pump.current, PoolPumpSpeed::Off);

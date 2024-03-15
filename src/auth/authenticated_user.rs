@@ -96,14 +96,7 @@ fn parse_token(token: String, settings: &Settings) -> Result<AuthenticatedUser, 
                 id: token.claims.sub.parse().unwrap(),
             })
         }
-        Err(e) => {
-            tracing::error!(
-                target = module_path!(),
-                error = e.to_string(),
-                "Could not get user from token"
-            );
-            Err(error::ErrorUnauthorized("Invalid token"))
-        }
+        Err(_e) => Err(error::ErrorUnauthorized("Invalid token")),
     }
 }
 
