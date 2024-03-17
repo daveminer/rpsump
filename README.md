@@ -2,7 +2,7 @@
 
 # rpsump
 
-Turn your Raspberry Pi into a sump pump!
+Residential appliance automation with the Raspberry Pi. 
 
 ## Overview
 
