@@ -58,19 +58,31 @@ pub trait Output {
 #[async_trait]
 impl Output for Control {
     async fn on(&mut self) -> Result<(), Error> {
-        self.level = Level::High;
-        let mut pin = self.lock().await;
+        let pin = self.pin.clone(); //.lock().await;
+                                    //let mut pin_clone = pin;
+                                    //let pin_clone = Arc::new(&pin.clone());
 
-        pin.on();
+        let _ = tokio::task::spawn_blocking(|| async move {
+            let mut pin_lock = pin.lock().await;
+            pin_lock.on();
+        })
+        .await?;
+
+        self.level = Level::High;
 
         Ok(())
     }
 
     async fn off(&mut self) -> Result<(), Error> {
-        self.level = Level::Low;
-        let mut pin = self.lock().await;
+        let pin = self.pin.clone();
 
-        pin.off();
+        let _ = tokio::task::spawn_blocking(|| async move {
+            let mut pin_lock = pin.lock().await;
+            pin_lock.off();
+        })
+        .await?;
+
+        self.level = Level::Low;
 
         Ok(())
     }

@@ -126,7 +126,6 @@ mod tests {
         pool_pump.on(PoolPumpSpeed::Max).await.unwrap();
         assert_eq!(pool_pump.current, PoolPumpSpeed::Max);
         pool_pump.off().await.unwrap();
-
         assert_eq!(pool_pump.current, PoolPumpSpeed::Off);
     }
 
