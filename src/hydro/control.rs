@@ -1,4 +1,5 @@
 use crate::hydro::gpio::{Gpio, Level, OutputPin};
+use crate::util::spawn_blocking_with_tracing;
 use anyhow::Error;
 use async_trait::async_trait;
 use std::fmt;
@@ -63,7 +64,7 @@ impl Output for Control {
 
         let pin = self.pin.clone();
 
-        let _ = tokio::task::spawn_blocking(move || match pin.lock() {
+        let _ = spawn_blocking_with_tracing(move || match pin.lock() {
             Ok(mut guard) => guard.on(),
             Err(e) => error!("Error locking pin for on: {}", e),
         })
@@ -77,7 +78,7 @@ impl Output for Control {
 
         let pin = self.pin.clone();
 
-        let _ = tokio::task::spawn_blocking(move || match pin.lock() {
+        let _ = spawn_blocking_with_tracing(move || match pin.lock() {
             Ok(mut guard) => guard.off(),
             Err(e) => error!("Error locking pin for off: {}", e),
         })
