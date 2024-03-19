@@ -1,6 +1,6 @@
 use anyhow::Error;
-use futures::try_join;
 use serde::Deserialize;
+use tracing::error;
 
 use crate::{
     config::PoolPumpConfig,
@@ -16,7 +16,7 @@ pub struct PoolPump {
     pub current: PoolPumpSpeed,
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum PoolPumpSpeed {
     Off,
@@ -46,12 +46,24 @@ impl PoolPump {
     }
 
     pub async fn off(&mut self) -> Result<(), Error> {
-        let low = self.low.off();
-        let med = self.med.off();
-        let high = self.high.off();
-        let max = self.max.off();
+        let mut self_clone = self.clone();
 
-        try_join!(low, med, high, max)?;
+        let low_result = self_clone.low.off().await;
+        if let Err(e) = low_result {
+            error!("Error setting pool pump off: {}", e);
+        }
+        let med_result = self_clone.med.off().await;
+        if let Err(e) = med_result {
+            error!("Error setting pool pump off: {}", e);
+        }
+        let high_result = self_clone.high.off().await;
+        if let Err(e) = high_result {
+            error!("Error setting pool pump off: {}", e);
+        }
+        let max_result = self_clone.max.off().await;
+        if let Err(e) = max_result {
+            error!("Error setting pool pump off: {}", e);
+        }
 
         self.current = PoolPumpSpeed::Off;
 
@@ -68,23 +80,56 @@ impl PoolPump {
             return Ok(());
         }
 
-        match speed {
-            PoolPumpSpeed::Off => self.off().await?,
-            PoolPumpSpeed::Low => self.low.on().await?,
-            PoolPumpSpeed::Med => self.med.on().await?,
-            PoolPumpSpeed::High => self.high.on().await?,
-            PoolPumpSpeed::Max => self.max.on().await?,
-        };
+        let mut low = self.low.clone();
+        let mut med = self.med.clone();
+        let mut high = self.high.clone();
+        let mut max = self.max.clone();
 
-        match self.current {
-            PoolPumpSpeed::Off => (),
-            PoolPumpSpeed::Low => self.low.off().await?,
-            PoolPumpSpeed::Med => self.med.off().await?,
-            PoolPumpSpeed::High => self.high.off().await?,
-            PoolPumpSpeed::Max => self.max.off().await?,
-        };
-
+        let old_speed = self.current;
         self.current = speed;
+
+        let new_speed_result = match speed {
+            PoolPumpSpeed::Off => {
+                let low_result = low.off().await;
+                if let Err(e) = low_result {
+                    error!("Error removing pool pump low setting: {}", e);
+                };
+                let med_result = med.off().await;
+                if let Err(e) = med_result {
+                    error!("Error removing pool pump med setting: {}", e);
+                };
+                let high_result = high.off().await;
+                if let Err(e) = high_result {
+                    error!("Error removing pool pump high setting: {}", e);
+                };
+                let max_result = max.off().await;
+                if let Err(e) = max_result {
+                    error!("Error removing pool pump max setting: {}", e);
+                };
+
+                Result::Ok(())
+            }
+            PoolPumpSpeed::Low => low.on().await,
+            PoolPumpSpeed::Med => med.on().await,
+            PoolPumpSpeed::High => high.on().await,
+            PoolPumpSpeed::Max => max.on().await,
+        };
+
+        if let Err(e) = new_speed_result {
+            error!("Error setting new pool pump speed: {}", e);
+        }
+
+        let old_speed_result = match old_speed {
+            PoolPumpSpeed::Off => Result::Ok(()),
+            PoolPumpSpeed::Low => low.off().await,
+            PoolPumpSpeed::Med => med.off().await,
+            PoolPumpSpeed::High => high.off().await,
+            PoolPumpSpeed::Max => max.off().await,
+        };
+
+        if let Err(e) = old_speed_result {
+            error!("Error removing old pool pump speed: {}", e);
+        }
 
         Ok(())
     }

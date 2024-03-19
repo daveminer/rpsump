@@ -1,8 +1,8 @@
 use crate::hydro::gpio::{Gpio, Level, OutputPin};
-use anyhow::{anyhow, Error};
+use anyhow::Error;
 use async_trait::async_trait;
 use std::fmt;
-use std::sync::{Arc, PoisonError};
+use std::sync::Arc;
 use tokio::sync::{Mutex, MutexGuard};
 
 pub type PinLock<'a> = MutexGuard<'a, Box<dyn OutputPin>>;
@@ -58,31 +58,19 @@ pub trait Output {
 #[async_trait]
 impl Output for Control {
     async fn on(&mut self) -> Result<(), Error> {
-        let pin = self.pin.clone(); //.lock().await;
-                                    //let mut pin_clone = pin;
-                                    //let pin_clone = Arc::new(&pin.clone());
-
-        let _ = tokio::task::spawn_blocking(|| async move {
-            let mut pin_lock = pin.lock().await;
-            pin_lock.on();
-        })
-        .await?;
-
         self.level = Level::High;
+        let mut pin = self.lock().await;
+
+        pin.on();
 
         Ok(())
     }
 
     async fn off(&mut self) -> Result<(), Error> {
-        let pin = self.pin.clone();
-
-        let _ = tokio::task::spawn_blocking(|| async move {
-            let mut pin_lock = pin.lock().await;
-            pin_lock.off();
-        })
-        .await?;
-
         self.level = Level::Low;
+        let mut pin = self.lock().await;
+
+        pin.off();
 
         Ok(())
     }
@@ -94,17 +82,6 @@ impl Output for Control {
     fn is_off(&self) -> bool {
         self.level == Level::Low
     }
-}
-
-pub fn pin_lock_failure(e: &PoisonError<PinLock>, control: &Control) -> Error {
-    tracing::error!(
-        target = module_path!(),
-        error = e.to_string(),
-        "Failed to lock pin {}",
-        control.label
-    );
-
-    anyhow!(e.to_string())
 }
 
 #[cfg(test)]
