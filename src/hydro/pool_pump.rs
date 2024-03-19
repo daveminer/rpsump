@@ -76,62 +76,60 @@ impl PoolPump {
     /// for the old speed as to avoid an extra shift to the "off" state
     /// between speed changes.
     pub async fn on(&mut self, speed: PoolPumpSpeed) -> Result<(), Error> {
-        if speed == self.current {
-            return Ok(());
-        }
-
-        let mut low = self.low.clone();
-        let mut med = self.med.clone();
-        let mut high = self.high.clone();
-        let mut max = self.max.clone();
-
-        let old_speed = self.current;
-        self.current = speed;
-
-        let new_speed_result = match speed {
+        match speed {
             PoolPumpSpeed::Off => {
-                let low_result = low.off().await;
-                if let Err(e) = low_result {
-                    error!("Error removing pool pump low setting: {}", e);
-                };
-                let med_result = med.off().await;
-                if let Err(e) = med_result {
-                    error!("Error removing pool pump med setting: {}", e);
-                };
-                let high_result = high.off().await;
-                if let Err(e) = high_result {
-                    error!("Error removing pool pump high setting: {}", e);
-                };
-                let max_result = max.off().await;
-                if let Err(e) = max_result {
-                    error!("Error removing pool pump max setting: {}", e);
-                };
-
-                Result::Ok(())
+                self.turn_off_all(None).await;
+                self.current = PoolPumpSpeed::Off;
             }
-            PoolPumpSpeed::Low => low.on().await,
-            PoolPumpSpeed::Med => med.on().await,
-            PoolPumpSpeed::High => high.on().await,
-            PoolPumpSpeed::Max => max.on().await,
+            PoolPumpSpeed::Low => {
+                self.turn_off_all(Some(PoolPumpSpeed::Low)).await;
+                let _ = self.low.on().await;
+                self.current = PoolPumpSpeed::Low;
+            }
+            PoolPumpSpeed::Med => {
+                self.turn_off_all(Some(PoolPumpSpeed::Med)).await;
+                let _ = self.med.on().await;
+                self.current = PoolPumpSpeed::Med;
+            }
+            PoolPumpSpeed::High => {
+                self.turn_off_all(Some(PoolPumpSpeed::High)).await;
+                let _ = self.high.on().await;
+                self.current = PoolPumpSpeed::High;
+            }
+            PoolPumpSpeed::Max => {
+                self.turn_off_all(Some(PoolPumpSpeed::Max)).await;
+                let _ = self.max.on().await;
+                self.current = PoolPumpSpeed::Max;
+            }
         };
-
-        if let Err(e) = new_speed_result {
-            error!("Error setting new pool pump speed: {}", e);
-        }
-
-        let old_speed_result = match old_speed {
-            PoolPumpSpeed::Off => Result::Ok(()),
-            PoolPumpSpeed::Low => low.off().await,
-            PoolPumpSpeed::Med => med.off().await,
-            PoolPumpSpeed::High => high.off().await,
-            PoolPumpSpeed::Max => max.off().await,
-        };
-
-        if let Err(e) = old_speed_result {
-            error!("Error removing old pool pump speed: {}", e);
-        }
 
         Ok(())
+    }
+
+    async fn turn_off_all(&mut self, skip: Option<PoolPumpSpeed>) {
+        if skip != Some(PoolPumpSpeed::Low) {
+            if let Err(e) = self.low.off().await {
+                error!("Error removing pool pump low setting: {}", e);
+            };
+        }
+
+        if skip != Some(PoolPumpSpeed::Med) {
+            if let Err(e) = self.med.off().await {
+                error!("Error removing pool pump med setting: {}", e);
+            };
+        }
+
+        if skip != Some(PoolPumpSpeed::High) {
+            if let Err(e) = self.high.off().await {
+                error!("Error removing pool pump high setting: {}", e);
+            };
+        }
+
+        if skip != Some(PoolPumpSpeed::Max) {
+            if let Err(e) = self.max.off().await {
+                error!("Error removing pool pump max setting: {}", e);
+            };
+        }
     }
 }
 
