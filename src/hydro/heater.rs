@@ -18,16 +18,46 @@ impl Heater {
 
     pub async fn on(&mut self) -> Result<(), Error> {
         self.control.level = Level::High;
-        let mut lock = self.control.lock().await;
-        lock.on();
+
+        let pin = self.control.pin.clone();
+
+        let _ = tokio::task::spawn_blocking(move || {
+            let mut lock = match pin.lock() {
+                Ok(lock) => lock,
+                Err(e) => {
+                    tracing::error!(
+                        target = module_path!(),
+                        error = e.to_string(),
+                        "Could not lock heater pin for on"
+                    );
+                    return;
+                }
+            };
+            lock.on();
+        });
 
         Ok(())
     }
 
     pub async fn off(&mut self) -> Result<(), Error> {
         self.control.level = Level::Low;
-        let mut lock = self.control.lock().await;
-        lock.off();
+
+        let pin = self.control.pin.clone();
+
+        let _ = tokio::task::spawn_blocking(move || {
+            let mut lock = match pin.lock() {
+                Ok(lock) => lock,
+                Err(e) => {
+                    tracing::error!(
+                        target = module_path!(),
+                        error = e.to_string(),
+                        "Could not lock heater pin for off"
+                    );
+                    return;
+                }
+            };
+            lock.off();
+        });
 
         Ok(())
     }

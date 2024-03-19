@@ -1,11 +1,9 @@
 use anyhow::{anyhow, Error};
 use std::time::{Duration as StdDuration, SystemTime};
 
-use tokio::{sync::MutexGuard, task::JoinHandle, time::sleep};
+use tokio::{task::JoinHandle, time::sleep};
 
-use crate::hydro::{
-    control::Control, gpio::OutputPin, schedule::IrrigationEvent, sensor::Input, Irrigator,
-};
+use crate::hydro::{control::Control, schedule::IrrigationEvent, sensor::Input, Irrigator};
 use crate::repository::Repo;
 
 #[tracing::instrument(skip(repo))]
@@ -47,13 +45,13 @@ async fn start_irrigation(
     duration: i32,
     irrigator: Irrigator,
 ) -> Result<JoinHandle<Result<(), anyhow::Error>>, Error> {
-    let irrigator = irrigator.clone();
+    //let irrigator = irrigator.clone();
     let handle = tokio::spawn(async move {
         tracing::info!(target = module_path!(), "Starting irrigation job");
         let start_time = SystemTime::now();
 
-        let hose_pin = match event_hose_pin(&event, &irrigator) {
-            Ok(pin) => pin,
+        let hose = match event_hose_pin(&event, &irrigator) {
+            Ok(hose) => hose,
             Err(e) => {
                 tracing::error!(
                     target = module_path!(),
@@ -64,46 +62,81 @@ async fn start_irrigation(
             }
         };
 
-        let (mut hose_lock, mut pump_lock) = match lock_pins(&hose_pin, &irrigator).await {
-            Ok((hose_lock, pump_lock)) => (hose_lock, pump_lock),
-            Err(e) => {
-                tracing::error!(
-                    target = module_path!(),
-                    error = e.to_string(),
-                    "Could not lock irrigation pins"
-                );
-                return Err(anyhow!(e.to_string()));
-            }
-        };
+        let hose_pin = hose.pin.clone();
+        let pump_pin = irrigator.pump.pin.clone();
 
-        hose_lock.on();
-        pump_lock.on();
-        drop(hose_lock);
-        drop(pump_lock);
+        let _ = tokio::task::spawn_blocking(move || {
+            // Open the solenoid and start the pump
+            let mut hose_lock = match hose_pin.lock() {
+                Ok(hose_lock) => hose_lock,
+                Err(e) => {
+                    tracing::error!(
+                        target = module_path!(),
+                        error = e.to_string(),
+                        "Could not lock hose pin for on"
+                    );
+                    return Err(anyhow!(e.to_string()));
+                }
+            };
+            hose_lock.on();
+
+            let mut pump_lock = match pump_pin.lock() {
+                Ok(pump_lock) => pump_lock,
+                Err(e) => {
+                    tracing::error!(
+                        target = module_path!(),
+                        error = e.to_string(),
+                        "Could not lock pump pin for on"
+                    );
+                    return Err(anyhow!(e.to_string()));
+                }
+            };
+            pump_lock.on();
+
+            Ok(())
+        });
 
         // Wait for the job to finish
         while !job_complete(duration, start_time) {
             sleep(tokio::time::Duration::from_secs(1)).await;
         }
 
-        // Re-lock the pins
-        let (mut hose_lock, mut pump_lock) = match lock_pins(&hose_pin, &irrigator).await {
-            Ok((hose_lock, pump_lock)) => (hose_lock, pump_lock),
-            Err(e) => {
-                tracing::error!(
-                    target = module_path!(),
-                    error = e.to_string(),
-                    "Could not lock irrigation pins to finish job; still running."
-                );
-                return Err(anyhow!(e.to_string()));
-            }
-        };
-
         tracing::error!(target = module_path!(), "Stopping irrigation job");
 
+        let hose_pin = hose.pin.clone();
+        let pump_pin = irrigator.pump.pin.clone();
+
         // Stop the pump and close the solenoid
-        hose_lock.off();
-        pump_lock.off();
+        let _ = tokio::task::spawn_blocking(move || {
+            let mut pump_lock = match pump_pin.lock() {
+                Ok(pump_lock) => pump_lock,
+                Err(e) => {
+                    tracing::error!(
+                        target = module_path!(),
+                        error = e.to_string(),
+                        "Could not lock pump pin for off"
+                    );
+                    return Err(anyhow!(e.to_string()));
+                }
+            };
+            pump_lock.off();
+
+            // Open the solenoid and start the pump
+            let mut hose_lock = match hose_pin.lock() {
+                Ok(hose_lock) => hose_lock,
+                Err(e) => {
+                    tracing::error!(
+                        target = module_path!(),
+                        error = e.to_string(),
+                        "Could not lock hose pin for off"
+                    );
+                    return Err(anyhow!(e.to_string()));
+                }
+            };
+            hose_lock.off();
+
+            Ok(())
+        });
 
         // Move the job out of "in progress" status
         if let Err(e) = repo.finish_irrigation_event().await {
@@ -114,9 +147,6 @@ async fn start_irrigation(
             );
             return Err(anyhow!(e.to_string()));
         }
-
-        drop(hose_lock);
-        drop(pump_lock);
 
         Ok(())
     });
@@ -178,25 +208,6 @@ fn job_complete(duration: i32, start_time: SystemTime) -> bool {
     };
 
     elapsed >= StdDuration::from_secs(dur)
-}
-
-async fn lock_pins<'a>(
-    hose_pin: &'a Control,
-    irrigator: &'a Irrigator,
-) -> Result<
-    (
-        MutexGuard<'a, Box<(dyn OutputPin)>>,
-        MutexGuard<'a, Box<(dyn OutputPin)>>,
-    ),
-    anyhow::Error,
-> {
-    // Lock the solenoid
-    let hose = hose_pin.lock().await;
-
-    // Lock the pump
-    let pump = irrigator.pump.lock().await;
-
-    Ok((hose, pump))
 }
 
 #[cfg(test)]

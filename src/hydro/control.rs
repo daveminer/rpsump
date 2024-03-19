@@ -2,8 +2,9 @@ use crate::hydro::gpio::{Gpio, Level, OutputPin};
 use anyhow::Error;
 use async_trait::async_trait;
 use std::fmt;
-use std::sync::Arc;
-use tokio::sync::{Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard};
+
+use tracing::error;
 
 pub type PinLock<'a> = MutexGuard<'a, Box<dyn OutputPin>>;
 
@@ -33,8 +34,8 @@ impl Control {
         })
     }
 
-    pub async fn lock(&self) -> PinLock {
-        self.pin.lock().await
+    pub async fn lock(&self) -> Result<PinLock, Error> {
+        self.pin.lock().map_err(|e| Error::msg(e.to_string()))
     }
 }
 
@@ -59,18 +60,28 @@ pub trait Output {
 impl Output for Control {
     async fn on(&mut self) -> Result<(), Error> {
         self.level = Level::High;
-        let mut pin = self.lock().await;
 
-        pin.on();
+        let pin = self.pin.clone();
+
+        let _ = tokio::task::spawn_blocking(move || match pin.lock() {
+            Ok(mut guard) => guard.on(),
+            Err(e) => error!("Error locking pin for on: {}", e),
+        })
+        .await?;
 
         Ok(())
     }
 
     async fn off(&mut self) -> Result<(), Error> {
         self.level = Level::Low;
-        let mut pin = self.lock().await;
 
-        pin.off();
+        let pin = self.pin.clone();
+
+        let _ = tokio::task::spawn_blocking(move || match pin.lock() {
+            Ok(mut guard) => guard.off(),
+            Err(e) => error!("Error locking pin for off: {}", e),
+        })
+        .await?;
 
         Ok(())
     }
