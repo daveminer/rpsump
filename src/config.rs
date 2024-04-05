@@ -131,9 +131,9 @@ impl Settings {
                 server_url: load_system_var("MAILER_SERVER_URL"),
             },
             server: ServerConfig {
-                allow_localhost_cors: load_system_var("ALLOW_LOCALHOST_CORS")
+                allow_localhost_cors: load_system_var("SERVER_ALLOW_LOCALHOST_CORS")
                     .parse()
-                    .expect("ALLOW_LOCALHOST_CORS must be a boolean."),
+                    .expect("SERVER_ALLOW_LOCALHOST_CORS must be a boolean."),
                 host: server_host,
                 port: server_port,
                 public_host: load_system_var("PUBLIC_HOST"),

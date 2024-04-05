@@ -3,7 +3,7 @@ use std::sync::Mutex;
 use actix_cors::Cors;
 use actix_identity::IdentityMiddleware;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
-use actix_web::{cookie, dev::Server, web, web::Data, App, HttpServer};
+use actix_web::{cookie, dev::Server, http, web, web::Data, App, HttpServer};
 use actix_web::{error::ErrorBadRequest, web::JsonConfig};
 use actix_web_opentelemetry::RequestTracing;
 use serde_json::json;
@@ -41,14 +41,17 @@ impl Application {
             Hydro::new(&settings.hydro, handle, gpio, repo).expect("Could not create hydro object");
 
         let server = HttpServer::new(move || {
-            let mut cors = Cors::default();
+            let mut cors = if settings.server.allow_localhost_cors {
+                Cors::default().allowed_origin_fn(|origin, _req_head| match origin.to_str() {
+                    Ok(str) => str.contains("localhost"),
+                    Err(_) => false,
+                })
+            } else {
+                Cors::default()
+            };
 
-            if settings.server.allow_localhost_cors {
-                cors = cors
-                    .allowed_origin_fn(|origin, _req_head| origin.as_bytes().contains("localhost"));
-            }
-
-            cors.allowed_methods(vec!["GET", "OPTION", "POST"])
+            cors = cors
+                .allowed_methods(vec!["GET", "OPTION", "POST"])
                 .allowed_headers(vec![
                     http::header::AUTHORIZATION,
                     http::header::ACCEPT,
