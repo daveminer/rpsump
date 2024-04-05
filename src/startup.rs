@@ -44,9 +44,8 @@ impl Application {
             let mut cors = Cors::default();
 
             if (settings.server.allow_localhost_cors) {
-                cors = cors.allowed_origin_fn(|origin, _req_head| {
-                    origin.as_bytes().contains(b"localhost")
-                });
+                cors = cors
+                    .allowed_origin_fn(|origin, _req_head| origin.as_bytes().contains("localhost"));
             }
 
             cors.allowed_methods(vec!["GET", "OPTION", "POST"])
