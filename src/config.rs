@@ -61,6 +61,7 @@ pub struct PoolPumpConfig {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct ServerConfig {
+    pub allow_localhost_cors: bool,
     pub host: String,
     pub port: u16,
     pub public_host: String,
@@ -130,6 +131,9 @@ impl Settings {
                 server_url: load_system_var("MAILER_SERVER_URL"),
             },
             server: ServerConfig {
+                allow_localhost_cors: load_system_var("ALLOW_LOCALHOST_CORS")
+                    .parse()
+                    .expect("ALLOW_LOCALHOST_CORS must be a boolean."),
                 host: server_host,
                 port: server_port,
                 public_host: load_system_var("PUBLIC_HOST"),

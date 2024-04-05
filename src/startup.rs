@@ -1,5 +1,6 @@
 use std::sync::Mutex;
 
+use actix_cors::Cors;
 use actix_identity::IdentityMiddleware;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie, dev::Server, web, web::Data, App, HttpServer};
@@ -40,7 +41,25 @@ impl Application {
             Hydro::new(&settings.hydro, handle, gpio, repo).expect("Could not create hydro object");
 
         let server = HttpServer::new(move || {
+            let mut cors = Cors::default();
+
+            if (settings.server.allow_localhost_cors) {
+                cors = cors.allowed_origin_fn(|origin, _req_head| {
+                    origin.as_bytes().contains(b"localhost")
+                });
+            }
+
+            cors.allowed_methods(vec!["GET", "OPTION", "POST"])
+                .allowed_headers(vec![
+                    http::header::AUTHORIZATION,
+                    http::header::ACCEPT,
+                    http::header::CONTENT_TYPE,
+                ])
+                .supports_credentials()
+                .max_age(3600);
+
             let app = App::new()
+                .wrap(cors)
                 .wrap(RequestTracing::new())
                 // Session tools
                 .wrap(IdentityMiddleware::default())
