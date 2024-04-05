@@ -43,7 +43,7 @@ impl Application {
         let server = HttpServer::new(move || {
             let mut cors = Cors::default();
 
-            if (settings.server.allow_localhost_cors) {
+            if settings.server.allow_localhost_cors {
                 cors = cors
                     .allowed_origin_fn(|origin, _req_head| origin.as_bytes().contains("localhost"));
             }
