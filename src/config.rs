@@ -64,6 +64,7 @@ pub struct ServerConfig {
     pub host: String,
     pub port: u16,
     pub public_host: String,
+    pub token_duration_days: u8,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -133,6 +134,9 @@ impl Settings {
                 host: server_host,
                 port: server_port,
                 public_host: load_system_var("PUBLIC_HOST"),
+                token_duration_days: load_system_var("SERVER_TOKEN_DURATION_DAYS")
+                    .parse()
+                    .expect("TOKEN_DURATION must be a number."),
             },
             telemetry: TelemetryConfig {
                 api_key: load_system_var("TELEMETRY_API_KEY"),

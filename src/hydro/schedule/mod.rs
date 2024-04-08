@@ -31,6 +31,7 @@ pub struct Status {
 ///
 pub fn start(repo: Repo, irrigator: Irrigator, frequency_ms: u64) -> JoinHandle<()> {
     tokio::spawn(async move {
+        // TODO: loop
         if let Err(e) = check_schedule(repo, irrigator).await {
             tracing::error!("Could not check schedule: {}", e);
         }
