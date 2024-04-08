@@ -1,14 +1,14 @@
 use chrono::Utc;
 use jsonwebtoken::{decode, DecodingKey, Validation};
 
-use rpsump::auth::claim::{create_token, Claim, TOKEN_EXPIRATION_TIME_SECONDS};
+use rpsump::auth::claim::{create_token, Claim};
 
 #[test]
 fn test_create_token() {
     let user_id = 1;
     let private_key = "secret_key".to_string();
 
-    let result = create_token(user_id, private_key.clone());
+    let result = create_token(user_id, private_key.clone(), 7);
     assert!(result.is_ok());
 
     let token = result.unwrap();
@@ -19,7 +19,5 @@ fn test_create_token() {
         &Validation::default(),
     )
     .unwrap();
-    assert!(
-        decoded_token.claims.exp <= (Utc::now().timestamp() as u64 + TOKEN_EXPIRATION_TIME_SECONDS)
-    );
+    assert!(decoded_token.claims.exp <= (Utc::now().timestamp() as u64 + 7 * 24 * 60 * 60));
 }

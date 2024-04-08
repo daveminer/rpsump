@@ -65,7 +65,11 @@ pub async fn login(
 
     let user = maybe_user.unwrap();
     // Create token
-    let token = match create_token(user.id, settings.jwt_secret.clone()) {
+    let token = match create_token(
+        user.id,
+        settings.jwt_secret.clone(),
+        settings.server.token_duration_days,
+    ) {
         Ok(token) => token,
         Err(e) => return Ok(error_response(e, "Could not create token for user")),
     };
