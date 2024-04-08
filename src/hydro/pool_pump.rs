@@ -1,5 +1,5 @@
 use anyhow::Error;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tracing::error;
 
 use crate::{
@@ -16,7 +16,7 @@ pub struct PoolPump {
     pub current: PoolPumpSpeed,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum PoolPumpSpeed {
     Off,
@@ -104,6 +104,22 @@ impl PoolPump {
         };
 
         Ok(())
+    }
+
+    pub async fn speed(&self) -> PoolPumpSpeed {
+        let mut current_speed = PoolPumpSpeed::Off;
+
+        if self.low.is_on() {
+            current_speed = PoolPumpSpeed::Low;
+        } else if self.med.is_on() {
+            current_speed = PoolPumpSpeed::Med;
+        } else if self.high.is_on() {
+            current_speed = PoolPumpSpeed::High;
+        } else if self.max.is_on() {
+            current_speed = PoolPumpSpeed::Max;
+        };
+
+        current_speed
     }
 
     async fn turn_off_all(&mut self, skip: Option<PoolPumpSpeed>) {

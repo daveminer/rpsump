@@ -6,7 +6,7 @@ use crate::controllers::auth::create_test_user;
 use crate::controllers::user_params;
 
 #[tokio::test]
-async fn info_success_sump_disabled() {
+async fn info_success() {
     // Arrange
     let app = spawn_app().await;
     let _user = create_test_user(app.repo).await;
@@ -22,6 +22,7 @@ async fn info_success_sump_disabled() {
 
     // Assert
     assert!(response["heater"].as_bool() == Some(false));
+    assert!(response["poolPumpSpeed"].as_str() == Some("off"));
 }
 
 #[tokio::test]
