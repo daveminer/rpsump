@@ -29,5 +29,8 @@ async fn info(
     //     }
     // };
 
-    Ok(HttpResponse::Ok().json(json!({"heater": hydro.heater.is_on()})))
+    Ok(HttpResponse::Ok().json(json!({
+        "heater": hydro.heater.is_on(),
+        "poolPumpSpeed": hydro.pool_pump.speed().await,
+    })))
 }
