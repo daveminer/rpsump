@@ -15,7 +15,7 @@ pub fn create_auth_header(token: &str) -> (HeaderName, HeaderValue) {
 
 fn create_expired_token(user: User) -> String {
     let now = Utc::now().timestamp();
-    let expiration_time = now - 3600; // Set the expiration time to 1 hour ago
+    let expiration_time = now - 3600 * 24 * 8; // Set the expiration time to 8 days ago
     let claim = Claim {
         sub: user.id.to_string(),
         iat: now as u64,
@@ -55,17 +55,21 @@ fn create_valid_token(user: User) -> String {
 
 mod tests {
     use reqwest::StatusCode;
+    use rpsump::test_fixtures::gpio::mock_gpio_get;
 
     use crate::{
         auth::authenticated_user::{create_auth_header, create_expired_token, create_valid_token},
-        common::test_app::spawn_app,
+        common::test_app::{spawn_app, spawn_app_with_gpio},
         controllers::auth::create_test_user,
     };
 
     #[tokio::test]
     async fn protected_request_valid_token() {
-        let app = spawn_app().await;
-
+        let gpio = mock_gpio_get(vec![
+            1, 1, 7, 7, 8, 8, 14, 14, 15, 15, 17, 17, 18, 18, 22, 22, 23, 23, 24, 24, 25, 25, 26,
+            26, 27, 27, 32, 32,
+        ]);
+        let app = spawn_app_with_gpio(&gpio).await;
         let user = create_test_user(app.repo).await;
 
         let token = create_valid_token(user);

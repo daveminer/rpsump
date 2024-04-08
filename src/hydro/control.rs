@@ -1,4 +1,4 @@
-use crate::hydro::gpio::{Gpio, Level, OutputPin};
+use crate::hydro::gpio::{Gpio, OutputPin};
 use crate::util::spawn_blocking_with_tracing;
 use anyhow::Error;
 use async_trait::async_trait;
@@ -15,7 +15,6 @@ pub type SharedOutputPin = Arc<Mutex<Box<dyn OutputPin>>>;
 #[derive(Clone)]
 pub struct Control {
     pub label: String,
-    pub level: Level,
     pub pin: SharedOutputPin,
 }
 
@@ -30,7 +29,6 @@ impl Control {
 
         Ok(Self {
             label,
-            level: Level::Low,
             pin: Arc::from(Mutex::new(pin_io)),
         })
     }
@@ -44,7 +42,6 @@ impl fmt::Debug for Control {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Control")
             .field("label", &self.label)
-            .field("level", &self.level)
             .finish()
     }
 }
@@ -60,8 +57,6 @@ pub trait Output {
 #[async_trait]
 impl Output for Control {
     async fn on(&mut self) -> Result<(), Error> {
-        self.level = Level::High;
-
         let pin = self.pin.clone();
 
         let _ = spawn_blocking_with_tracing(move || match pin.lock() {
@@ -74,8 +69,6 @@ impl Output for Control {
     }
 
     async fn off(&mut self) -> Result<(), Error> {
-        self.level = Level::Low;
-
         let pin = self.pin.clone();
 
         let _ = spawn_blocking_with_tracing(move || match pin.lock() {
@@ -88,11 +81,23 @@ impl Output for Control {
     }
 
     fn is_on(&self) -> bool {
-        self.level == Level::High
+        match self.pin.lock() {
+            Ok(guard) => guard.is_on(),
+            Err(e) => {
+                error!("Error locking pin for is_on: {}", e);
+                false
+            }
+        }
     }
 
     fn is_off(&self) -> bool {
-        self.level == Level::Low
+        match self.pin.lock() {
+            Ok(guard) => guard.is_off(),
+            Err(e) => {
+                error!("Error locking pin for is_off: {}", e);
+                false
+            }
+        }
     }
 }
 
