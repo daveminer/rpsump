@@ -1,6 +1,12 @@
-use std::process::exit;
-
+use lazy_static::lazy_static;
+use rppal::gpio::Gpio;
 use rpsump::{config::Settings, middleware::telemetry, repository, startup::Application};
+use std::{process::exit, sync::Mutex};
+
+lazy_static! {
+    //static ref GPIO: Mutex<Gpio> = Mutex::new(Gpio::new().expect("Could not initialize GPIO."));
+    static ref GPIO: Gpio = Gpio::new().expect("Could not initialize GPIO.");
+}
 
 /// Start the application after loading settings, database, telemetry, and the RPi board.
 #[actix_web::main]
@@ -14,7 +20,8 @@ async fn main() -> std::io::Result<()> {
     telemetry::init_tracer(&settings).expect("Could not initialize telemetry.");
 
     // Raspberry Pi
-    let gpio = rppal::gpio::Gpio::new().expect("Could not initialize GPIO.");
+    //let gpio = GPIO.lock().expect("Could not get GPIO lock.").clone();
+    let gpio: &'static Gpio = &GPIO;
 
     // TODO: DB URI
     // Database
@@ -23,7 +30,7 @@ async fn main() -> std::io::Result<()> {
         .expect("Could not create repository.");
 
     // Application
-    let application = Application::build(settings, &gpio, repo);
+    let application = Application::build(settings, gpio, repo);
 
     application.run_until_stopped().await?;
 

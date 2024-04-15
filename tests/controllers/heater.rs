@@ -1,3 +1,4 @@
+use rpsump::hydro::gpio::MockGpio;
 use rpsump::test_fixtures::gpio::mock_gpio_get;
 use serde_json::Value;
 
@@ -14,7 +15,9 @@ async fn heater_success() {
         27, 27, 32, 32,
     ]);
 
-    let app = spawn_app_with_gpio(&gpio).await;
+    let gpio: &'static MockGpio = &gpio;
+
+    let app = spawn_app_with_gpio(gpio).await;
     let _user = create_test_user(app.repo).await;
 
     // Act

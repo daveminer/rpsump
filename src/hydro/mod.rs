@@ -18,14 +18,13 @@ pub mod control;
 pub mod debounce;
 pub mod gpio;
 pub mod heater;
-mod irrigator;
+pub mod irrigator;
 pub mod pool_pump;
 pub mod schedule;
 pub mod sensor;
 pub mod signal;
 mod sump;
 
-#[derive(Clone)]
 pub struct Hydro {
     pub repo: Repo,
     pub heater: Heater,
@@ -34,7 +33,9 @@ pub struct Hydro {
     pub sump: Sump,
     pub irrigator: Irrigator,
 }
-
+/// Hydro handles the water-related components of the system; the heater, pool pump, heater condensate sump,
+/// as well as irrigation pumps and solenoids. All of the GPIO functionality is within Hydro, as well as a
+/// thread that listens for GPIO signals and another that oversees the irrigation schedule.
 impl Hydro {
     pub fn new<G>(config: &HydroConfig, handle: Handle, gpio: &G, repo: Repo) -> Result<Self, Error>
     where
@@ -59,12 +60,18 @@ impl Hydro {
             config.sump.pump_shutoff_delay,
         );
 
+        schedule::start(
+            repo,
+            irrigator.clone(),
+            config.irrigation.process_frequency_sec,
+        );
+
         Ok(Self {
             irrigator,
             heater,
             pool_pump,
             repo,
-            handle,
+            handle: handle.clone(),
             sump,
         })
     }

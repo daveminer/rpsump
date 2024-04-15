@@ -281,7 +281,7 @@ pub async fn spawn_app() -> TestApp {
     spawn_app_with_gpio(get_gpio().await.expect("Couldn't get mock GPIO")).await
 }
 
-pub async fn spawn_app_with_gpio<G>(gpio: &G) -> TestApp
+pub async fn spawn_app_with_gpio<G>(gpio: &'static G) -> TestApp
 where
     G: Gpio,
 {

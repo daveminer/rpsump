@@ -5,14 +5,14 @@ pub async fn insert_irrigation_event(
     repo: Repo,
     hose: i32,
     schedule: i32,
-    event_status: String,
+    active: bool,
     event_created_at: NaiveDateTime,
     event_end_time: Option<NaiveDateTime>,
 ) {
     let schedule = IrrigationSchedule {
         id: schedule,
         name: "Test Schedule".into(),
-        active: event_status.parse().unwrap(),
+        active,
         created_at: event_created_at,
         updated_at: event_created_at,
         duration: (event_end_time.unwrap() - event_created_at).num_seconds() as i32,
@@ -25,7 +25,7 @@ pub async fn insert_irrigation_event(
 
 pub async fn insert_irrigation_events(repo: Repo) {
     //  TODO: change to enum type instead of bool
-    let complete_status: String = "true".to_string();
+    let complete_status: bool = true;
 
     let dt =
         NaiveDateTime::parse_from_str("2022-01-01 12:34:56".into(), "%Y-%m-%d %H:%M:%S").unwrap();

@@ -69,6 +69,7 @@ mod tests {
             1, 1, 7, 7, 8, 8, 14, 14, 15, 15, 17, 17, 18, 18, 22, 22, 23, 23, 24, 24, 25, 25, 26,
             26, 27, 27, 32, 32,
         ]);
+
         let app = spawn_app_with_gpio(&gpio).await;
         let user = create_test_user(app.repo).await;
 

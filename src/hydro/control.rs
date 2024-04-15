@@ -46,6 +46,12 @@ impl fmt::Debug for Control {
     }
 }
 
+impl PartialEq for Control {
+    fn eq(&self, other: &Self) -> bool {
+        self.label == other.label
+    }
+}
+
 #[async_trait]
 pub trait Output {
     async fn on(&mut self) -> Result<(), Error>;
@@ -107,8 +113,11 @@ mod tests {
 
     #[cfg(test)]
     mod tests {
+        use std::borrow::Borrow;
+
         use super::Control;
         use crate::hydro::control::Output;
+        use crate::hydro::gpio::MockGpio;
         use crate::test_fixtures::gpio::mock_gpio_get;
 
         #[tokio::test]

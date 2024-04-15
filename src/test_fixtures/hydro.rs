@@ -23,7 +23,7 @@ pub fn hydro_config() -> HydroConfig {
             enabled: true,
             low_sensor_pin: 10,
             max_seconds_runtime: 11,
-            process_frequency_ms: 1000,
+            process_frequency_sec: 1000,
             pump_control_pin: 12,
             valve_1_control_pin: 13,
             valve_2_control_pin: 14,

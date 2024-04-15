@@ -40,10 +40,10 @@ pub async fn insert_irrigation_schedules(repo: Repo, count: u8) {
     let dt1 = NaiveTime::parse_from_str("12:34:56".into(), "%H:%M:%S").unwrap();
     insert_irrigation_schedule(
         repo,
-        true,
+        false,
         "Schedule 1".to_string(),
         dt1,
-        15,
+        1,
         "Monday,Wednesday".into(),
         "3".into(),
         now,
@@ -59,7 +59,7 @@ pub async fn insert_irrigation_schedules(repo: Repo, count: u8) {
         true,
         "Schedule 2".to_string(),
         dt2,
-        15,
+        1,
         "Tuesday,Friday".into(),
         "1,2,3,4".into(),
         now,
@@ -72,10 +72,10 @@ pub async fn insert_irrigation_schedules(repo: Repo, count: u8) {
     let dt3 = NaiveTime::parse_from_str("12:34:56".into(), "%H:%M:%S").unwrap();
     insert_irrigation_schedule(
         repo,
-        true,
+        false,
         "Schedule 3".to_string(),
         dt3,
-        15,
+        1,
         "Monday,Tuesday,Wednesday,Thursday,Friday".into(),
         "2,4".into(),
         now,
@@ -91,7 +91,7 @@ pub async fn insert_irrigation_schedules(repo: Repo, count: u8) {
         false,
         "Schedule 4".to_string(),
         dt4,
-        15,
+        1,
         "Monday".into(),
         "1".into(),
         now,

@@ -24,7 +24,7 @@ pub enum Trigger {
 }
 
 #[automock]
-pub trait Gpio {
+pub trait Gpio: Send + Sync {
     fn get(&self, pin: u8) -> Result<Box<dyn Pin>, Error>;
 
     fn create() -> Result<Self, Error>

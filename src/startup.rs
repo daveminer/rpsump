@@ -22,25 +22,32 @@ use crate::repository::Repo;
 pub struct Application {
     port: u16,
     pub repo: Repo,
-    _rt: Runtime,
+    //_rt: Runtime,
     server: Server,
 }
 
 impl Application {
-    pub fn build<G>(settings: Settings, gpio: &G, repo: Repo) -> Application
+    pub fn build<G>(settings: Settings, gpio: &'static G, repo: Repo) -> Application
     where
         G: Gpio,
     {
         // Web server configuration
         let (_address, port, tcp_listener) = web_server_config(&settings);
 
-        let hydro_rt = tokio::runtime::Runtime::new().expect("Could not create runtime");
-        let handle = hydro_rt.handle().clone();
-
-        let hydro =
-            Hydro::new(&settings.hydro, handle, gpio, repo).expect("Could not create hydro object");
-
         let server = HttpServer::new(move || {
+            // Clone settings and repo as needed
+            let settings_clone = settings.clone();
+
+            let hydro_rt = tokio::runtime::Runtime::new().expect("Could not create runtime");
+            let handle = hydro_rt.handle();
+
+            // Pass settings by reference into the closure
+            let gpio = gpio;
+            let settings = &settings_clone;
+
+            let hydro = Hydro::new(&settings.hydro, handle.clone(), gpio, repo)
+                .expect("Could not create hydro object");
+
             let mut cors = if settings.server.allow_localhost_cors {
                 Cors::default().allowed_origin_fn(|origin, _req_head| match origin.to_str() {
                     Ok(str) => str.contains("localhost"),
@@ -84,7 +91,7 @@ impl Application {
                 }))
                 .app_data(Data::new(settings.clone()))
                 .app_data(Data::new(repo))
-                .app_data(Data::new(Mutex::new(Some(hydro.clone()))));
+                .app_data(Data::new(Mutex::new(Some(hydro))));
 
             app
         })
@@ -97,7 +104,7 @@ impl Application {
             port,
             repo,
             // Keep this runtime for the lifetime of Application
-            _rt: hydro_rt,
+            //_rt: hydro_rt,
         }
     }
 

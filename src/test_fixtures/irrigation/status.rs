@@ -66,12 +66,3 @@ pub fn no_event_today(daily_schedule: IrrigationSchedule) -> Status {
         last_event: None,
     }
 }
-
-// Assumes that the current day is Friday
-#[fixture]
-pub fn not_scheduled_today(daily_schedule: IrrigationSchedule) -> Status {
-    Status {
-        schedule: daily_schedule,
-        last_event: None,
-    }
-}

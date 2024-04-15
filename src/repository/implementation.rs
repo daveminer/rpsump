@@ -32,7 +32,7 @@ use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 
 use super::models::user::UserUpdateFilter;
 
-type DbPool = Pool<ConnectionManager<SqliteConnection>>;
+pub type DbPool = Pool<ConnectionManager<SqliteConnection>>;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ResetPasswordError {

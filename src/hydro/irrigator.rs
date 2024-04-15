@@ -26,8 +26,6 @@ impl Irrigator {
     where
         G: Gpio,
     {
-        let pump = Control::new("Irrigation Pump".to_string(), config.pump_control_pin, gpio)?;
-
         let low_sensor = Sensor::new(
             Message::IrrigatorEmpty,
             config.low_sensor_pin,
@@ -35,6 +33,8 @@ impl Irrigator {
             Trigger::Both,
             tx,
         )?;
+
+        let pump = Control::new("Irrigation Pump".to_string(), config.pump_control_pin, gpio)?;
 
         let valve1 = Control::new(
             "irrigation valve 1".into(),
@@ -94,7 +94,7 @@ mod tests {
                 enabled: true,
                 low_sensor_pin: 1,
                 max_seconds_runtime: 2,
-                process_frequency_ms: 1000,
+                process_frequency_sec: 60,
                 pump_control_pin: 2,
                 valve_1_control_pin: 3,
                 valve_2_control_pin: 4,

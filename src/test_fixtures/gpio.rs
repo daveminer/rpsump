@@ -1,6 +1,9 @@
 use crate::hydro::gpio::{stub::pin, Level, MockGpio};
 use mockall::*;
 
+/// Creates a mock instance of the GPIO interface and includes
+/// mocks for the get method for each pin provided in the input
+/// vector.
 pub fn mock_gpio_get(pins: Vec<u8>) -> MockGpio {
     let mut mock_gpio = MockGpio::new();
     for pin in pins {
