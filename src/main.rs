@@ -1,12 +1,7 @@
-use lazy_static::lazy_static;
-use rppal::gpio::Gpio;
+use ::rppal::gpio::Gpio;
+use rpsump::hydro::gpio::Gpio as GpioTrait;
 use rpsump::{config::Settings, middleware::telemetry, repository, startup::Application};
-use std::{process::exit, sync::Mutex};
-
-lazy_static! {
-    //static ref GPIO: Mutex<Gpio> = Mutex::new(Gpio::new().expect("Could not initialize GPIO."));
-    static ref GPIO: Gpio = Gpio::new().expect("Could not initialize GPIO.");
-}
+use std::process::exit;
 
 /// Start the application after loading settings, database, telemetry, and the RPi board.
 #[actix_web::main]
@@ -19,10 +14,6 @@ async fn main() -> std::io::Result<()> {
     // Observability
     telemetry::init_tracer(&settings).expect("Could not initialize telemetry.");
 
-    // Raspberry Pi
-    //let gpio = GPIO.lock().expect("Could not get GPIO lock.").clone();
-    let gpio: &'static Gpio = &GPIO;
-
     // TODO: DB URI
     // Database
     let repo = repository::implementation(Some(settings.database_path.clone()))
@@ -30,11 +21,15 @@ async fn main() -> std::io::Result<()> {
         .expect("Could not create repository.");
 
     // Application
-    let application = Application::build(settings, gpio, repo);
+    let application = Application::build(settings, repo, build_gpio);
 
     application.run_until_stopped().await?;
 
     Ok(())
+}
+
+fn build_gpio() -> impl GpioTrait {
+    Gpio::new().expect("Could not initialize GPIO")
 }
 
 // actix-web will handle signals to exit, but doesn't offer a hook to customize it.

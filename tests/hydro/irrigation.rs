@@ -2,24 +2,17 @@
 mod tests {
     use chrono::{Datelike, NaiveDateTime, Utc};
     use rpsump::repository::Repo;
-    use rpsump::test_fixtures::gpio::mock_gpio_get;
 
     use std::error::Error;
     use tokio::time::Duration;
 
     use crate::common::fixtures::irrigation_event::insert_irrigation_event;
-    use crate::common::{
-        fixtures::irrigation_schedule::insert_irrigation_schedule, test_app::spawn_app_with_gpio,
-    };
+    use crate::common::fixtures::irrigation_schedule::insert_irrigation_schedule;
+    use crate::common::test_app::spawn_app;
 
     #[tokio::test]
     async fn test_irrigation_schedule() -> Result<(), Box<dyn Error>> {
-        let gpio = mock_gpio_get(vec![
-            1, 1, 7, 7, 8, 8, 14, 14, 15, 15, 17, 17, 18, 18, 22, 22, 23, 23, 24, 24, 25, 25, 26,
-            26, 27, 27, 32, 32,
-        ]);
-
-        let app = spawn_app_with_gpio(&gpio).await;
+        let app = spawn_app().await;
 
         let schedules_before = app.repo.irrigation_schedules().await?;
         println!("SB: {:?}", schedules_before);

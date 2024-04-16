@@ -18,6 +18,7 @@ impl Gpio for rppal::gpio::Gpio {
         Ok(pin)
     }
 
+    // TODO: used?
     fn create() -> Result<Self, Error> {
         rppal::gpio::Gpio::new().map_err(|e| anyhow!(e.to_string()))
     }

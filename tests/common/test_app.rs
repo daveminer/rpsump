@@ -8,10 +8,7 @@ use diesel::SqliteConnection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use mockall::predicate::eq;
 use once_cell::sync::Lazy;
-use rpsump::hydro::{
-    gpio::{Gpio, Level, MockGpio, MockInputPin, MockOutputPin, MockPin},
-    Hydro,
-};
+use rpsump::hydro::gpio::{Gpio, Level, MockGpio, MockInputPin, MockOutputPin, MockPin};
 use serde_json::{json, Value};
 use tempfile::TempDir;
 use tokio::sync::OnceCell;
@@ -27,11 +24,15 @@ use crate::auth::authenticated_user::create_auth_header;
 const DB_TEMPLATE_FILE: &str = "rpsump_test.db";
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
 
+static GPIO: Lazy<OnceCell<MockGpio>> = Lazy::new(OnceCell::new);
+
+pub async fn get_gpio() -> Result<&'static MockGpio, Error> {
+    Ok(GPIO.get_or_init(|| async { spawn_test_gpio() }).await)
+}
 pub struct TestApp {
     pub address: String,
     pub port: u16,
     pub repo: Repo,
-    pub hydro: Hydro,
     #[allow(unused)]
     repo_temp_dir: TempDir,
     pub email_server: MockServer,
@@ -75,12 +76,6 @@ pub async fn migrated_pathbuf() -> (PathBuf, TempDir) {
     fs::copy(template_path, &test_db_path).expect("Failed to copy template database");
 
     (test_db_path, test_db_dir)
-}
-
-static GPIO: Lazy<OnceCell<MockGpio>> = Lazy::new(OnceCell::new);
-
-pub async fn get_gpio() -> Result<&'static MockGpio, Error> {
-    Ok(GPIO.get_or_init(|| async { spawn_test_gpio() }).await)
 }
 
 impl TestApp {
@@ -218,6 +213,7 @@ impl TestApp {
     where
         Body: serde::Serialize,
     {
+        println!("ADDR: {}", &self.address);
         self.api_client
             .post(&format!("{}/auth/login", &self.address))
             .json(body)
@@ -278,13 +274,6 @@ impl TestApp {
 }
 
 pub async fn spawn_app() -> TestApp {
-    spawn_app_with_gpio(get_gpio().await.expect("Couldn't get mock GPIO")).await
-}
-
-pub async fn spawn_app_with_gpio<G>(gpio: &'static G) -> TestApp
-where
-    G: Gpio,
-{
     // TODO: move this to a settings input
     env::set_var("RPSUMP_TEST", "true");
 
@@ -300,33 +289,25 @@ where
         .await
         .expect("Could not create repository.");
 
-    let app_repo = repository::implementation(Some(test_repo.to_str().unwrap().to_string()))
-        .await
-        .expect("Could not create repository.");
-    let hydro_repo = repository::implementation(Some(test_repo.to_str().unwrap().to_string()))
-        .await
-        .expect("Could not create repository.");
-
-    let application = Application::build(settings.clone(), gpio, repo);
+    let application = Application::build(settings.clone(), repo, spawn_test_gpio);
     let port = application.port();
 
-    let _ = tokio::spawn(application.run_until_stopped());
-
-    let rt_handle = tokio::runtime::Handle::current();
-
-    let hydro = Hydro::new(&settings.hydro, rt_handle, gpio, hydro_repo).unwrap();
+    let _ = tokio::spawn(async {
+        if let Err(e) = application.run_until_stopped().await {
+            panic!("Failed to start application: {:?}", e);
+        }
+    });
 
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .build()
         .unwrap();
 
+    println!("PORT: {}", port);
     let test_app = TestApp {
         address: format!("http://localhost:{}", port),
-        // TODO: not needed?
-        hydro,
         port,
-        repo: app_repo,
+        repo,
         email_server,
         repo_temp_dir: temp_dir,
         api_client: client,

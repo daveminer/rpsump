@@ -8,7 +8,6 @@ use actix_web::{error::ErrorBadRequest, web::JsonConfig};
 use actix_web_opentelemetry::RequestTracing;
 use serde_json::json;
 use std::net::TcpListener;
-use tokio::runtime::Runtime;
 
 use crate::config::Settings;
 use crate::controllers::{
@@ -22,30 +21,22 @@ use crate::repository::Repo;
 pub struct Application {
     port: u16,
     pub repo: Repo,
-    //_rt: Runtime,
     server: Server,
 }
 
 impl Application {
-    pub fn build<G>(settings: Settings, gpio: &'static G, repo: Repo) -> Application
+    pub fn build<G>(settings: Settings, repo: Repo, build_gpio: fn() -> G) -> Application
     where
-        G: Gpio,
+        G: Gpio + 'static,
     {
-        // Web server configuration
         let (_address, port, tcp_listener) = web_server_config(&settings);
 
         let server = HttpServer::new(move || {
-            // Clone settings and repo as needed
-            let settings_clone = settings.clone();
-
             let hydro_rt = tokio::runtime::Runtime::new().expect("Could not create runtime");
             let handle = hydro_rt.handle();
 
-            // Pass settings by reference into the closure
-            let gpio = gpio;
-            let settings = &settings_clone;
-
-            let hydro = Hydro::new(&settings.hydro, handle.clone(), gpio, repo)
+            let gpio = build_gpio();
+            let hydro = Hydro::new(&settings.hydro, handle.clone(), &gpio, repo)
                 .expect("Could not create hydro object");
 
             let mut cors = if settings.server.allow_localhost_cors {
@@ -99,13 +90,7 @@ impl Application {
         .expect(&format!("Could not listen on port {}", port))
         .run();
 
-        Application {
-            server,
-            port,
-            repo,
-            // Keep this runtime for the lifetime of Application
-            //_rt: hydro_rt,
-        }
+        Application { server, port, repo }
     }
 
     pub fn port(&self) -> u16 {

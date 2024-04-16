@@ -1,23 +1,13 @@
-use rpsump::hydro::gpio::MockGpio;
-use rpsump::test_fixtures::gpio::mock_gpio_get;
 use serde_json::Value;
 
-use crate::common::test_app::{spawn_app, spawn_app_with_gpio};
+use crate::common::test_app::spawn_app;
 use crate::controllers::auth::create_test_user;
 use crate::controllers::user_params;
 
 #[tokio::test]
 async fn heater_success() {
     // Arrange
-    // TODO: fix this
-    let gpio = mock_gpio_get(vec![
-        1, 1, 7, 7, 8, 8, 14, 14, 15, 15, 17, 17, 18, 18, 22, 22, 23, 23, 24, 24, 25, 25, 26, 26,
-        27, 27, 32, 32,
-    ]);
-
-    let gpio: &'static MockGpio = &gpio;
-
-    let app = spawn_app_with_gpio(gpio).await;
+    let app = spawn_app().await;
     let _user = create_test_user(app.repo).await;
 
     // Act

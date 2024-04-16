@@ -54,23 +54,16 @@ fn create_valid_token(user: User) -> String {
 }
 
 mod tests {
-    use reqwest::StatusCode;
-    use rpsump::test_fixtures::gpio::mock_gpio_get;
-
     use crate::{
         auth::authenticated_user::{create_auth_header, create_expired_token, create_valid_token},
-        common::test_app::{spawn_app, spawn_app_with_gpio},
+        common::test_app::spawn_app,
         controllers::auth::create_test_user,
     };
+    use reqwest::StatusCode;
 
     #[tokio::test]
     async fn protected_request_valid_token() {
-        let gpio = mock_gpio_get(vec![
-            1, 1, 7, 7, 8, 8, 14, 14, 15, 15, 17, 17, 18, 18, 22, 22, 23, 23, 24, 24, 25, 25, 26,
-            26, 27, 27, 32, 32,
-        ]);
-
-        let app = spawn_app_with_gpio(&gpio).await;
+        let app = spawn_app().await;
         let user = create_test_user(app.repo).await;
 
         let token = create_valid_token(user);
