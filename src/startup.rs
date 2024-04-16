@@ -8,6 +8,7 @@ use actix_web::{error::ErrorBadRequest, web::JsonConfig};
 use actix_web_opentelemetry::RequestTracing;
 use serde_json::json;
 use std::net::TcpListener;
+use tokio::runtime::{Handle, Runtime};
 
 use crate::config::Settings;
 use crate::controllers::{
@@ -25,16 +26,19 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn build<G>(settings: Settings, repo: Repo, build_gpio: fn() -> G) -> Application
+    pub fn build<G>(
+        settings: Settings,
+        repo: Repo,
+        build_gpio: fn() -> G,
+        handle: &Handle,
+    ) -> Application
     where
         G: Gpio + 'static,
     {
         let (_address, port, tcp_listener) = web_server_config(&settings);
+        let handle = handle.clone();
 
         let server = HttpServer::new(move || {
-            let hydro_rt = tokio::runtime::Runtime::new().expect("Could not create runtime");
-            let handle = hydro_rt.handle();
-
             let gpio = build_gpio();
             let hydro = Hydro::new(&settings.hydro, handle.clone(), &gpio, repo)
                 .expect("Could not create hydro object");

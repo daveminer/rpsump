@@ -11,6 +11,7 @@ use once_cell::sync::Lazy;
 use rpsump::hydro::gpio::{Gpio, Level, MockGpio, MockInputPin, MockOutputPin, MockPin};
 use serde_json::{json, Value};
 use tempfile::TempDir;
+use tokio::runtime::{Handle, Runtime};
 use tokio::sync::OnceCell;
 use wiremock::MockServer;
 
@@ -35,6 +36,8 @@ pub struct TestApp {
     pub repo: Repo,
     #[allow(unused)]
     repo_temp_dir: TempDir,
+    #[allow(unused)]
+    rt: Runtime,
     pub email_server: MockServer,
     pub api_client: reqwest::Client,
 }
@@ -289,7 +292,10 @@ pub async fn spawn_app() -> TestApp {
         .await
         .expect("Could not create repository.");
 
-    let application = Application::build(settings.clone(), repo, spawn_test_gpio);
+    let rt = tokio::runtime::Runtime::new().expect("Could not create runtime");
+    let handle = rt.handle();
+
+    let application = Application::build(settings.clone(), repo, spawn_test_gpio, handle);
     let port = application.port();
 
     let _ = tokio::spawn(async {
@@ -311,6 +317,7 @@ pub async fn spawn_app() -> TestApp {
         email_server,
         repo_temp_dir: temp_dir,
         api_client: client,
+        rt,
     };
 
     test_app

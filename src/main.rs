@@ -21,7 +21,8 @@ async fn main() -> std::io::Result<()> {
         .expect("Could not create repository.");
 
     // Application
-    let application = Application::build(settings, repo, build_gpio);
+    let hydro_rt = tokio::runtime::Runtime::new().expect("Could not create runtime");
+    let application = Application::build(settings, repo, build_gpio, hydro_rt.handle());
 
     application.run_until_stopped().await?;
 
