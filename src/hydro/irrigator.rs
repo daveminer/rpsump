@@ -72,7 +72,7 @@ impl Irrigator {
 mod tests {
     use crate::{
         config::IrrigationConfig,
-        hydro::gpio::{stub::pin, Level, MockGpio},
+        hydro::gpio::{MockGpio, MockPin},
     };
 
     use super::Irrigator;
@@ -82,12 +82,10 @@ mod tests {
         let mpsc = tokio::sync::mpsc::channel(32);
 
         let mut mock_gpio = MockGpio::new();
-        mock_gpio.expect_get().times(6).returning(|_| {
-            Ok(Box::new(pin::PinStub {
-                index: 0,
-                level: Level::Low,
-            }))
-        });
+        mock_gpio
+            .expect_get()
+            .times(6)
+            .returning(|_| Ok(Box::new(MockPin::new())));
 
         let _irrigator: Irrigator = Irrigator::new(
             &IrrigationConfig {

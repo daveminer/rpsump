@@ -35,7 +35,7 @@ impl Sump {
     where
         G: Gpio,
     {
-        let pump = Control::new("sump pump".into(), config.pump_control_pin, gpio)?;
+        let pump = Control::new("Sump Pump".into(), config.pump_control_pin, gpio)?;
 
         let high_sensor = Sensor::new(
             Message::SumpFull,
@@ -65,7 +65,7 @@ impl Sump {
 mod tests {
     use crate::{
         config::SumpConfig,
-        hydro::gpio::{stub::pin, Level, MockGpio},
+        hydro::gpio::{MockGpio, MockPin},
     };
 
     use super::Sump;
@@ -83,12 +83,10 @@ mod tests {
         let mpsc = tokio::sync::mpsc::channel(32);
 
         let mut mock_gpio = MockGpio::new();
-        mock_gpio.expect_get().times(3).returning(|_| {
-            Ok(Box::new(pin::PinStub {
-                index: 0,
-                level: Level::Low,
-            }))
-        });
+        mock_gpio
+            .expect_get()
+            .times(3)
+            .returning(|_| Ok(Box::new(MockPin::new())));
 
         let _sump: Sump = Sump::new(&config, &mpsc.0, &mock_gpio).unwrap();
     }

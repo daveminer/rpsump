@@ -8,10 +8,7 @@ use diesel::SqliteConnection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use mockall::predicate::eq;
 use once_cell::sync::Lazy;
-use rpsump::hydro::{
-    gpio::{Gpio, Level, MockGpio, MockInputPin, MockOutputPin, MockPin},
-    Hydro,
-};
+use rpsump::hydro::gpio::{Gpio, Level, MockGpio, MockInputPin, MockOutputPin, MockPin};
 use serde_json::{json, Value};
 use tempfile::TempDir;
 use tokio::sync::OnceCell;
@@ -31,7 +28,6 @@ pub struct TestApp {
     pub address: String,
     pub port: u16,
     pub repo: Repo,
-    pub hydro: Hydro,
     #[allow(unused)]
     repo_temp_dir: TempDir,
     pub email_server: MockServer,
@@ -303,18 +299,11 @@ where
     let app_repo = repository::implementation(Some(test_repo.to_str().unwrap().to_string()))
         .await
         .expect("Could not create repository.");
-    let hydro_repo = repository::implementation(Some(test_repo.to_str().unwrap().to_string()))
-        .await
-        .expect("Could not create repository.");
 
     let application = Application::build(settings.clone(), gpio, repo);
     let port = application.port();
 
     let _ = tokio::spawn(application.run_until_stopped());
-
-    let rt_handle = tokio::runtime::Handle::current();
-
-    let hydro = Hydro::new(&settings.hydro, rt_handle, gpio, hydro_repo).unwrap();
 
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
@@ -323,8 +312,6 @@ where
 
     let test_app = TestApp {
         address: format!("http://localhost:{}", port),
-        // TODO: not needed?
-        hydro,
         port,
         repo: app_repo,
         email_server,
@@ -333,60 +320,4 @@ where
     };
 
     test_app
-}
-
-pub fn spawn_test_gpio() -> MockGpio {
-    let mut gpio = MockGpio::new();
-
-    expect_output_pin(&mut gpio, 1);
-    expect_output_pin(&mut gpio, 7);
-    expect_output_pin(&mut gpio, 8);
-    expect_output_pin(&mut gpio, 14);
-    expect_output_pin(&mut gpio, 15);
-    expect_output_pin(&mut gpio, 18);
-    expect_output_pin(&mut gpio, 22);
-    expect_output_pin(&mut gpio, 23);
-    expect_output_pin(&mut gpio, 25);
-    expect_output_pin(&mut gpio, 26);
-    expect_output_pin(&mut gpio, 32);
-
-    expect_input_pin(&mut gpio, 17);
-    expect_input_pin(&mut gpio, 24);
-    expect_input_pin(&mut gpio, 27);
-
-    gpio
-}
-
-fn expect_input_pin(gpio: &mut MockGpio, pin: u8) {
-    gpio.expect_get().with(eq(pin)).returning(move |_| {
-        let mut pin = MockPin::new();
-
-        pin.expect_into_input_pullup().returning(|| {
-            let mut input_pin = MockInputPin::new();
-
-            input_pin
-                .expect_set_async_interrupt()
-                .returning(|_, _, _| Ok(()));
-
-            input_pin.expect_read().returning(|| Level::Low);
-
-            Box::new(input_pin)
-        });
-
-        Ok(Box::new(pin))
-    });
-}
-
-fn expect_output_pin(gpio: &mut MockGpio, pin: u8) {
-    gpio.expect_get().with(eq(pin)).returning(move |_| {
-        let mut pin = MockPin::new();
-
-        pin.expect_into_output_low().returning(|| {
-            let mut output_pin = MockOutputPin::new();
-            output_pin.expect_off().returning(|| ());
-            Box::new(output_pin)
-        });
-
-        Ok(Box::new(pin))
-    });
 }

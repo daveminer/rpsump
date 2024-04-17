@@ -54,6 +54,7 @@ impl Sensor {
     where
         G: Gpio,
     {
+        println!("SENSORPIN: {}", pin_number);
         let mut pin_io = gpio
             .get(pin_number)
             .map_err(|e| anyhow!(e))?
