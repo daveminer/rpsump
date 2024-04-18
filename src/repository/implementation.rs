@@ -248,7 +248,7 @@ impl Repository for Implementation {
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
 
         let new_user: User = spawn_blocking_with_tracing(move || {
-            let user = conn.transaction::<_, Error, _>(|conn| {
+            conn.transaction::<_, Error, _>(|conn| {
                 let _row_inserted = diesel::insert_into(user::table)
                     .values((
                         user::email.eq(new_email.clone()),
@@ -276,9 +276,7 @@ impl Repository for Implementation {
                     .execute(conn)?;
 
                 Ok(user)
-            });
-
-            user
+            })
         })
         .await??;
 
@@ -487,7 +485,7 @@ impl Repository for Implementation {
 
         let pw_hash = password
             .hash()
-            .map_err(|e| ResetPasswordError::InvalidPassword(e))?;
+            .map_err(ResetPasswordError::InvalidPassword)?;
 
         let _row_updated = spawn_blocking_with_tracing(move || {
             let current_user = match user::table
@@ -532,7 +530,7 @@ impl Repository for Implementation {
         let statuses = spawn_blocking_with_tracing(move || {
             IrrigationEvent::status_query()
                 .load::<StatusQueryResult>(&mut conn)
-                .map(|results| build_statuses(results))
+                .map(build_statuses)
                 .map_err(|e| anyhow!(e))
         })
         .await?
@@ -787,7 +785,7 @@ impl Repository for Implementation {
 }
 
 fn build_statuses(results: Vec<StatusQueryResult>) -> Vec<Status> {
-    let statuses = results
+    results
         .into_iter()
         .map(|result: StatusQueryResult| {
             let StatusQueryResult {
@@ -856,11 +854,8 @@ fn build_statuses(results: Vec<StatusQueryResult>) -> Vec<Status> {
                 last_event: Some(last_event),
             }
         })
-        .collect::<Vec<Status>>();
-
-    statuses
+        .collect::<Vec<Status>>()
 }
-
 // mod tests {
 //     use chrono::NaiveDateTime;
 //     use rstest::rstest;

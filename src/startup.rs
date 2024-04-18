@@ -65,7 +65,7 @@ impl Application {
                 .supports_credentials()
                 .max_age(3600);
 
-            let app = App::new()
+            App::new()
                 .wrap(cors)
                 .wrap(RequestTracing::new())
                 // Session tools
@@ -89,12 +89,10 @@ impl Application {
                 }))
                 .app_data(settings_data.clone())
                 .app_data(repo_data.clone())
-                .app_data(hydro_data.clone());
-
-            app
+                .app_data(hydro_data.clone())
         })
         .listen(tcp_listener)
-        .expect(&format!("Could not listen on port {}", port))
+        .unwrap_or_else(|_| panic!("Could not listen on port {}", port))
         .run();
 
         Application { server, port, repo }

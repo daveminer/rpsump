@@ -71,7 +71,7 @@ impl fmt::Display for DayOfWeek {
     }
 }
 
-fn serialize_hoses<S>(hoses: &String, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_hoses<S>(hoses: &str, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
