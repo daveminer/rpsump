@@ -1,4 +1,5 @@
 use anyhow::Error;
+use rpsump::test_fixtures::gpio::build_mock_gpio;
 use rpsump::{repository::models::user_event::UserEvent, repository::Repo};
 use serde_json::Value;
 
@@ -11,7 +12,7 @@ use crate::common::test_app::spawn_app;
 #[tokio::test]
 async fn login_failed_username_not_found() {
     // Arrange
-    let app = spawn_app().await;
+    let app = spawn_app(build_mock_gpio).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -26,7 +27,7 @@ async fn login_failed_username_not_found() {
 #[tokio::test]
 async fn login_password_incorrect() {
     // Arrange
-    let app = spawn_app().await;
+    let app = spawn_app(build_mock_gpio).await;
     let _user = create_test_user(app.repo).await;
     let mut params = user_params();
     params["password"] = "wrong_password".into();
@@ -44,7 +45,7 @@ async fn login_password_incorrect() {
 #[tokio::test]
 async fn login_missing_email() {
     // Arrange
-    let app = spawn_app().await;
+    let app = spawn_app(build_mock_gpio).await;
     let _user = create_test_user(app.repo).await;
     let mut params = user_params();
     params["email"] = "".into();
@@ -62,7 +63,7 @@ async fn login_missing_email() {
 #[tokio::test]
 async fn login_missing_password() {
     // Arrange
-    let app = spawn_app().await;
+    let app = spawn_app(build_mock_gpio).await;
     let _user = create_test_user(app.repo).await;
     let mut params = user_params();
     params["password"] = "".into();
@@ -80,7 +81,7 @@ async fn login_missing_password() {
 #[tokio::test]
 async fn login_success() {
     // Arrange
-    let app = spawn_app().await;
+    let app = spawn_app(build_mock_gpio).await;
     let user = create_test_user(app.repo).await;
 
     // Act

@@ -21,13 +21,13 @@ pub struct PoolPumpParams {
 }
 
 #[post("/pool_pump")]
-#[tracing::instrument(skip(_user, maybe_hydro))]
+#[tracing::instrument(skip(_user, hydro))]
 pub async fn pool_pump(
     params: web::Json<PoolPumpParams>,
     _user: AuthenticatedUser,
-    maybe_hydro: Data<Mutex<Option<Hydro>>>,
+    hydro: Data<Mutex<Hydro>>,
 ) -> Result<HttpResponse> {
-    let mut lock = match maybe_hydro.lock() {
+    let hydro = match hydro.lock() {
         Ok(lock) => lock,
         Err(e) => {
             tracing::error!(
@@ -39,11 +39,6 @@ pub async fn pool_pump(
         }
     };
 
-    if lock.is_none() {
-        return Ok(HttpResponse::Ok().body("Hydro not configured"));
-    }
-
-    let hydro = lock.as_mut().unwrap();
     let mut pool_pump = hydro.pool_pump.clone();
     match params.speed {
         PoolPumpSpeed::Off => {

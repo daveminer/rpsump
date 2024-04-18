@@ -1,9 +1,59 @@
-use crate::hydro::gpio::{Level, MockGpio, MockInputPin, MockOutputPin, MockPin};
+use crate::hydro::gpio::{Gpio, Level, MockGpio, MockInputPin, MockOutputPin, MockPin};
 use crate::hydro::pool_pump::PoolPumpSpeed;
 use crate::test_fixtures::settings::SETTINGS;
 use mockall::*;
 
-pub fn mock_gpio_get(pins: Vec<u8>) -> MockGpio {
+pub fn mock_control_gpio() -> Box<dyn Gpio> {
+    let mut mock_gpio = MockGpio::new();
+    mock_gpio.expect_get().times(1).returning(|_| {
+        let mut pin = MockPin::new();
+        pin.expect_into_output_low()
+            .times(1)
+            .returning(|| Box::new(MockOutputPin::new()));
+        Ok(Box::new(pin))
+    });
+
+    Box::new(mock_gpio)
+}
+
+pub fn mock_sensor_gpio() -> Box<dyn Gpio> {
+    let mut mock_gpio = MockGpio::new();
+    mock_gpio.expect_get().times(1).returning(|_| {
+        let mut pin = MockPin::new();
+        pin.expect_into_input_pullup().times(1).returning(|| {
+            let mut input_pin = MockInputPin::new();
+            input_pin
+                .expect_set_async_interrupt()
+                .times(1)
+                .returning(|_, _, _| Ok(()));
+            input_pin.expect_read().times(1).returning(|| Level::Low);
+            Box::new(input_pin)
+        });
+        Ok(Box::new(pin))
+    });
+
+    Box::new(mock_gpio)
+}
+
+pub fn build_mock_gpio() -> Box<dyn Gpio> {
+    let mut gpio = MockGpio::new();
+
+    // Heater pin
+    gpio = mock_heater(gpio, true);
+
+    // Pool pump pins
+    gpio = mock_pool_pump(gpio, PoolPumpSpeed::Max);
+
+    // Sump pump pins
+    gpio = mock_sump_pump(gpio, false, false, false);
+
+    // Irrigation pins
+    gpio = mock_irrigation_pump(gpio, false, false, None);
+
+    Box::new(gpio)
+}
+
+pub fn mock_gpio_get(pins: Vec<u8>) -> Box<dyn Gpio> {
     let mut mock_gpio = MockGpio::new();
     for pin in pins {
         mock_gpio
@@ -12,7 +62,7 @@ pub fn mock_gpio_get(pins: Vec<u8>) -> MockGpio {
             .times(1)
             .returning(|_| Ok(Box::new(MockPin::new())));
     }
-    mock_gpio
+    Box::new(mock_gpio)
 }
 
 pub fn mock_input_pin_with_interrupt(is_on: bool, read_result: Level) -> Box<MockPin> {
@@ -34,6 +84,8 @@ pub fn mock_output_pin(is_on: bool) -> Box<MockPin> {
     mock_pin.expect_into_output_low().returning(move || {
         let mut output_pin_stub = MockOutputPin::new();
         output_pin_stub.expect_is_on().return_const(is_on);
+        let _ = output_pin_stub.expect_off().return_const(());
+        let _ = output_pin_stub.expect_on().return_const(());
         Box::new(output_pin_stub)
     });
     Box::new(mock_pin)
@@ -49,7 +101,7 @@ pub fn mock_heater(mut mock_gpio: MockGpio, is_on: bool) -> MockGpio {
     mock_gpio
 }
 
-pub fn  mock_irrigation_pump(
+pub fn mock_irrigation_pump(
     mut mock_gpio: MockGpio,
     low_sensor_on: bool,
     running: bool,

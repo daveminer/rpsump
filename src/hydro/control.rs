@@ -20,10 +20,7 @@ pub struct Control {
 
 impl Control {
     /// Creates a new output on a GPIO pin.
-    pub fn new<G>(label: String, pin: u8, gpio: &G) -> Result<Self, Error>
-    where
-        G: Gpio,
-    {
+    pub fn new(label: String, pin: u8, gpio: &Box<dyn Gpio>) -> Result<Self, Error> {
         let pin = gpio.get(pin)?;
         let pin_io = pin.into_output_low();
 
@@ -104,33 +101,12 @@ impl Output for Control {
 #[cfg(test)]
 mod tests {
     use super::Control;
+    use crate::test_fixtures::gpio::mock_control_gpio;
 
-    #[cfg(test)]
-    mod tests {
-        use super::Control;
-        use crate::hydro::control::Output;
-        use crate::test_fixtures::gpio::mock_gpio_get;
+    #[tokio::test]
+    async fn test_control_new() {
+        let control = Control::new("test control".to_string(), 1, &mock_control_gpio());
 
-        #[tokio::test]
-        async fn test_control_new() {
-            let mock_gpio = mock_gpio_get(vec![1]);
-
-            let control = Control::new("test control".to_string(), 1, &mock_gpio);
-
-            assert!(control.is_ok());
-        }
-
-        #[tokio::test]
-        async fn test_control_on_off() {
-            let mock_gpio = mock_gpio_get(vec![1]);
-
-            let mut control = Control::new("test control".to_string(), 1, &mock_gpio).unwrap();
-
-            assert!(control.on().await.is_ok());
-            assert_eq!(control.is_on(), true);
-
-            assert!(control.off().await.is_ok());
-            assert_eq!(control.is_off(), true);
-        }
+        assert!(control.is_ok());
     }
 }

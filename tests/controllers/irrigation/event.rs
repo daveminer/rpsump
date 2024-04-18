@@ -1,4 +1,5 @@
 use rpsump::repository::models::irrigation_event::IrrigationEvent;
+use rpsump::test_fixtures::gpio::build_mock_gpio;
 use serde_json::Value;
 
 use crate::common::fixtures::irrigation_event::insert_irrigation_events;
@@ -9,7 +10,7 @@ use crate::controllers::user_params;
 #[tokio::test]
 async fn list_events_success() {
     // Arrange
-    let app = spawn_app().await;
+    let app = spawn_app(build_mock_gpio).await;
     let _user = create_test_user(app.repo).await;
     insert_irrigation_events(app.repo).await;
 

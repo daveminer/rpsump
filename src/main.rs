@@ -21,16 +21,16 @@ async fn main() -> std::io::Result<()> {
         .await
         .expect("Could not create repository.");
 
-    let gpio = Arc::from(Mutex::new(
-        rppal::gpio::Gpio::new().expect("Could not initialize GPIO."),
-    ));
-
     // Application
-    let application = Application::build(settings, gpio, repo);
+    let application = Application::build(settings, build_gpio, repo);
 
     application.run_until_stopped().await?;
 
     Ok(())
+}
+
+fn build_gpio() -> Box<dyn Gpio> {
+    Box::new(rppal::gpio::Gpio::new().expect("Could not initialize GPIO."))
 }
 
 // actix-web will handle signals to exit, but doesn't offer a hook to customize it.

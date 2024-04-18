@@ -7,7 +7,7 @@ use actix_web_opentelemetry::RequestTracing;
 use lazy_static::lazy_static;
 use serde_json::json;
 use std::net::TcpListener;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use tokio::runtime::Runtime;
 
 use crate::config::Settings;
@@ -30,23 +30,22 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn build<G>(settings: Settings, gpio: Arc<Mutex<Gpio>, repo: Repo) -> Application
-    //pub fn build<G>(settings: Settings, build_gpio: fn() -> G, repo: Repo) -> Application
-    //where
-    //    G: Gpio + 'static,
-    {
+    pub fn build(settings: Settings, build_gpio: fn() -> Box<dyn Gpio>, repo: Repo) -> Application {
+        println!("Building application");
         // Web server configuration
         let (_address, port, tcp_listener) = web_server_config(&settings);
 
-        //let hydro_rt = tokio::runtime::Runtime::new().expect("Could not create runtime");
         let handle = HYDRO_RT.handle();
-        let gpio = Arc::new(gpio);
+
+        let gpio = build_gpio();
+        let hydro = Hydro::new(&settings.hydro, handle.clone(), gpio, repo)
+            .expect("Could not create hydro object");
+
+        let hydro_data = Data::new(Mutex::new(hydro));
+        let repo_data = Data::new(repo);
+        let settings_data = Data::new(settings.clone());
 
         let server = HttpServer::new(move || {
-            let gpio_clone = gpio.clone();
-            let hydro = Hydro::new(&settings.hydro, handle.clone(), &gpio_clone, repo)
-                .expect("Could not create hydro object");
-
             let mut cors = if settings.server.allow_localhost_cors {
                 Cors::default().allowed_origin_fn(|origin, _req_head| match origin.to_str() {
                     Ok(str) => str.contains("localhost"),
@@ -88,9 +87,9 @@ impl Application {
                         "message": err.to_string()
                     }))
                 }))
-                .app_data(Data::new(settings.clone()))
-                .app_data(Data::new(repo))
-                .app_data(Data::new(Mutex::new(Some(hydro))));
+                .app_data(settings_data.clone())
+                .app_data(repo_data.clone())
+                .app_data(hydro_data.clone());
 
             app
         })

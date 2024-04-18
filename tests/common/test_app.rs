@@ -2,19 +2,18 @@ use std::env;
 use std::fs::{self, File};
 use std::path::PathBuf;
 
-use anyhow::Error;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::SqliteConnection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
-use mockall::predicate::eq;
 use once_cell::sync::Lazy;
-use rpsump::hydro::gpio::{Gpio, Level, MockGpio, MockInputPin, MockOutputPin, MockPin};
+
 use serde_json::{json, Value};
 use tempfile::TempDir;
 use tokio::sync::OnceCell;
 use wiremock::MockServer;
 
 use rpsump::config::Settings;
+use rpsump::hydro::gpio::Gpio;
 use rpsump::repository::{self, Repo};
 use rpsump::startup::Application;
 
@@ -73,11 +72,11 @@ pub async fn migrated_pathbuf() -> (PathBuf, TempDir) {
     (test_db_path, test_db_dir)
 }
 
-static GPIO: Lazy<OnceCell<MockGpio>> = Lazy::new(OnceCell::new);
+// static GPIO: Lazy<OnceCell<MockGpio>> = Lazy::new(OnceCell::new);
 
-pub async fn get_gpio() -> Result<&'static MockGpio, Error> {
-    Ok(GPIO.get_or_init(|| async { spawn_test_gpio() }).await)
-}
+// // pub async fn get_gpio() -> Result<&'static MockGpio, Error> {
+// //     Ok(GPIO.get_or_init(|| async { spawn_test_gpio() }).await)
+// // }
 
 impl TestApp {
     pub async fn delete_irrigation_schedule(&self, token: String, id: i32) -> reqwest::Response {
@@ -273,14 +272,7 @@ impl TestApp {
     }
 }
 
-pub async fn spawn_app() -> TestApp {
-    spawn_app_with_gpio(get_gpio().await.expect("Couldn't get mock GPIO")).await
-}
-
-pub async fn spawn_app_with_gpio<G>(gpio: &G) -> TestApp
-where
-    G: Gpio,
-{
+pub async fn spawn_app(build_gpio: fn() -> Box<dyn Gpio>) -> TestApp {
     // TODO: move this to a settings input
     env::set_var("RPSUMP_TEST", "true");
 
@@ -296,11 +288,7 @@ where
         .await
         .expect("Could not create repository.");
 
-    let app_repo = repository::implementation(Some(test_repo.to_str().unwrap().to_string()))
-        .await
-        .expect("Could not create repository.");
-
-    let application = Application::build(settings.clone(), gpio, repo);
+    let application = Application::build(settings.clone(), build_gpio, repo);
     let port = application.port();
 
     let _ = tokio::spawn(application.run_until_stopped());
@@ -313,7 +301,7 @@ where
     let test_app = TestApp {
         address: format!("http://localhost:{}", port),
         port,
-        repo: app_repo,
+        repo,
         email_server,
         repo_temp_dir: temp_dir,
         api_client: client,
