@@ -65,7 +65,7 @@ mod tests {
 
     #[tokio::test]
     async fn protected_request_valid_token() {
-        let app = spawn_app(build_mock_gpio).await;
+        let app = spawn_app(&build_mock_gpio()).await;
         let user = create_test_user(app.repo).await;
 
         let token = create_valid_token(user);
@@ -86,7 +86,7 @@ mod tests {
 
     #[tokio::test]
     async fn protected_request_failed_no_token() {
-        let app = spawn_app(build_mock_gpio).await;
+        let app = spawn_app(&build_mock_gpio()).await;
 
         let result = app
             .api_client
@@ -100,7 +100,7 @@ mod tests {
 
     #[tokio::test]
     async fn protected_request_failed_expired_token() {
-        let app = spawn_app(build_mock_gpio).await;
+        let app = spawn_app(&build_mock_gpio()).await;
 
         let user = create_test_user(app.repo).await;
 

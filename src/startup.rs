@@ -30,14 +30,13 @@ pub struct Application {
 }
 
 impl Application {
-    pub fn build(settings: Settings, build_gpio: fn() -> Box<dyn Gpio>, repo: Repo) -> Application {
+    pub fn build(settings: Settings, gpio: &dyn Gpio, repo: Repo) -> Application {
         println!("Building application");
         // Web server configuration
         let (_address, port, tcp_listener) = web_server_config(&settings);
 
         let handle = HYDRO_RT.handle();
 
-        let gpio = build_gpio();
         let hydro = Hydro::new(&settings.hydro, handle.clone(), gpio, repo)
             .expect("Could not create hydro object");
 

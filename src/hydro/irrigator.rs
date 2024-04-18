@@ -25,7 +25,7 @@ impl Irrigator {
     pub fn new(
         config: &IrrigationConfig,
         tx: &Sender<Message>,
-        gpio: &Box<dyn Gpio>,
+        gpio: &dyn Gpio,
     ) -> Result<Self, Error> {
         let pump = Control::new("Irrigation Pump".to_string(), config.pump_control_pin, gpio)?;
 
@@ -72,7 +72,7 @@ impl Irrigator {
 #[cfg(test)]
 mod tests {
     use crate::{
-        hydro::gpio::{Gpio, MockGpio},
+        hydro::gpio::MockGpio,
         test_fixtures::{gpio::mock_irrigation_pump, settings::SETTINGS},
     };
 
@@ -85,9 +85,7 @@ mod tests {
         let mut mock_gpio = MockGpio::new();
         mock_gpio = mock_irrigation_pump(mock_gpio, false, false, None);
 
-        let boxed_gpio: Box<dyn Gpio> = Box::new(mock_gpio);
-
         let _irrigator: Irrigator =
-            Irrigator::new(&SETTINGS.hydro.irrigation, &mpsc.0, &boxed_gpio).unwrap();
+            Irrigator::new(&SETTINGS.hydro.irrigation, &mpsc.0, &mock_gpio).unwrap();
     }
 }

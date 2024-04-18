@@ -94,7 +94,7 @@ mod tests {
 
     use crate::{
         hydro::{
-            gpio::{Gpio, MockGpio},
+            gpio::MockGpio,
             irrigator::Irrigator,
             signal::{listen, Message},
             sump::Sump,
@@ -113,7 +113,7 @@ mod tests {
 
         let mock_gpio = MockGpio::new();
         let mock_gpio = mock_irrigation_pump(mock_gpio, false, false, None);
-        let mock_gpio: Box<dyn Gpio> = Box::new(mock_sump_pump(mock_gpio, false, false, false));
+        let mock_gpio = mock_sump_pump(mock_gpio, false, false, false);
 
         let irrigator = Irrigator::new(&SETTINGS.hydro.irrigation, &tx, &mock_gpio).unwrap();
         let sump = Sump::new(&SETTINGS.hydro.sump, &tx, &mock_gpio).unwrap();

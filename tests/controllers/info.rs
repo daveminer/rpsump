@@ -9,7 +9,7 @@ use crate::controllers::user_params;
 #[tokio::test]
 async fn info_success() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let _user = create_test_user(app.repo).await;
     let _sump_events = insert_sump_events(app.repo).await;
 
@@ -28,7 +28,7 @@ async fn info_success() {
 
 #[tokio::test]
 async fn info_failed_no_auth() {
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let sump_event_response = app.get_info("invalid-token".to_string()).await;
     assert!(sump_event_response.status().is_client_error());
 }

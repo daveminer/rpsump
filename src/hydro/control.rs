@@ -20,7 +20,7 @@ pub struct Control {
 
 impl Control {
     /// Creates a new output on a GPIO pin.
-    pub fn new(label: String, pin: u8, gpio: &Box<dyn Gpio>) -> Result<Self, Error> {
+    pub fn new(label: String, pin: u8, gpio: &dyn Gpio) -> Result<Self, Error> {
         let pin = gpio.get(pin)?;
         let pin_io = pin.into_output_low();
 

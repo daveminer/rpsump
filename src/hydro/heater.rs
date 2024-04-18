@@ -9,7 +9,7 @@ pub struct Heater {
 }
 
 impl Heater {
-    pub fn new(config: &HeaterConfig, gpio: &Box<dyn Gpio>) -> Result<Self, Error> {
+    pub fn new(config: &HeaterConfig, gpio: &dyn Gpio) -> Result<Self, Error> {
         let control = Control::new("Pool Heater".into(), config.control_pin, gpio)?;
         Ok(Self { control })
     }

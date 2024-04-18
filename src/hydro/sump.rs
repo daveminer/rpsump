@@ -31,11 +31,7 @@ pub struct Sump {
 impl Sump {
     /// Create a new instance of Sump with the provided configuration, GPIO,
     /// trigger callback handle and tx channel to report triggers upon
-    pub fn new(
-        config: &SumpConfig,
-        tx: &Sender<Message>,
-        gpio: &Box<dyn Gpio>,
-    ) -> Result<Self, Error> {
+    pub fn new(config: &SumpConfig, tx: &Sender<Message>, gpio: &dyn Gpio) -> Result<Self, Error> {
         let pump = Control::new("Sump Pump".into(), config.pump_control_pin, gpio)?;
 
         let high_sensor = Sensor::new(
@@ -65,7 +61,7 @@ impl Sump {
 #[cfg(test)]
 mod tests {
     use crate::{
-        hydro::gpio::{Gpio, MockGpio},
+        hydro::gpio::MockGpio,
         test_fixtures::{gpio::mock_sump_pump, settings::SETTINGS},
     };
 
@@ -75,8 +71,7 @@ mod tests {
     fn test_new() {
         let mpsc = tokio::sync::mpsc::channel(32);
 
-        let mock_gpio: Box<dyn Gpio> =
-            Box::new(mock_sump_pump(MockGpio::new(), false, false, false));
+        let mock_gpio = mock_sump_pump(MockGpio::new(), false, false, false);
         let _sump: Sump = Sump::new(&SETTINGS.hydro.sump, &mpsc.0, &mock_gpio).unwrap();
     }
 }

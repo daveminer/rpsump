@@ -47,7 +47,7 @@ impl Sensor {
     pub fn new(
         message: Message,
         pin_number: u8,
-        gpio: &Box<dyn Gpio>,
+        gpio: &dyn Gpio,
         trigger: Trigger,
         tx: &Sender<Message>,
     ) -> Result<Self, Error> {

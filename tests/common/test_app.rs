@@ -272,7 +272,7 @@ impl TestApp {
     }
 }
 
-pub async fn spawn_app(build_gpio: fn() -> Box<dyn Gpio>) -> TestApp {
+pub async fn spawn_app(gpio: &dyn Gpio) -> TestApp {
     // TODO: move this to a settings input
     env::set_var("RPSUMP_TEST", "true");
 
@@ -288,7 +288,7 @@ pub async fn spawn_app(build_gpio: fn() -> Box<dyn Gpio>) -> TestApp {
         .await
         .expect("Could not create repository.");
 
-    let application = Application::build(settings.clone(), build_gpio, repo);
+    let application = Application::build(settings.clone(), gpio, repo);
     let port = application.port();
 
     let _ = tokio::spawn(application.run_until_stopped());

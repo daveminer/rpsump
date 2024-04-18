@@ -14,7 +14,7 @@ use crate::controllers::{
 #[tokio::test]
 async fn email_verification_token_expired() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let db = app.repo.pool().await.unwrap().get().unwrap();
     let params = signup_params();
     let _mock = mock_email_verification_send(&app).await;
@@ -47,7 +47,7 @@ async fn email_verification_token_expired() {
 #[tokio::test]
 async fn email_verification_failed_token_mismatch() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let params = signup_params();
     let token = Token::new_email_verification(0);
     let _mock = mock_email_verification_send(&app).await;
@@ -69,7 +69,7 @@ async fn email_verification_failed_token_mismatch() {
 #[tokio::test]
 async fn email_verification_failed_no_token() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     // let pool = repo.pool().await?;
     // let mut conn = pool.get().unwrap();
     let params = signup_params();

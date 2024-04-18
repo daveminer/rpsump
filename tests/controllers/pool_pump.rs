@@ -8,7 +8,7 @@ use crate::controllers::user_params;
 #[tokio::test]
 async fn pool_pump_success() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let _user = create_test_user(app.repo).await;
 
     // Act
@@ -40,7 +40,7 @@ async fn pool_pump_success() {
 #[tokio::test]
 async fn pool_pump_failed_no_auth() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
 
     let sump_event_response = app
         .post_pool_pump("123".to_string(), json!({"speed": "low"}))

@@ -8,7 +8,7 @@ use crate::controllers::user_params;
 #[tokio::test]
 async fn heater_success() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let _user = create_test_user(app.repo).await;
 
     // Act
@@ -30,7 +30,7 @@ async fn heater_success() {
 #[tokio::test]
 async fn heater_failed_no_auth() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
 
     let sump_event_response = app.post_heater_on("123".to_string()).await;
 

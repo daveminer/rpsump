@@ -3,7 +3,7 @@ use crate::hydro::pool_pump::PoolPumpSpeed;
 use crate::test_fixtures::settings::SETTINGS;
 use mockall::*;
 
-pub fn mock_control_gpio() -> Box<dyn Gpio> {
+pub fn mock_control_gpio() -> impl Gpio {
     let mut mock_gpio = MockGpio::new();
     mock_gpio.expect_get().times(1).returning(|_| {
         let mut pin = MockPin::new();
@@ -13,10 +13,10 @@ pub fn mock_control_gpio() -> Box<dyn Gpio> {
         Ok(Box::new(pin))
     });
 
-    Box::new(mock_gpio)
+    mock_gpio
 }
 
-pub fn mock_sensor_gpio() -> Box<dyn Gpio> {
+pub fn mock_sensor_gpio() -> impl Gpio {
     let mut mock_gpio = MockGpio::new();
     mock_gpio.expect_get().times(1).returning(|_| {
         let mut pin = MockPin::new();
@@ -32,10 +32,10 @@ pub fn mock_sensor_gpio() -> Box<dyn Gpio> {
         Ok(Box::new(pin))
     });
 
-    Box::new(mock_gpio)
+    mock_gpio
 }
 
-pub fn build_mock_gpio() -> Box<dyn Gpio> {
+pub fn build_mock_gpio() -> impl Gpio {
     let mut gpio = MockGpio::new();
 
     // Heater pin
@@ -50,7 +50,7 @@ pub fn build_mock_gpio() -> Box<dyn Gpio> {
     // Irrigation pins
     gpio = mock_irrigation_pump(gpio, false, false, None);
 
-    Box::new(gpio)
+    gpio
 }
 
 pub fn mock_gpio_get(pins: Vec<u8>) -> Box<dyn Gpio> {

@@ -27,7 +27,7 @@ pub enum PoolPumpSpeed {
 }
 
 impl PoolPump {
-    pub fn new(config: &PoolPumpConfig, gpio: &Box<dyn Gpio>) -> Result<Self, Error> {
+    pub fn new(config: &PoolPumpConfig, gpio: &dyn Gpio) -> Result<Self, Error> {
         let low = Control::new("low speed".into(), config.low_pin, gpio)?;
         let med = Control::new("medium speed".into(), config.med_pin, gpio)?;
         let high = Control::new("high speed".into(), config.high_pin, gpio)?;
@@ -159,7 +159,7 @@ mod tests {
     #[tokio::test]
     async fn test_pool_pump_new() {
         let mock_gpio = MockGpio::new();
-        let mock_gpio: Box<dyn Gpio> = Box::new(mock_pool_pump(mock_gpio, PoolPumpSpeed::Low));
+        let mock_gpio = mock_pool_pump(mock_gpio, PoolPumpSpeed::Low);
         let pool_pump = PoolPump::new(&SETTINGS.hydro.pool_pump, &mock_gpio).unwrap();
 
         assert_eq!(pool_pump.current, PoolPumpSpeed::Off);

@@ -19,7 +19,7 @@ use crate::controllers::mock_email_verification_send;
 #[tokio::test]
 async fn signup_failed_email_taken() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let user = create_test_user(app.repo).await;
     let mut params = signup_params();
     params["email"] = serde_json::json!(user.email);
@@ -37,7 +37,7 @@ async fn signup_failed_email_taken() {
 #[tokio::test]
 async fn signup_failed_password_does_not_match() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let mut params = signup_params();
     params["confirm_password"] = "not-matching".into();
 
@@ -57,7 +57,7 @@ async fn signup_failed_password_does_not_match() {
 #[tokio::test]
 async fn signup_failed_missing_confirm_password() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let params = user_params();
 
     // Act
@@ -77,7 +77,7 @@ async fn signup_failed_missing_confirm_password() {
 #[tokio::test]
 async fn signup_success() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let params = signup_params();
     let email = params.get("email").unwrap().as_str().unwrap();
     let _mock = mock_email_verification_send(&app).await;

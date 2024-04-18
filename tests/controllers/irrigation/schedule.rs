@@ -11,7 +11,7 @@ use crate::controllers::user_params;
 #[tokio::test]
 async fn get_schedule_not_found() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let _user = create_test_user(app.repo).await;
     insert_irrigation_schedules(app.repo, 1).await;
 
@@ -33,7 +33,7 @@ async fn get_schedule_not_found() {
 #[tokio::test]
 async fn get_schedule_success() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let _user = create_test_user(app.repo).await;
     insert_irrigation_schedules(app.repo, 1).await;
 
@@ -61,7 +61,7 @@ async fn get_schedule_success() {
 #[tokio::test]
 async fn list_schedules_success() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let _user = create_test_user(app.repo).await;
     insert_irrigation_schedules(app.repo, 5).await;
 
@@ -82,7 +82,7 @@ async fn list_schedules_success() {
 #[tokio::test]
 async fn delete_schedule_success() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let _user = create_test_user(app.repo).await;
     insert_irrigation_schedules(app.repo, 1).await;
 
@@ -111,7 +111,7 @@ async fn delete_schedule_success() {
 #[tokio::test]
 async fn delete_schedule_not_found() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let _user = create_test_user(app.repo).await;
 
     // Act
@@ -132,7 +132,7 @@ async fn delete_schedule_not_found() {
 #[tokio::test]
 async fn patch_schedule_success() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let _user = create_test_user(app.repo).await;
     insert_irrigation_schedules(app.repo, 1).await;
 
@@ -168,7 +168,7 @@ async fn patch_schedule_success() {
 #[tokio::test]
 async fn patch_schedule_not_found() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let _user = create_test_user(app.repo).await;
 
     // Act
@@ -192,7 +192,7 @@ async fn patch_schedule_not_found() {
 #[tokio::test]
 async fn patch_schedule_invalid() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let _user = create_test_user(app.repo).await;
     insert_irrigation_schedules(app.repo, 1).await;
 
@@ -223,7 +223,7 @@ async fn patch_schedule_invalid() {
 #[tokio::test]
 async fn post_schedule_success() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let _user = create_test_user(app.repo).await;
 
     // Act
@@ -257,7 +257,7 @@ async fn post_schedule_success() {
 #[tokio::test]
 async fn post_schedule_invalid() {
     // Arrange
-    let app = spawn_app(build_mock_gpio).await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let _user = create_test_user(app.repo).await;
 
     // Act

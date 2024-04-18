@@ -38,17 +38,17 @@ impl Hydro {
     pub fn new(
         config: &HydroConfig,
         handle: Handle,
-        gpio: Box<dyn Gpio>,
+        gpio: &dyn Gpio,
         repo: Repo,
     ) -> Result<Self, Error> {
         let mpsc = tokio::sync::mpsc::channel(32);
         let tx = mpsc.0;
 
-        let heater = Heater::new(&config.heater, &gpio)?;
-        let pool_pump = PoolPump::new(&config.pool_pump, &gpio)?;
+        let heater = Heater::new(&config.heater, gpio)?;
+        let pool_pump = PoolPump::new(&config.pool_pump, gpio)?;
 
-        let sump = Sump::new(&config.sump, &tx, &gpio)?;
-        let irrigator = Irrigator::new(&config.irrigation, &tx, &gpio)?;
+        let sump = Sump::new(&config.sump, &tx, gpio)?;
+        let irrigator = Irrigator::new(&config.irrigation, &tx, gpio)?;
 
         signal::listen(
             mpsc.1,
