@@ -1,14 +1,14 @@
-use std::sync::Mutex;
-
 use actix_cors::Cors;
 use actix_identity::IdentityMiddleware;
 use actix_session::{storage::CookieSessionStore, SessionMiddleware};
 use actix_web::{cookie, dev::Server, http, web, web::Data, App, HttpServer};
 use actix_web::{error::ErrorBadRequest, web::JsonConfig};
 use actix_web_opentelemetry::RequestTracing;
+use lazy_static::lazy_static;
 use serde_json::json;
 use std::net::TcpListener;
 use tokio::runtime::Runtime;
+use tokio::sync::Mutex;
 
 use crate::config::Settings;
 use crate::controllers::{
@@ -19,26 +19,30 @@ use crate::controllers::{
 use crate::hydro::{gpio::Gpio, Hydro};
 use crate::repository::Repo;
 
+lazy_static! {
+    static ref HYDRO_RT: Runtime = Runtime::new().expect("Failed to initialize runtime");
+}
+
 pub struct Application {
     port: u16,
     pub repo: Repo,
-    _rt: Runtime,
     server: Server,
 }
 
 impl Application {
-    pub fn build<G>(settings: Settings, gpio: &G, repo: Repo) -> Application
-    where
-        G: Gpio,
-    {
+    pub fn build(settings: Settings, gpio: &dyn Gpio, repo: Repo) -> Application {
+        println!("Building application");
         // Web server configuration
         let (_address, port, tcp_listener) = web_server_config(&settings);
 
-        let hydro_rt = tokio::runtime::Runtime::new().expect("Could not create runtime");
-        let handle = hydro_rt.handle().clone();
+        let handle = HYDRO_RT.handle();
 
-        let hydro =
-            Hydro::new(&settings.hydro, handle, gpio, repo).expect("Could not create hydro object");
+        let hydro = Hydro::new(&settings.hydro, handle.clone(), gpio, repo)
+            .expect("Could not create hydro object");
+
+        let hydro_data = Data::new(Mutex::new(hydro));
+        let repo_data = Data::new(repo);
+        let settings_data = Data::new(settings.clone());
 
         let server = HttpServer::new(move || {
             let mut cors = if settings.server.allow_localhost_cors {
@@ -60,7 +64,7 @@ impl Application {
                 .supports_credentials()
                 .max_age(3600);
 
-            let app = App::new()
+            App::new()
                 .wrap(cors)
                 .wrap(RequestTracing::new())
                 // Session tools
@@ -82,23 +86,15 @@ impl Application {
                         "message": err.to_string()
                     }))
                 }))
-                .app_data(Data::new(settings.clone()))
-                .app_data(Data::new(repo))
-                .app_data(Data::new(Mutex::new(Some(hydro.clone()))));
-
-            app
+                .app_data(settings_data.clone())
+                .app_data(repo_data.clone())
+                .app_data(hydro_data.clone())
         })
         .listen(tcp_listener)
-        .expect(&format!("Could not listen on port {}", port))
+        .unwrap_or_else(|_| panic!("Could not listen on port {}", port))
         .run();
 
-        Application {
-            server,
-            port,
-            repo,
-            // Keep this runtime for the lifetime of Application
-            _rt: hydro_rt,
-        }
+        Application { server, port, repo }
     }
 
     pub fn port(&self) -> u16 {

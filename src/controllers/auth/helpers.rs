@@ -23,7 +23,7 @@ pub fn invalid_token_response() -> HttpResponse {
 pub fn ip_address(req: &HttpRequest) -> Result<String, anyhow::Error> {
     match req.connection_info().peer_addr() {
         Some(ip) => Ok(ip.to_string()),
-        None => return Err(anyhow!("Could not get IP address from request.")),
+        None => Err(anyhow!("Could not get IP address from request.")),
     }
 }
 

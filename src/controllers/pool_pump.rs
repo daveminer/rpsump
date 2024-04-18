@@ -1,5 +1,3 @@
-use std::sync::Mutex;
-
 use actix_web::{
     post,
     web::{self, Data},
@@ -8,6 +6,7 @@ use actix_web::{
 use anyhow::Error;
 use serde::Deserialize;
 use serde_json::json;
+use tokio::sync::Mutex;
 
 use crate::auth::authenticated_user::AuthenticatedUser;
 use crate::{
@@ -21,29 +20,14 @@ pub struct PoolPumpParams {
 }
 
 #[post("/pool_pump")]
-#[tracing::instrument(skip(_user, maybe_hydro))]
+#[tracing::instrument(skip(_user, hydro))]
 pub async fn pool_pump(
     params: web::Json<PoolPumpParams>,
     _user: AuthenticatedUser,
-    maybe_hydro: Data<Mutex<Option<Hydro>>>,
+    hydro: Data<Mutex<Hydro>>,
 ) -> Result<HttpResponse> {
-    let mut lock = match maybe_hydro.lock() {
-        Ok(lock) => lock,
-        Err(e) => {
-            tracing::error!(
-                target = module_path!(),
-                error = e.to_string(),
-                "Could not get hydro lock"
-            );
-            return Ok(ApiResponse::internal_server_error());
-        }
-    };
+    let hydro = hydro.lock().await;
 
-    if lock.is_none() {
-        return Ok(HttpResponse::Ok().body("Hydro not configured"));
-    }
-
-    let hydro = lock.as_mut().unwrap();
     let mut pool_pump = hydro.pool_pump.clone();
     match params.speed {
         PoolPumpSpeed::Off => {

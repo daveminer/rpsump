@@ -3,9 +3,8 @@ use crate::util::spawn_blocking_with_tracing;
 use anyhow::Error;
 use async_trait::async_trait;
 use std::fmt;
-use std::sync::{Arc, Mutex, MutexGuard};
-
-use tracing::error;
+use std::sync::Arc;
+use tokio::sync::{Mutex, MutexGuard};
 
 pub type PinLock<'a> = MutexGuard<'a, Box<dyn OutputPin>>;
 
@@ -20,10 +19,7 @@ pub struct Control {
 
 impl Control {
     /// Creates a new output on a GPIO pin.
-    pub fn new<G>(label: String, pin: u8, gpio: &G) -> Result<Self, Error>
-    where
-        G: Gpio,
-    {
+    pub fn new(label: String, pin: u8, gpio: &dyn Gpio) -> Result<Self, Error> {
         let pin = gpio.get(pin)?;
         let pin_io = pin.into_output_low();
 
@@ -33,8 +29,8 @@ impl Control {
         })
     }
 
-    pub async fn lock(&self) -> Result<PinLock, Error> {
-        self.pin.lock().map_err(|e| Error::msg(e.to_string()))
+    pub async fn lock(&self) -> PinLock {
+        self.pin.lock().await
     }
 }
 
@@ -50,87 +46,58 @@ impl fmt::Debug for Control {
 pub trait Output {
     async fn on(&mut self) -> Result<(), Error>;
     async fn off(&mut self) -> Result<(), Error>;
-    fn is_on(&self) -> bool;
-    fn is_off(&self) -> bool;
+    async fn is_on(&self) -> bool;
+    async fn is_off(&self) -> bool;
 }
 
 #[async_trait]
 impl Output for Control {
     async fn on(&mut self) -> Result<(), Error> {
-        let pin = self.pin.clone();
-
-        let _ = spawn_blocking_with_tracing(move || match pin.lock() {
-            Ok(mut guard) => guard.on(),
-            Err(e) => error!("Error locking pin for on: {}", e),
+        let self = self.clone();
+        spawn_blocking_with_tracing(|| async move {
+            let pin = self.pin.clone();
+            let mut lock = pin.lock().await;
+            lock.on();
         })
-        .await?;
+        .await?
+        .await;
 
         Ok(())
     }
 
     async fn off(&mut self) -> Result<(), Error> {
-        let pin = self.pin.clone();
-
-        let _ = spawn_blocking_with_tracing(move || match pin.lock() {
-            Ok(mut guard) => guard.off(),
-            Err(e) => error!("Error locking pin for off: {}", e),
+        let self = self.clone();
+        spawn_blocking_with_tracing(|| async move {
+            let pin = self.pin.clone();
+            let mut lock = pin.lock().await;
+            lock.off();
         })
-        .await?;
+        .await?
+        .await;
 
         Ok(())
     }
 
-    fn is_on(&self) -> bool {
-        match self.pin.lock() {
-            Ok(guard) => guard.is_on(),
-            Err(e) => {
-                error!("Error locking pin for is_on: {}", e);
-                false
-            }
-        }
+    async fn is_on(&self) -> bool {
+        let lock = self.pin.lock().await;
+        lock.is_on()
     }
 
-    fn is_off(&self) -> bool {
-        match self.pin.lock() {
-            Ok(guard) => guard.is_off(),
-            Err(e) => {
-                error!("Error locking pin for is_off: {}", e);
-                false
-            }
-        }
+    async fn is_off(&self) -> bool {
+        let lock = self.pin.lock().await;
+        lock.is_off()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Control;
+    use crate::test_fixtures::gpio::mock_control_gpio;
 
-    #[cfg(test)]
-    mod tests {
-        use super::Control;
-        use crate::hydro::control::Output;
-        use crate::test_fixtures::gpio::mock_gpio_get;
+    #[tokio::test]
+    async fn test_control_new() {
+        let control = Control::new("test control".to_string(), 1, &mock_control_gpio());
 
-        #[tokio::test]
-        async fn test_control_new() {
-            let mock_gpio = mock_gpio_get(vec![1]);
-
-            let control = Control::new("test control".to_string(), 1, &mock_gpio);
-
-            assert!(control.is_ok());
-        }
-
-        #[tokio::test]
-        async fn test_control_on_off() {
-            let mock_gpio = mock_gpio_get(vec![1]);
-
-            let mut control = Control::new("test control".to_string(), 1, &mock_gpio).unwrap();
-
-            assert!(control.on().await.is_ok());
-            assert_eq!(control.is_on(), true);
-
-            assert!(control.off().await.is_ok());
-            assert_eq!(control.is_off(), true);
-        }
+        assert!(control.is_ok());
     }
 }

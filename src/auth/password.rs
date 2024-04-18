@@ -40,7 +40,7 @@ impl PartialEq for Password {
 
 impl ExposeSecret<String> for Password {
     fn expose_secret(&self) -> &String {
-        &self.0.expose_secret()
+        self.0.expose_secret()
     }
 }
 

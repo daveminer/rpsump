@@ -22,10 +22,11 @@ pub struct Irrigator {
 }
 
 impl Irrigator {
-    pub fn new<G>(config: &IrrigationConfig, tx: &Sender<Message>, gpio: &G) -> Result<Self, Error>
-    where
-        G: Gpio,
-    {
+    pub fn new(
+        config: &IrrigationConfig,
+        tx: &Sender<Message>,
+        gpio: &dyn Gpio,
+    ) -> Result<Self, Error> {
         let pump = Control::new("Irrigation Pump".to_string(), config.pump_control_pin, gpio)?;
 
         let low_sensor = Sensor::new(
@@ -71,8 +72,8 @@ impl Irrigator {
 #[cfg(test)]
 mod tests {
     use crate::{
-        config::IrrigationConfig,
-        hydro::gpio::{stub::pin, Level, MockGpio},
+        hydro::gpio::MockGpio,
+        test_fixtures::{gpio::mock_irrigation_pump, settings::SETTINGS},
     };
 
     use super::Irrigator;
@@ -82,28 +83,9 @@ mod tests {
         let mpsc = tokio::sync::mpsc::channel(32);
 
         let mut mock_gpio = MockGpio::new();
-        mock_gpio.expect_get().times(6).returning(|_| {
-            Ok(Box::new(pin::PinStub {
-                index: 0,
-                level: Level::Low,
-            }))
-        });
+        mock_gpio = mock_irrigation_pump(mock_gpio, false, false, None);
 
-        let _irrigator: Irrigator = Irrigator::new(
-            &IrrigationConfig {
-                enabled: true,
-                low_sensor_pin: 1,
-                max_seconds_runtime: 2,
-                process_frequency_ms: 1000,
-                pump_control_pin: 2,
-                valve_1_control_pin: 3,
-                valve_2_control_pin: 4,
-                valve_3_control_pin: 5,
-                valve_4_control_pin: 6,
-            },
-            &mpsc.0,
-            &mock_gpio,
-        )
-        .unwrap();
+        let _irrigator: Irrigator =
+            Irrigator::new(&SETTINGS.hydro.irrigation, &mpsc.0, &mock_gpio).unwrap();
     }
 }

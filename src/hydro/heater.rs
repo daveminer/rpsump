@@ -1,7 +1,6 @@
 use crate::hydro::gpio::Gpio;
 use crate::{config::HeaterConfig, hydro::control::Control};
 use anyhow::Error;
-use tracing::error;
 
 #[derive(Clone)]
 pub struct Heater {
@@ -9,73 +8,34 @@ pub struct Heater {
 }
 
 impl Heater {
-    pub fn new<G>(config: &HeaterConfig, gpio: &G) -> Result<Self, Error>
-    where
-        G: Gpio,
-    {
-        let control = Control::new("pool pump".into(), config.control_pin, gpio)?;
+    pub fn new(config: &HeaterConfig, gpio: &dyn Gpio) -> Result<Self, Error> {
+        let control = Control::new("Pool Heater".into(), config.control_pin, gpio)?;
         Ok(Self { control })
     }
 
-    pub async fn on(&mut self) -> Result<(), Error> {
+    pub async fn on(&mut self) {
         let pin = self.control.pin.clone();
+        let mut lock = pin.lock().await;
 
-        let _ = tokio::task::spawn_blocking(move || {
-            let mut lock = match pin.lock() {
-                Ok(lock) => lock,
-                Err(e) => {
-                    tracing::error!(
-                        target = module_path!(),
-                        error = e.to_string(),
-                        "Could not lock heater pin for on"
-                    );
-                    return;
-                }
-            };
-            lock.on();
-        });
-
-        Ok(())
+        lock.on();
     }
 
-    pub async fn off(&mut self) -> Result<(), Error> {
+    pub async fn off(&mut self) {
         let pin = self.control.pin.clone();
+        let mut lock = pin.lock().await;
 
-        let _ = tokio::task::spawn_blocking(move || {
-            let mut lock = match pin.lock() {
-                Ok(lock) => lock,
-                Err(e) => {
-                    tracing::error!(
-                        target = module_path!(),
-                        error = e.to_string(),
-                        "Could not lock heater pin for off"
-                    );
-                    return;
-                }
-            };
-            lock.off();
-        });
-
-        Ok(())
+        lock.off();
     }
 
     pub async fn is_on(&self) -> bool {
-        match self.control.lock().await {
-            Ok(guard) => guard.is_on(),
-            Err(e) => {
-                error!("Error locking heater pin for is_on: {}", e);
-                false
-            }
-        }
+        let lock = self.control.lock().await;
+
+        lock.is_on()
     }
 
     pub async fn is_off(&self) -> bool {
-        match self.control.lock().await {
-            Ok(guard) => guard.is_off(),
-            Err(e) => {
-                error!("Error locking heater pin for is_off: {}", e);
-                false
-            }
-        }
+        let lock = self.control.lock().await;
+
+        lock.is_off()
     }
 }

@@ -1,6 +1,6 @@
 pub mod gpio;
-pub mod hydro;
 pub mod irrigation;
+pub mod settings;
 
 #[cfg(test)]
 pub mod tests {

@@ -6,7 +6,6 @@ use tokio::sync::mpsc::Sender;
 use crate::hydro::signal::Message;
 
 pub mod rppal;
-pub mod stub;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Level {
@@ -26,10 +25,6 @@ pub enum Trigger {
 #[automock]
 pub trait Gpio {
     fn get(&self, pin: u8) -> Result<Box<dyn Pin>, Error>;
-
-    fn create() -> Result<Self, Error>
-    where
-        Self: std::marker::Sized;
 }
 
 #[automock]
@@ -38,7 +33,6 @@ pub trait Pin: Send + Sync {
     fn into_output_low(self: Box<Self>) -> Box<dyn OutputPin>;
 }
 
-// TODO: check traits
 #[automock]
 pub trait InputPin: Send + Sync {
     fn is_high(&self) -> bool;
@@ -54,14 +48,11 @@ pub trait InputPin: Send + Sync {
 
 impl fmt::Debug for dyn InputPin {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let pin = f
-            .debug_struct("InputPin")
+        f.debug_struct("InputPin")
             .field("is_high", &self.is_high())
             .field("is_low", &self.is_low())
             .field("read", &self.read())
-            .finish()?;
-
-        Ok(pin)
+            .finish()
     }
 }
 

@@ -74,7 +74,7 @@ pub async fn login(
         Err(e) => return Ok(error_response(e, "Could not create token for user")),
     };
 
-    let _user_event = match repo
+    match repo
         .create_user_event(&user, EventType::Login, ip_addr)
         .await
     {

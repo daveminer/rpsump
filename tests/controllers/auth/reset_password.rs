@@ -1,4 +1,5 @@
 use chrono::{Duration, Utc};
+use rpsump::test_fixtures::gpio::build_mock_gpio;
 use rpsump::util::ApiResponse;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
@@ -124,7 +125,7 @@ async fn reset_password_success() {
 
 async fn signup_and_request_password_reset() -> (TestApp, serde_json::Map<String, serde_json::Value>)
 {
-    let app = spawn_app().await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let params = signup_params();
 
     // Mock the email verification and reset password email sends.

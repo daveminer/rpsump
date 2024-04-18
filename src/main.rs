@@ -1,6 +1,8 @@
 use std::process::exit;
 
-use rpsump::{config::Settings, middleware::telemetry, repository, startup::Application};
+use rpsump::{
+    config::Settings, hydro::gpio::Gpio, middleware::telemetry, repository, startup::Application,
+};
 
 /// Start the application after loading settings, database, telemetry, and the RPi board.
 #[actix_web::main]
@@ -13,14 +15,13 @@ async fn main() -> std::io::Result<()> {
     // Observability
     telemetry::init_tracer(&settings).expect("Could not initialize telemetry.");
 
-    // Raspberry Pi
-    let gpio = rppal::gpio::Gpio::new().expect("Could not initialize GPIO.");
-
     // TODO: DB URI
     // Database
     let repo = repository::implementation(Some(settings.database_path.clone()))
         .await
         .expect("Could not create repository.");
+
+    let gpio = build_gpio();
 
     // Application
     let application = Application::build(settings, &gpio, repo);
@@ -28,6 +29,10 @@ async fn main() -> std::io::Result<()> {
     application.run_until_stopped().await?;
 
     Ok(())
+}
+
+fn build_gpio() -> impl Gpio {
+    rppal::gpio::Gpio::new().expect("Could not initialize GPIO.")
 }
 
 // actix-web will handle signals to exit, but doesn't offer a hook to customize it.

@@ -1,3 +1,4 @@
+use rpsump::test_fixtures::gpio::build_mock_gpio;
 use serde_json::Value;
 
 use rpsump::repository::models::sump_event::SumpEvent;
@@ -10,7 +11,7 @@ use crate::controllers::user_params;
 #[tokio::test]
 async fn sump_event_success() {
     // Arrange
-    let app = spawn_app().await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let _user = create_test_user(app.repo).await;
     insert_sump_events(app.repo).await;
 
@@ -29,7 +30,7 @@ async fn sump_event_success() {
 
 #[tokio::test]
 async fn sump_event_failed_no_auth() {
-    let app = spawn_app().await;
+    let app = spawn_app(&build_mock_gpio()).await;
     let sump_event_response = app.get_sump_event("invalid-token".to_string()).await;
     assert!(sump_event_response.status().is_client_error());
 }

@@ -69,10 +69,10 @@ pub struct Implementation {
 
 impl Implementation {
     pub async fn new(database_uri: Option<String>) -> Result<Self, Error> {
-        let connection_string = if database_uri.is_none() {
-            ":memory:".to_string()
+        let connection_string = if let Some(uri) = database_uri {
+            uri
         } else {
-            database_uri.unwrap()
+            ":memory:".to_string()
         };
 
         let manager = ConnectionManager::<SqliteConnection>::new(connection_string);
@@ -85,8 +85,8 @@ impl Implementation {
 #[async_trait]
 impl Repository for Implementation {
     async fn create(path: Option<String>) -> Result<Self, Error> {
-        let path = if path.is_some() {
-            path.unwrap()
+        let path = if let Some(path) = path {
+            path
         } else {
             ":memory:".to_string()
         };
@@ -102,7 +102,7 @@ impl Repository for Implementation {
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
-        let user_id = user_record.id.clone();
+        let user_id = user_record.id;
         let email = user_record.email.clone();
 
         let token = Token::new_email_verification(user_id);
@@ -248,7 +248,7 @@ impl Repository for Implementation {
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
 
         let new_user: User = spawn_blocking_with_tracing(move || {
-            let user = conn.transaction::<_, Error, _>(|conn| {
+            conn.transaction::<_, Error, _>(|conn| {
                 let _row_inserted = diesel::insert_into(user::table)
                     .values((
                         user::email.eq(new_email.clone()),
@@ -276,9 +276,7 @@ impl Repository for Implementation {
                     .execute(conn)?;
 
                 Ok(user)
-            });
-
-            user
+            })
         })
         .await??;
 
@@ -487,7 +485,7 @@ impl Repository for Implementation {
 
         let pw_hash = password
             .hash()
-            .map_err(|e| ResetPasswordError::InvalidPassword(e))?;
+            .map_err(ResetPasswordError::InvalidPassword)?;
 
         let _row_updated = spawn_blocking_with_tracing(move || {
             let current_user = match user::table
@@ -532,7 +530,7 @@ impl Repository for Implementation {
         let statuses = spawn_blocking_with_tracing(move || {
             IrrigationEvent::status_query()
                 .load::<StatusQueryResult>(&mut conn)
-                .map(|results| build_statuses(results))
+                .map(build_statuses)
                 .map_err(|e| anyhow!(e))
         })
         .await?
@@ -667,7 +665,6 @@ impl Repository for Implementation {
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
-        let user_id = user_id.clone();
 
         let user_events = spawn_blocking_with_tracing(move || {
             let mut event_filter: BoxedSelectStatement<_, _, _, _> = user_event::table.into_boxed();
@@ -787,7 +784,7 @@ impl Repository for Implementation {
 }
 
 fn build_statuses(results: Vec<StatusQueryResult>) -> Vec<Status> {
-    let statuses = results
+    results
         .into_iter()
         .map(|result: StatusQueryResult| {
             let StatusQueryResult {
@@ -856,11 +853,8 @@ fn build_statuses(results: Vec<StatusQueryResult>) -> Vec<Status> {
                 last_event: Some(last_event),
             }
         })
-        .collect::<Vec<Status>>();
-
-    statuses
+        .collect::<Vec<Status>>()
 }
-
 // mod tests {
 //     use chrono::NaiveDateTime;
 //     use rstest::rstest;

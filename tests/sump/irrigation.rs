@@ -17,7 +17,7 @@
 //     // TODO: this could fail around midnight in its current implementation.
 //     #[tokio::test]
 //     async fn test_irrigation_schedule() -> Result<(), Box<dyn Error>> {
-//         let app = spawn_app().await;
+//         let app = spawn_app(build_mock_gpio).await;
 //         let db_pool = app.db_pool.clone();
 
 //         insert_test_data(db_pool.clone()).await;

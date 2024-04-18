@@ -54,38 +54,3 @@ where
     let current_span = tracing::Span::current();
     spawn_blocking(move || current_span.in_scope(f))
 }
-
-#[macro_export]
-macro_rules! get_hydro {
-    ($maybe_hydro:expr) => {
-        match $maybe_hydro.lock() {
-            Ok(mut lock) => match lock.as_mut() {
-                Some(hydro) => hydro.clone(),
-                None => return Ok(HttpResponse::Ok().json(json!("Hydro not configured"))),
-            },
-            Err(e) => {
-                let msg = "Cound not get hydro lock";
-                tracing::error!(target = module_path!(), error = e.to_string(), msg);
-                return Ok(HttpResponse::Ok().json(json!(msg)));
-            }
-        }
-    };
-}
-
-//// Convenience method for database connections during an api request.
-// #[macro_export]
-// macro_rules! new_conn {
-//     ($db:expr) => {
-//         match $db.get_conn() {
-//             Ok(conn) => conn,
-//             Err(e) => {
-//                 tracing::error!(
-//                     target = module_path!(),
-//                     error = e.to_string(),
-//                     "Could not get database connection"
-//                 );
-//                 return Ok(ApiResponse::internal_server_error());
-//             }
-//         }
-//     };
-// }

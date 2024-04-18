@@ -33,12 +33,12 @@ pub async fn send_email_verification(
         expires_at: user.email_verification_token_expires_at.unwrap(),
     };
 
-    let email = new_email_verification_email(&user.email, &app_server_url, token);
+    let email = new_email_verification_email(&user.email, app_server_url, token);
     send(&mailer.auth_token, email, &mailer.server_url).await
 }
 
 pub async fn send_error_email(mailer: &MailerConfig, error_msg: &str) -> Result<(), Error> {
-    let email = new_error_email(&mailer.error_contact, &error_msg);
+    let email = new_error_email(&mailer.error_contact, error_msg);
     send(&mailer.auth_token, email, &mailer.server_url).await
 }
 

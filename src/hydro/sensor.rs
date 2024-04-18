@@ -44,22 +44,19 @@ pub trait Input {
 /// * `delay` - The debounce delay in milliseconds, if any. Used to
 ///    leave the pump on momentarily after a low water level is detected.
 impl Sensor {
-    pub fn new<G>(
+    pub fn new(
         message: Message,
         pin_number: u8,
-        gpio: &G,
+        gpio: &dyn Gpio,
         trigger: Trigger,
         tx: &Sender<Message>,
-    ) -> Result<Self, Error>
-    where
-        G: Gpio,
-    {
+    ) -> Result<Self, Error> {
         let mut pin_io = gpio
             .get(pin_number)
             .map_err(|e| anyhow!(e))?
             .into_input_pullup();
 
-        let _ = pin_io
+        pin_io
             .set_async_interrupt(message, trigger, tx)
             .map_err(|e| anyhow!(e.to_string()))?;
 
@@ -89,17 +86,22 @@ impl Input for Sensor {
 mod tests {
     use crate::{
         hydro::{gpio::Trigger, signal::Message},
-        test_fixtures::gpio::mock_gpio_get,
+        test_fixtures::gpio::mock_sensor_gpio,
     };
 
     use super::Sensor;
 
     #[test]
     fn test_new() {
-        let mock_gpio = mock_gpio_get(vec![1]);
         let (tx, _) = tokio::sync::mpsc::channel(32);
 
-        let _sensor: Sensor =
-            Sensor::new(Message::IrrigatorEmpty, 1, &mock_gpio, Trigger::Both, &tx).unwrap();
+        let _sensor: Sensor = Sensor::new(
+            Message::IrrigatorEmpty,
+            1,
+            &mock_sensor_gpio(),
+            Trigger::Both,
+            &tx,
+        )
+        .unwrap();
     }
 }
