@@ -43,8 +43,8 @@ pub fn listen(
                     sleep(Duration::from_secs(sump_empty_delay)).await;
 
                     let pin = sump_pump_pin.clone();
-                    let _ = tokio::task::spawn_blocking(move || {
-                        let mut lock = pin.lock().unwrap();
+                    let _ = tokio::task::spawn_blocking(|| async move {
+                        let mut lock = pin.lock().await;
                         lock.off();
                     })
                     .await;
@@ -56,8 +56,8 @@ pub fn listen(
                 }
                 Message::SumpFull => {
                     let pin = sump_pump_pin.clone();
-                    let _ = tokio::task::spawn_blocking(move || {
-                        let mut lock = pin.lock().unwrap();
+                    let _ = tokio::task::spawn_blocking(|| async move {
+                        let mut lock = pin.lock().await;
                         lock.on();
                     })
                     .await;
@@ -69,8 +69,8 @@ pub fn listen(
                 }
                 Message::IrrigatorEmpty => {
                     let pin = irrigator_pump_pin.clone();
-                    let _ = tokio::task::spawn_blocking(move || {
-                        let mut lock = pin.lock().unwrap();
+                    let _ = tokio::task::spawn_blocking(|| async move {
+                        let mut lock = pin.lock().await;
                         lock.off();
                     })
                     .await;

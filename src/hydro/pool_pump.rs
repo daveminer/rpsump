@@ -106,13 +106,13 @@ impl PoolPump {
     pub async fn speed(&self) -> PoolPumpSpeed {
         let mut current_speed = PoolPumpSpeed::Off;
 
-        if self.max.is_on() {
+        if self.max.is_on().await {
             current_speed = PoolPumpSpeed::Max;
-        } else if self.high.is_on() {
+        } else if self.high.is_on().await {
             current_speed = PoolPumpSpeed::High;
-        } else if self.med.is_on() {
+        } else if self.med.is_on().await {
             current_speed = PoolPumpSpeed::Med;
-        } else if self.low.is_on() {
+        } else if self.low.is_on().await {
             current_speed = PoolPumpSpeed::Low;
         };
 

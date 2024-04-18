@@ -7,8 +7,8 @@ use actix_web_opentelemetry::RequestTracing;
 use lazy_static::lazy_static;
 use serde_json::json;
 use std::net::TcpListener;
-use std::sync::Mutex;
 use tokio::runtime::Runtime;
+use tokio::sync::Mutex;
 
 use crate::config::Settings;
 use crate::controllers::{

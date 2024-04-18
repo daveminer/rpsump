@@ -1,5 +1,4 @@
-use anyhow::anyhow;
-use std::sync::Mutex;
+use tokio::sync::Mutex;
 
 use actix_web::{
     post,
@@ -9,10 +8,7 @@ use actix_web::{
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::{
-    auth::authenticated_user::AuthenticatedUser, controllers::auth::helpers::error_response,
-    hydro::Hydro,
-};
+use crate::{auth::authenticated_user::AuthenticatedUser, hydro::Hydro};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -33,30 +29,16 @@ pub async fn heater(
     _user: AuthenticatedUser,
     hydro: Data<Mutex<Hydro>>,
 ) -> Result<HttpResponse> {
-    let mut hydro = match hydro.lock() {
-        Ok(lock) => lock,
-        Err(e) => {
-            return Ok(error_response(
-                anyhow!(e.to_string()),
-                "Could not get hydro lock",
-            ));
-        }
-    };
+    let mut hydro = hydro.lock().await;
 
     match params.switch {
         HeaterLevel::On => {
             println!("Turning heater on");
-            if let Err(e) = hydro.heater.on().await {
-                tracing::error!("Error while turning heater on: {:?}", e);
-                return Ok(HttpResponse::InternalServerError().body(e.to_string()));
-            }
+            hydro.heater.on().await
         }
         HeaterLevel::Off => {
             println!("Turning heater off");
-            if let Err(e) = hydro.heater.off().await {
-                tracing::error!("Error while turning heater off: {:?}", e);
-                return Ok(HttpResponse::InternalServerError().body(e.to_string()));
-            }
+            hydro.heater.off().await
         }
     };
 

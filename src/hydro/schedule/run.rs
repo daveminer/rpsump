@@ -65,35 +65,13 @@ async fn start_irrigation(
         let hose_pin = hose.pin.clone();
         let pump_pin = irrigator.pump.pin.clone();
 
-        let _ = tokio::task::spawn_blocking(move || {
+        let _ = tokio::task::spawn_blocking(|| async move {
             // Open the solenoid and start the pump
-            let mut hose_lock = match hose_pin.lock() {
-                Ok(hose_lock) => hose_lock,
-                Err(e) => {
-                    tracing::error!(
-                        target = module_path!(),
-                        error = e.to_string(),
-                        "Could not lock hose pin for on"
-                    );
-                    return Err(anyhow!(e.to_string()));
-                }
-            };
+            let mut hose_lock = hose_pin.lock().await;
             hose_lock.on();
 
-            let mut pump_lock = match pump_pin.lock() {
-                Ok(pump_lock) => pump_lock,
-                Err(e) => {
-                    tracing::error!(
-                        target = module_path!(),
-                        error = e.to_string(),
-                        "Could not lock pump pin for on"
-                    );
-                    return Err(anyhow!(e.to_string()));
-                }
-            };
+            let mut pump_lock = pump_pin.lock().await;
             pump_lock.on();
-
-            Ok(())
         })
         .await;
 
@@ -104,39 +82,17 @@ async fn start_irrigation(
 
         tracing::error!(target = module_path!(), "Stopping irrigation job");
 
+        // Stop the pump and close the solenoid
         let hose_pin = hose.pin.clone();
         let pump_pin = irrigator.pump.pin.clone();
 
-        // Stop the pump and close the solenoid
-        let _ = tokio::task::spawn_blocking(move || {
-            let mut pump_lock = match pump_pin.lock() {
-                Ok(pump_lock) => pump_lock,
-                Err(e) => {
-                    tracing::error!(
-                        target = module_path!(),
-                        error = e.to_string(),
-                        "Could not lock pump pin for off"
-                    );
-                    return Err(anyhow!(e.to_string()));
-                }
-            };
+        let _ = tokio::task::spawn_blocking(|| async move {
+            let mut pump_lock = pump_pin.lock().await;
             pump_lock.off();
 
             // Open the solenoid and start the pump
-            let mut hose_lock = match hose_pin.lock() {
-                Ok(hose_lock) => hose_lock,
-                Err(e) => {
-                    tracing::error!(
-                        target = module_path!(),
-                        error = e.to_string(),
-                        "Could not lock hose pin for off"
-                    );
-                    return Err(anyhow!(e.to_string()));
-                }
-            };
+            let mut hose_lock = hose_pin.lock().await;
             hose_lock.off();
-
-            Ok(())
         })
         .await;
 
