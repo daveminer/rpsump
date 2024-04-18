@@ -30,7 +30,8 @@ impl Heater {
                 }
             };
             lock.on();
-        });
+        })
+        .await;
 
         Ok(())
     }
@@ -51,7 +52,8 @@ impl Heater {
                 }
             };
             lock.off();
-        });
+        })
+        .await;
 
         Ok(())
     }

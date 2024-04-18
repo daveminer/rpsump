@@ -69,10 +69,10 @@ pub struct Implementation {
 
 impl Implementation {
     pub async fn new(database_uri: Option<String>) -> Result<Self, Error> {
-        let connection_string = if database_uri.is_none() {
-            ":memory:".to_string()
+        let connection_string = if let Some(uri) = database_uri {
+            uri
         } else {
-            database_uri.unwrap()
+            ":memory:".to_string()
         };
 
         let manager = ConnectionManager::<SqliteConnection>::new(connection_string);
@@ -85,8 +85,8 @@ impl Implementation {
 #[async_trait]
 impl Repository for Implementation {
     async fn create(path: Option<String>) -> Result<Self, Error> {
-        let path = if path.is_some() {
-            path.unwrap()
+        let path = if let Some(path) = path {
+            path
         } else {
             ":memory:".to_string()
         };
@@ -102,7 +102,7 @@ impl Repository for Implementation {
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
-        let user_id = user_record.id.clone();
+        let user_id = user_record.id;
         let email = user_record.email.clone();
 
         let token = Token::new_email_verification(user_id);
@@ -665,7 +665,6 @@ impl Repository for Implementation {
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
-        let user_id = user_id.clone();
 
         let user_events = spawn_blocking_with_tracing(move || {
             let mut event_filter: BoxedSelectStatement<_, _, _, _> = user_event::table.into_boxed();

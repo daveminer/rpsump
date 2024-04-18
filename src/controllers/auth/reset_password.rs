@@ -64,7 +64,7 @@ async fn request_password_reset(
     if users.len() == 1 {
         let mut user = users.first().unwrap().clone();
 
-        if let Some(token) = user.password_reset_token_expires_at.clone() {
+        if let Some(token) = user.password_reset_token_expires_at {
             if token < chrono::Utc::now().naive_utc() {
                 return Ok(ApiResponse::bad_request(
                     "Password reset request expired; please try again.".to_string(),

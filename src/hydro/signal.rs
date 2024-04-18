@@ -46,7 +46,8 @@ pub fn listen(
                     let _ = tokio::task::spawn_blocking(move || {
                         let mut lock = pin.lock().unwrap();
                         lock.off();
-                    });
+                    })
+                    .await;
 
                     let snote = snote.clone();
                     if snote.is_some() {
@@ -58,7 +59,8 @@ pub fn listen(
                     let _ = tokio::task::spawn_blocking(move || {
                         let mut lock = pin.lock().unwrap();
                         lock.on();
-                    });
+                    })
+                    .await;
 
                     let snote = snote.clone();
                     if snote.is_some() {
@@ -70,7 +72,8 @@ pub fn listen(
                     let _ = tokio::task::spawn_blocking(move || {
                         let mut lock = pin.lock().unwrap();
                         lock.off();
-                    });
+                    })
+                    .await;
 
                     let inote = inote.clone();
                     if inote.is_some() {

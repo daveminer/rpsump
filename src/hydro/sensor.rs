@@ -56,7 +56,7 @@ impl Sensor {
             .map_err(|e| anyhow!(e))?
             .into_input_pullup();
 
-        let _ = pin_io
+        pin_io
             .set_async_interrupt(message, trigger, tx)
             .map_err(|e| anyhow!(e.to_string()))?;
 

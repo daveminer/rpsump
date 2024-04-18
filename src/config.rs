@@ -224,8 +224,14 @@ impl Settings {
     }
 }
 
+impl Default for Settings {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 fn load_system_var(env: &str) -> String {
-    env::var(env).expect(&format!("{} environment variable not found.", env))
+    env::var(env).unwrap_or_else(|_| panic!("{} environment variable not found.", env))
 }
 
 fn set_application_environment() {

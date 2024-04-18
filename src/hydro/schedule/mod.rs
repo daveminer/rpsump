@@ -43,7 +43,7 @@ fn due_statuses(status_list: Vec<Status>, now: NaiveDateTime) -> Vec<Status> {
     let mut schedules_to_run = status_list
         .into_iter()
         // Schedule is active
-        .filter(|status| status.schedule.active == true)
+        .filter(|status| status.schedule.active)
         // Schedule is for today
         .filter(|status| {
             status
@@ -66,7 +66,7 @@ fn due_statuses(status_list: Vec<Status>, now: NaiveDateTime) -> Vec<Status> {
 
     schedules_to_run.sort_by(|a, b| a.schedule.start_time.cmp(&b.schedule.start_time));
 
-    return schedules_to_run;
+    schedules_to_run
 }
 
 #[cfg(test)]

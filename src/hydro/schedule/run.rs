@@ -94,7 +94,8 @@ async fn start_irrigation(
             pump_lock.on();
 
             Ok(())
-        });
+        })
+        .await;
 
         // Wait for the job to finish
         while !job_complete(duration, start_time) {
@@ -136,7 +137,8 @@ async fn start_irrigation(
             hose_lock.off();
 
             Ok(())
-        });
+        })
+        .await;
 
         // Move the job out of "in progress" status
         if let Err(e) = repo.finish_irrigation_event().await {
@@ -178,7 +180,7 @@ fn event_hose_pin(event: &IrrigationEvent, irrigator: &Irrigator) -> Result<Cont
                 hose_id = event.hose_id,
                 "Invalid pin from schedule"
             );
-            return Err(e);
+            Err(e)
         }
     }
 }

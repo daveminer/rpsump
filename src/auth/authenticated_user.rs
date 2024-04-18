@@ -29,7 +29,7 @@ impl FromRequest for AuthenticatedUser {
             }
         };
 
-        if let None = settings(req) {
+        if settings(req).is_none() {
             tracing::error!(
                 target = module_path!(),
                 "Configuration error; settings are None."

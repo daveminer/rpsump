@@ -98,9 +98,9 @@ fn callback(
     drop(deb);
 }
 
-impl Into<rppal::gpio::Trigger> for Trigger {
-    fn into(self) -> rppal::gpio::Trigger {
-        match self {
+impl From<Trigger> for rppal::gpio::Trigger {
+    fn from(val: Trigger) -> Self {
+        match val {
             Trigger::Disabled => rppal::gpio::Trigger::Disabled,
             Trigger::RisingEdge => rppal::gpio::Trigger::RisingEdge,
             Trigger::FallingEdge => rppal::gpio::Trigger::FallingEdge,
