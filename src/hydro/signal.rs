@@ -50,8 +50,8 @@ pub fn listen(
                     .await;
 
                     let snote = snote.clone();
-                    if snote.is_some() {
-                        snote.unwrap().notify_one();
+                    if let Some(snote) = snote {
+                        snote.notify_one();
                     }
                 }
                 Message::SumpFull => {
@@ -63,8 +63,8 @@ pub fn listen(
                     .await;
 
                     let snote = snote.clone();
-                    if snote.is_some() {
-                        snote.unwrap().notify_one();
+                    if let Some(snote) = snote {
+                        snote.notify_one();
                     }
                 }
                 Message::IrrigatorEmpty => {
@@ -76,8 +76,8 @@ pub fn listen(
                     .await;
 
                     let inote = inote.clone();
-                    if inote.is_some() {
-                        inote.unwrap().notify_one();
+                    if let Some(inote) = inote {
+                        inote.notify_one();
                     }
                 }
             }
