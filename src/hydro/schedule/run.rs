@@ -145,34 +145,57 @@ fn job_complete(duration: Duration, start_time: SystemTime) -> bool {
     }
 }
 
-// TODO: Update this test
-// #[cfg(test)]
-// mod tests {
-//     use rstest::rstest;
+#[cfg(test)]
+mod tests {
+    use rstest::rstest;
+    use wiremock::Mock;
 
-//     use crate::test_fixtures::irrigation::{event::completed_event, irrigator::irrigator};
+    use crate::{
+        repository::{MockRepository, Repository},
+        test_fixtures::irrigation::{event::completed_event, irrigator::irrigator},
+    };
 
-//     use super::*;
-//     use std::time::{Duration, SystemTime};
+    use super::*;
+    use std::time::{Duration, SystemTime};
 
-//     #[rstest]
-//     fn test_event_hose_pin(completed_event: IrrigationEvent, irrigator: Irrigator) {
-//         // Call the function being tested
-//         let result = event_hose_pin(&completed_event, &irrigator).unwrap();
-//         assert_eq!(result, irrigator.valve1);
-//     }
+    use once_cell::sync::Lazy;
 
-//     #[test]
-//     fn test_job_complete() {
-//         // Set up test data
-//         let duration = Duration::from_secs(60);
-//         let earlier_start_time = SystemTime::now() - Duration::from_secs(90);
-//         let later_start_time = SystemTime::now() - Duration::from_secs(30);
+    static REPO: Lazy<MockRepository> = Lazy::new(|| MockRepository::new());
 
-//         // Call the function being tested
-//         let shorter_result = job_complete(duration, later_start_time).unwrap();
-//         let longer_result = job_complete(duration, earlier_start_time).unwrap();
-//         assert_eq!(shorter_result, false);
-//         assert_eq!(longer_result, true);
-//     }
-// }
+    #[rstest]
+    fn test_event_hose_pin(completed_event: IrrigationEvent, irrigator: Irrigator) {
+        let result = event_hose_pin(&completed_event, &irrigator).unwrap();
+        assert_eq!(result, irrigator.valve1);
+    }
+
+    #[test]
+    fn test_job_complete() {
+        // Set up test data
+        let duration = Duration::from_secs(60);
+        let earlier_start_time = SystemTime::now() - Duration::from_secs(90);
+        let later_start_time = SystemTime::now() - Duration::from_secs(30);
+
+        // Call the function being tested
+        let shorter_result = job_complete(duration, later_start_time);
+        let longer_result = job_complete(duration, earlier_start_time);
+        assert_eq!(shorter_result, false);
+        assert_eq!(longer_result, true);
+    }
+
+    #[rstest]
+    #[tokio::test]
+    async fn test_irrigate(irrigator: Irrigator, completed_event: IrrigationEvent) {
+        // Set up test data
+        let repo = MockRepository::new();
+
+        // Additional assertions can be added here
+
+        // Call the function being tested
+        let result = irrigate(&repo.clone(), completed_event, 1, &irrigator).await;
+
+        // Assert the result
+        assert!(result.is_ok());
+
+        // Additional assertions can be added here
+    }
+}

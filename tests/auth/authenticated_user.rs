@@ -79,9 +79,7 @@ mod tests {
             .await
             .expect("Failed to execute request.");
 
-        println!("RESULT: {}", result.text().await.unwrap());
-
-        //assert!(result.status() == StatusCode::OK);
+        assert!(result.status() == StatusCode::OK);
     }
 
     #[tokio::test]

@@ -32,14 +32,8 @@ pub async fn heater(
     let mut hydro = hydro.lock().await;
 
     match params.switch {
-        HeaterLevel::On => {
-            println!("Turning heater on");
-            hydro.heater.on().await
-        }
-        HeaterLevel::Off => {
-            println!("Turning heater off");
-            hydro.heater.off().await
-        }
+        HeaterLevel::On => hydro.heater.on().await,
+        HeaterLevel::Off => hydro.heater.off().await,
     };
 
     tracing::info!("Heater status changed: {:?}", params.switch);

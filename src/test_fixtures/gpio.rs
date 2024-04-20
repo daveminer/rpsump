@@ -53,16 +53,16 @@ pub fn build_mock_gpio() -> impl Gpio {
     gpio
 }
 
-pub fn mock_gpio_get(pins: Vec<u8>) -> Box<dyn Gpio> {
+pub fn mock_gpio_get(pins: Vec<u8>) -> MockGpio {
     let mut mock_gpio = MockGpio::new();
     for pin in pins {
         mock_gpio
             .expect_get()
             .with(predicate::eq(pin))
             .times(1)
-            .returning(|_| Ok(Box::new(MockPin::new())));
+            .returning(|_| Ok(mock_output_pin(false)));
     }
-    Box::new(mock_gpio)
+    mock_gpio
 }
 
 pub fn mock_input_pin_with_interrupt(is_on: bool, read_result: Level) -> Box<MockPin> {
