@@ -55,20 +55,24 @@ fn create_valid_token(user: User) -> String {
 
 mod tests {
     use reqwest::StatusCode;
-    use rpsump::test_fixtures::gpio::build_mock_gpio;
+    use rpsump::{repository::models::user::UserFilter, test_fixtures::gpio::build_mock_gpio};
 
     use crate::{
         auth::authenticated_user::{create_auth_header, create_expired_token, create_valid_token},
         common::test_app::spawn_app,
-        controllers::auth::create_test_user,
+        controllers::auth::TEST_EMAIL,
     };
 
     #[tokio::test]
     async fn protected_request_valid_token() {
         let app = spawn_app(&build_mock_gpio()).await;
-        let user = create_test_user(app.repo).await;
 
-        let token = create_valid_token(user);
+        let user_filter = UserFilter {
+            email: Some(TEST_EMAIL.into()),
+            ..Default::default()
+        };
+        let users = app.repo.users(user_filter).await.unwrap();
+        let token = create_valid_token(users[0].clone());
         let (header_name, header_value) = create_auth_header(&token);
 
         let result = app
@@ -100,9 +104,13 @@ mod tests {
     async fn protected_request_failed_expired_token() {
         let app = spawn_app(&build_mock_gpio()).await;
 
-        let user = create_test_user(app.repo).await;
+        let user_filter = UserFilter {
+            email: Some(TEST_EMAIL.into()),
+            ..Default::default()
+        };
+        let user = &app.repo.users(user_filter).await.unwrap()[0];
 
-        let token = create_expired_token(user);
+        let token = create_expired_token(user.clone());
         let (header_name, header_value) = create_auth_header(&token);
 
         let result = app

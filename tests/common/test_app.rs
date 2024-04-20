@@ -19,6 +19,7 @@ use rpsump::startup::Application;
 
 // TODO: move to shared location
 use crate::auth::authenticated_user::create_auth_header;
+use crate::controllers::auth::create_test_user;
 
 const DB_TEMPLATE_FILE: &str = "rpsump_test.db";
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
@@ -71,12 +72,6 @@ pub async fn migrated_pathbuf() -> (PathBuf, TempDir) {
 
     (test_db_path, test_db_dir)
 }
-
-// static GPIO: Lazy<OnceCell<MockGpio>> = Lazy::new(OnceCell::new);
-
-// // pub async fn get_gpio() -> Result<&'static MockGpio, Error> {
-// //     Ok(GPIO.get_or_init(|| async { spawn_test_gpio() }).await)
-// // }
 
 impl TestApp {
     pub async fn delete_irrigation_schedule(&self, token: String, id: i32) -> reqwest::Response {
@@ -287,6 +282,8 @@ pub async fn spawn_app(gpio: &dyn Gpio) -> TestApp {
     let repo = repository::implementation(Some(test_repo.to_str().unwrap().to_string()))
         .await
         .expect("Could not create repository.");
+
+    let _user = create_test_user(repo).await;
 
     let application = Application::build(settings.clone(), gpio, repo);
     let port = application.port();
