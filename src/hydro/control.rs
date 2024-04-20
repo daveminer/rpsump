@@ -42,6 +42,12 @@ impl fmt::Debug for Control {
     }
 }
 
+impl PartialEq for Control {
+    fn eq(&self, other: &Self) -> bool {
+        self.label == other.label
+    }
+}
+
 #[async_trait]
 pub trait Output {
     async fn on(&mut self) -> Result<(), Error>;
