@@ -1,5 +1,6 @@
 use std::process::exit;
 
+use diesel::RunQueryDsl;
 use rpsump::{
     config::Settings, hydro::gpio::Gpio, middleware::telemetry, repository, startup::Application,
 };
@@ -20,6 +21,16 @@ async fn main() -> std::io::Result<()> {
     let repo = repository::implementation(Some(settings.database_path.clone()))
         .await
         .expect("Could not create repository.");
+
+    let mut conn = repo
+        .pool()
+        .await
+        .expect("Could not get db pool")
+        .get()
+        .expect("Could not get db connection.");
+    // TODO: move to util
+    let _ = diesel::sql_query("PRAGMA journal_mode=WAL;").execute(&mut conn);
+    let _ = diesel::sql_query("PRAGMA busy_timeout=5000;").execute(&mut conn);
 
     let gpio = build_gpio();
 

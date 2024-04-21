@@ -12,7 +12,6 @@ use crate::test_fixtures::irrigation::schedule::{
 
 #[fixture]
 pub fn all_schedules_statuses(
-    completed_event: IrrigationEvent,
     daily_schedule: IrrigationSchedule,
     friday_schedule: IrrigationSchedule,
     tues_thurs_schedule: IrrigationSchedule,
@@ -27,7 +26,7 @@ pub fn all_schedules_statuses(
         },
         Status {
             schedule: friday_schedule,
-            last_event: Some(completed_event),
+            last_event: None,
         },
         Status {
             schedule: tues_thurs_schedule,
@@ -48,6 +47,17 @@ pub fn all_schedules_statuses(
     ]
 }
 
+/// Creates a `Status` instance for testing, with a completed event that is intended
+/// (but does not have to be) for the same day.
+///
+/// Creates a daily schedule with a completed event for testing.
+///
+/// # Parameters
+/// - `daily_schedule`: The `IrrigationSchedule` to be set in the `Status`.
+/// - `completed_event`: The completed `IrrigationEvent` to be set in the `Status`.
+///
+/// # Returns
+/// Returns a schedule `Status` instance with the given daily schedule and completed event.
 #[fixture]
 pub fn event_finished_today(
     daily_schedule: IrrigationSchedule,
@@ -59,6 +69,17 @@ pub fn event_finished_today(
     }
 }
 
+/// Creates a `Status` instance for testing with no events today.
+///
+/// This function is a fixture that sets up a `Status` instance with a given
+/// daily irrigation schedule and no completed irrigation event for today. It is used
+/// in tests to easily create `Status` instances with specific states.
+///
+/// # Parameters
+/// - `daily_schedule`: The daily irrigation schedule to be set in the `Status`.
+///
+/// # Returns
+/// Returns a `Status` instance with the given daily schedule and no event for today.
 #[fixture]
 pub fn no_event_today(daily_schedule: IrrigationSchedule) -> Status {
     Status {
@@ -67,7 +88,17 @@ pub fn no_event_today(daily_schedule: IrrigationSchedule) -> Status {
     }
 }
 
-// Assumes that the current day is Friday
+/// Creates a `Status` instance for testing with no scheduled events today.
+///
+/// This function is a fixture that sets up a `Status` instance with a given
+/// daily irrigation schedule and assumes that the current day is Friday with no events scheduled.
+/// It is used in tests to easily create `Status` instances with specific states.
+///
+/// # Parameters
+/// - `daily_schedule`: The daily irrigation schedule to be set in the `Status`.
+///
+/// # Returns
+/// Returns a `Status` instance with the given daily schedule and no scheduled event for today (Friday).
 #[fixture]
 pub fn not_scheduled_today(daily_schedule: IrrigationSchedule) -> Status {
     Status {

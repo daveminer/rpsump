@@ -2,14 +2,12 @@ use rpsump::test_fixtures::gpio::build_mock_gpio;
 use serde_json::{json, Value};
 
 use crate::common::test_app::spawn_app;
-use crate::controllers::auth::create_test_user;
 use crate::controllers::user_params;
 
 #[tokio::test]
 async fn pool_pump_success() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    let _user = create_test_user(app.repo).await;
 
     // Act
     let response = app.post_login(&user_params()).await;

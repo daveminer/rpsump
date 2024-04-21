@@ -1,27 +1,15 @@
 use serde_json::{Map, Value};
 
-use crate::controllers::user_params;
-use rpsump::auth::password::Password;
-use rpsump::repository::{models::user::User, Repo};
+use crate::controllers::new_user_params;
 
 mod email_verification;
 mod login;
 mod reset_password;
 mod signup;
 
+pub const NEW_EMAIL: &str = "new_acct@test.local";
 pub const TEST_EMAIL: &str = "test_acct@test.local";
 pub const TEST_PASSWORD: &str = "testing87_*Password";
-
-// TODO: Move this to a common module
-pub async fn create_test_user(repo: Repo) -> User {
-    repo.create_user(
-        TEST_EMAIL.into(),
-        Password::new(TEST_PASSWORD.into()).hash().unwrap(),
-        "127.0.0.1".into(),
-    )
-    .await
-    .expect("Could not create test user")
-}
 
 fn password_reset_params(token: String, new_password: String) -> Map<String, Value> {
     let mut map = serde_json::Map::new();
@@ -32,7 +20,7 @@ fn password_reset_params(token: String, new_password: String) -> Map<String, Val
 }
 
 fn signup_params() -> Map<String, Value> {
-    let mut map = user_params();
+    let mut map = new_user_params();
     map.insert("confirm_password".into(), TEST_PASSWORD.into());
     map
 }

@@ -31,7 +31,6 @@ pub struct Application {
 
 impl Application {
     pub fn build(settings: Settings, gpio: &dyn Gpio, repo: Repo) -> Application {
-        println!("Building application");
         // Web server configuration
         let (_address, port, tcp_listener) = web_server_config(&settings);
 

@@ -18,7 +18,7 @@ pub mod control;
 pub mod debounce;
 pub mod gpio;
 pub mod heater;
-mod irrigator;
+pub mod irrigator;
 pub mod pool_pump;
 pub mod schedule;
 pub mod sensor;
@@ -50,6 +50,12 @@ impl Hydro {
         let sump = Sump::new(&config.sump, &tx, gpio)?;
         let irrigator = Irrigator::new(&config.irrigation, &tx, gpio)?;
 
+        schedule::start(
+            repo,
+            irrigator.clone(),
+            config.irrigation.process_frequency_sec,
+        );
+
         signal::listen(
             mpsc.1,
             handle.clone(),
@@ -69,29 +75,4 @@ impl Hydro {
             sump,
         })
     }
-}
-
-#[cfg(test)]
-mod tests {
-    // use rstest::rstest;
-
-    // use super::Hydro;
-    // use crate::{
-    //     config::HydroConfig,
-    //     repository::MockRepository,
-    //     test_fixtures::{gpio::mock_gpio_get, hydro::hydro_config},
-    // };
-
-    // TODO: update
-    // #[rstest]
-    // #[tokio::test]
-    // async fn test_new(#[from(hydro_config)] hydro_config: HydroConfig) {
-    //     let mock_gpio = mock_gpio_get(vec![1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 13, 14, 15, 16]);
-    //     let mock_repo = MockRepository::new();
-    //     let handle = tokio::runtime::Handle::current();
-
-    //     let result = Hydro::new(&hydro_config, handle, mock_gpio, &mock_repo);
-
-    //     assert!(result.is_ok());
-    // }
 }

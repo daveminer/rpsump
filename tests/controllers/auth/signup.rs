@@ -12,16 +12,21 @@ use rpsump::{
     test_fixtures::gpio::build_mock_gpio,
 };
 
-use super::{create_test_user, signup_params, user_params};
+use super::signup_params;
 use crate::common::test_app::spawn_app;
-use crate::controllers::mock_email_verification_send;
+use crate::controllers::{auth::TEST_EMAIL, mock_email_verification_send, user_params};
 
 #[tokio::test]
 async fn signup_failed_email_taken() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    let user = create_test_user(app.repo).await;
     let mut params = signup_params();
+
+    let user_filter = UserFilter {
+        email: Some(TEST_EMAIL.into()),
+        ..Default::default()
+    };
+    let user = &app.repo.users(user_filter).await.unwrap()[0];
     params["email"] = serde_json::json!(user.email);
 
     // Act

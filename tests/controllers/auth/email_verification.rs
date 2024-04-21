@@ -70,8 +70,6 @@ async fn email_verification_failed_token_mismatch() {
 async fn email_verification_failed_no_token() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    // let pool = repo.pool().await?;
-    // let mut conn = pool.get().unwrap();
     let params = signup_params();
     let _mock = mock_email_verification_send(&app).await;
 

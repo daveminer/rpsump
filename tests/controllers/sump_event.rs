@@ -5,14 +5,12 @@ use rpsump::repository::models::sump_event::SumpEvent;
 
 use crate::common::fixtures::sump_event::insert_sump_events;
 use crate::common::test_app::spawn_app;
-use crate::controllers::auth::create_test_user;
 use crate::controllers::user_params;
 
 #[tokio::test]
 async fn sump_event_success() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    let _user = create_test_user(app.repo).await;
     insert_sump_events(app.repo).await;
 
     // Act
