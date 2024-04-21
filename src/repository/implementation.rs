@@ -67,20 +67,20 @@ pub struct Implementation {
     pub pool: DbPool,
 }
 
-impl Implementation {
-    pub async fn new(database_uri: Option<String>) -> Result<Self, Error> {
-        let connection_string = if let Some(uri) = database_uri {
-            uri
-        } else {
-            ":memory:".to_string()
-        };
+// impl Implementation {
+//     pub async fn new(database_uri: Option<String>) -> Result<Self, Error> {
+//         let connection_string = if let Some(uri) = database_uri {
+//             uri
+//         } else {
+//             ":memory:".to_string()
+//         };
 
-        let manager = ConnectionManager::<SqliteConnection>::new(connection_string);
-        let pool = Pool::new(manager)?;
+//         let manager = ConnectionManager::<SqliteConnection>::new(connection_string);
+//         let pool = Pool::new(manager)?;
 
-        Ok(Implementation { pool })
-    }
-}
+//         Ok(Implementation { pool })
+//     }
+// }
 
 #[async_trait]
 impl Repository for Implementation {

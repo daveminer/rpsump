@@ -2,11 +2,14 @@ use std::env;
 use std::fs::{self, File};
 use std::path::PathBuf;
 
+use chrono::Utc;
 use diesel::r2d2::{ConnectionManager, Pool};
-use diesel::SqliteConnection;
+use diesel::sql_types::Text;
+use diesel::{RunQueryDsl, SqliteConnection};
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use once_cell::sync::Lazy;
 
+use rpsump::auth::password::Password;
 use serde_json::{json, Value};
 use tempfile::TempDir;
 use tokio::sync::OnceCell;
@@ -17,9 +20,8 @@ use rpsump::hydro::gpio::Gpio;
 use rpsump::repository::{self, Repo};
 use rpsump::startup::Application;
 
-// TODO: move to shared location
 use crate::auth::authenticated_user::create_auth_header;
-use crate::controllers::auth::create_test_user;
+use crate::controllers::auth::{TEST_EMAIL, TEST_PASSWORD};
 
 const DB_TEMPLATE_FILE: &str = "rpsump_test.db";
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
@@ -46,7 +48,24 @@ async fn initialize_db_template() -> (PathBuf, TempDir) {
     let pool = Pool::new(manager).unwrap();
     let mut conn = pool.get().unwrap();
 
+    let _ = diesel::sql_query("PRAGMA journal_mode=WAL;").execute(&mut conn);
+    let _ = diesel::sql_query("PRAGMA busy_timeout=5000;").execute(&mut conn);
+
+    let password = Password::new(TEST_PASSWORD.into()).hash().unwrap();
+
     let _ = conn.run_pending_migrations(MIGRATIONS).unwrap();
+    drop(conn);
+
+    let mut conn = pool.get().unwrap();
+    let _test_user = diesel::sql_query(
+        "INSERT INTO user (email, password_hash, email_verified_at) VALUES (?, ?, ?)",
+    )
+    .bind::<Text, _>(TEST_EMAIL)
+    .bind::<Text, _>(password)
+    .bind::<Text, _>(Utc::now().naive_utc().to_string())
+    .execute(&mut conn);
+
+    drop(conn);
 
     // Return the path to the migrated template database
     // TODO: check if temp_dir lifetime is needed
@@ -282,8 +301,6 @@ pub async fn spawn_app(gpio: &dyn Gpio) -> TestApp {
     let repo = repository::implementation(Some(test_repo.to_str().unwrap().to_string()))
         .await
         .expect("Could not create repository.");
-
-    let _user = create_test_user(repo).await;
 
     let application = Application::build(settings.clone(), gpio, repo);
     let port = application.port();

@@ -7,7 +7,7 @@ use crate::common::test_app::TestApp;
 
 use serde_json::{Map, Value};
 
-use self::auth::{TEST_EMAIL, TEST_PASSWORD};
+use self::auth::{NEW_EMAIL, TEST_EMAIL, TEST_PASSWORD};
 
 pub mod auth;
 pub mod heater;
@@ -73,6 +73,14 @@ async fn mock_email_verification_send(app: &TestApp) -> MockGuard {
         .expect(1)
         .mount_as_scoped(&app.email_server)
         .await
+}
+
+pub fn new_user_params() -> Map<String, Value> {
+    let mut map = serde_json::Map::new();
+    map.insert("email".into(), NEW_EMAIL.into());
+    map.insert("password".into(), TEST_PASSWORD.into());
+
+    map
 }
 
 pub fn user_params() -> Map<String, Value> {

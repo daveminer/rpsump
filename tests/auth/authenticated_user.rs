@@ -108,6 +108,7 @@ mod tests {
             email: Some(TEST_EMAIL.into()),
             ..Default::default()
         };
+
         let user = &app.repo.users(user_filter).await.unwrap()[0];
 
         let token = create_expired_token(user.clone());

@@ -12,10 +12,9 @@ use rpsump::{
     test_fixtures::gpio::build_mock_gpio,
 };
 
-use super::{signup_params, user_params};
+use super::signup_params;
 use crate::common::test_app::spawn_app;
-use crate::controllers::auth::TEST_EMAIL;
-use crate::controllers::mock_email_verification_send;
+use crate::controllers::{auth::TEST_EMAIL, mock_email_verification_send, user_params};
 
 #[tokio::test]
 async fn signup_failed_email_taken() {
