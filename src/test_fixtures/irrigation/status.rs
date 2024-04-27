@@ -1,6 +1,6 @@
 use rstest::fixture;
 
-use crate::hydro::schedule::Status;
+use crate::hydro::schedule::ScheduleStatus;
 use crate::repository::models::{
     irrigation_event::IrrigationEvent, irrigation_schedule::IrrigationSchedule,
 };
@@ -18,90 +18,90 @@ pub fn all_schedules_statuses(
     weekday_schedule: IrrigationSchedule,
     weekend_schedule: IrrigationSchedule,
     deactivated_schedule: IrrigationSchedule,
-) -> Vec<Status> {
+) -> Vec<ScheduleStatus> {
     vec![
-        Status {
+        ScheduleStatus {
             schedule: daily_schedule,
             last_event: None,
         },
-        Status {
+        ScheduleStatus {
             schedule: friday_schedule,
             last_event: None,
         },
-        Status {
+        ScheduleStatus {
             schedule: tues_thurs_schedule,
             last_event: None,
         },
-        Status {
+        ScheduleStatus {
             schedule: weekday_schedule,
             last_event: None,
         },
-        Status {
+        ScheduleStatus {
             schedule: weekend_schedule,
             last_event: None,
         },
-        Status {
+        ScheduleStatus {
             schedule: deactivated_schedule,
             last_event: None,
         },
     ]
 }
 
-/// Creates a `Status` instance for testing, with a completed event that is intended
+/// Creates a `ScheduleStatus` instance for testing, with a completed event that is intended
 /// (but does not have to be) for the same day.
 ///
 /// Creates a daily schedule with a completed event for testing.
 ///
 /// # Parameters
-/// - `daily_schedule`: The `IrrigationSchedule` to be set in the `Status`.
-/// - `completed_event`: The completed `IrrigationEvent` to be set in the `Status`.
+/// - `daily_schedule`: The `IrrigationSchedule` to be set in the `ScheduleStatus`.
+/// - `completed_event`: The completed `IrrigationEvent` to be set in the `ScheduleStatus`.
 ///
 /// # Returns
-/// Returns a schedule `Status` instance with the given daily schedule and completed event.
+/// Returns a schedule `ScheduleStatus` instance with the given daily schedule and completed event.
 #[fixture]
 pub fn event_finished_today(
     daily_schedule: IrrigationSchedule,
     completed_event: IrrigationEvent,
-) -> Status {
-    Status {
+) -> ScheduleStatus {
+    ScheduleStatus {
         schedule: daily_schedule,
         last_event: Some(completed_event),
     }
 }
 
-/// Creates a `Status` instance for testing with no events today.
+/// Creates a `ScheduleStatus` instance for testing with no events today.
 ///
-/// This function is a fixture that sets up a `Status` instance with a given
+/// This function is a fixture that sets up a `ScheduleStatus` instance with a given
 /// daily irrigation schedule and no completed irrigation event for today. It is used
-/// in tests to easily create `Status` instances with specific states.
+/// in tests to easily create `ScheduleStatus` instances with specific states.
 ///
 /// # Parameters
-/// - `daily_schedule`: The daily irrigation schedule to be set in the `Status`.
+/// - `daily_schedule`: The daily irrigation schedule to be set in the `ScheduleStatus`.
 ///
 /// # Returns
-/// Returns a `Status` instance with the given daily schedule and no event for today.
+/// Returns a `ScheduleStatus` instance with the given daily schedule and no event for today.
 #[fixture]
-pub fn no_event_today(daily_schedule: IrrigationSchedule) -> Status {
-    Status {
+pub fn no_event_today(daily_schedule: IrrigationSchedule) -> ScheduleStatus {
+    ScheduleStatus {
         schedule: daily_schedule,
         last_event: None,
     }
 }
 
-/// Creates a `Status` instance for testing with no scheduled events today.
+/// Creates a `ScheduleStatus` instance for testing with no scheduled events today.
 ///
-/// This function is a fixture that sets up a `Status` instance with a given
+/// This function is a fixture that sets up a `ScheduleStatus` instance with a given
 /// daily irrigation schedule and assumes that the current day is Friday with no events scheduled.
-/// It is used in tests to easily create `Status` instances with specific states.
+/// It is used in tests to easily create `ScheduleStatus` instances with specific states.
 ///
 /// # Parameters
-/// - `daily_schedule`: The daily irrigation schedule to be set in the `Status`.
+/// - `daily_schedule`: The daily irrigation schedule to be set in the `ScheduleStatus`.
 ///
 /// # Returns
-/// Returns a `Status` instance with the given daily schedule and no scheduled event for today (Friday).
+/// Returns a `ScheduleStatus` instance with the given daily schedule and no scheduled event for today (Friday).
 #[fixture]
-pub fn not_scheduled_today(daily_schedule: IrrigationSchedule) -> Status {
-    Status {
+pub fn not_scheduled_today(daily_schedule: IrrigationSchedule) -> ScheduleStatus {
+    ScheduleStatus {
         schedule: daily_schedule,
         last_event: None,
     }

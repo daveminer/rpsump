@@ -15,15 +15,15 @@ mod tests {
     async fn test_irrigation_schedule() -> Result<(), Box<dyn Error>> {
         let app = spawn_app(&build_mock_gpio()).await;
 
+        insert_test_data(app.repo).await;
+
         let schedules_before = app.repo.irrigation_schedules().await?;
         println!("SB: {:?}", schedules_before);
         let events_before = app.repo.irrigation_events().await?;
         println!("EB: {:?}", events_before);
 
-        insert_test_data(app.repo).await;
-
-        // Wait three seconds
-        tokio::time::sleep(Duration::from_secs(10)).await;
+        // Wait for a cycle
+        tokio::time::sleep(Duration::from_secs(5)).await;
 
         // Check that the schedules have been run
         let schedules_after = app.repo.irrigation_schedules().await?;
@@ -32,7 +32,7 @@ mod tests {
         println!("EA: {:?}", events_after);
 
         // TODO
-        // assert
+        assert!(false);
 
         Ok(())
     }
@@ -120,7 +120,7 @@ mod tests {
             true,
             "Eligible Test Schedule 1".to_string(),
             just_passed.time(),
-            15,
+            1,
             today_and_neighbors_str,
             "1,3,4".to_string(),
             the_past,
@@ -133,7 +133,7 @@ mod tests {
             true,
             "Eligible Test Schedule 2".to_string(),
             just_passed.time(),
-            15,
+            1,
             "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday".to_string(),
             "2".to_string(),
             the_past,

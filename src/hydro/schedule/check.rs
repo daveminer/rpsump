@@ -1,22 +1,23 @@
 use anyhow::Error;
-use chrono::{Datelike, NaiveDateTime};
+use chrono::{Datelike, NaiveDateTime, Utc};
 
-use super::Status;
-use crate::repository::Repo;
+use super::ScheduleStatus;
+use crate::repository::{models::irrigation_event::IrrigationEventStatus, Repo};
 
-pub(crate) async fn check_schedule(repo: Repo) -> Result<(), Error> {
+pub(crate) async fn check_schedule(repo: Repo) -> Result<Vec<ScheduleStatus>, Error> {
     // Get the statuses of all the schedules
     let statuses = repo.schedule_statuses().await?;
 
     // Determine which statuses are due to run
-    let events_to_insert = due_statuses(statuses, chrono::Utc::now().naive_utc());
+    let statuses_to_run = due_statuses(statuses, Utc::now().naive_utc());
+    //let status_to_run = next_due_status(statuses, Utc::now().naive_utc());
 
-    repo.queue_irrigation_events(events_to_insert).await?;
-    println!("Checking Done");
-    Ok(())
+    //repo.start_irrigation_event(event_to_run).await?;
+
+    Ok(statuses_to_run)
 }
 
-fn due_statuses(status_list: Vec<Status>, now: NaiveDateTime) -> Vec<Status> {
+fn next_due_status(status_list: Vec<ScheduleStatus>, now: NaiveDateTime) -> ScheduleStatus {
     let mut schedules_to_run = status_list
         .into_iter()
         // Schedule is active
@@ -37,13 +38,45 @@ fn due_statuses(status_list: Vec<Status>, now: NaiveDateTime) -> Vec<Status> {
             }
 
             let last_event = status.last_event.clone().unwrap();
+            // If the last event was not created today
             last_event.created_at.date() != now.date()
         })
-        .collect::<Vec<Status>>();
+        .collect::<Vec<ScheduleStatus>>();
 
     schedules_to_run.sort_by(|a, b| a.schedule.start_time.cmp(&b.schedule.start_time));
 
-    println!("Schedules to run: {:?}", schedules_to_run);
+    schedules_to_run[0].clone()
+}
+
+fn due_statuses(status_list: Vec<ScheduleStatus>, now: NaiveDateTime) -> Vec<ScheduleStatus> {
+    let mut schedules_to_run = status_list
+        .into_iter()
+        // Schedule is active
+        .filter(|status| status.schedule.active)
+        // Schedule is for today
+        .filter(|status| {
+            status
+                .schedule
+                .days_of_week
+                .contains(&now.weekday().to_string())
+        })
+        // Schedule's run time has passed
+        .filter(|status| status.schedule.start_time < now.time())
+        // Schedule has not been queued already today
+        .filter(|status| {
+            if status.last_event.is_none() {
+                return true;
+            }
+
+            let last_event = status.last_event.clone().unwrap();
+            // If the last event was not created today
+            (last_event.created_at.date() != now.date())
+                && last_event.status == IrrigationEventStatus::Queued.to_string()
+        })
+        .collect::<Vec<ScheduleStatus>>();
+
+    schedules_to_run.sort_by(|a, b| a.schedule.start_time.cmp(&b.schedule.start_time));
+
     schedules_to_run
 }
 
@@ -54,7 +87,7 @@ mod tests {
 
     use crate::hydro::schedule::check::due_statuses;
 
-    use crate::hydro::schedule::Status;
+    use crate::hydro::schedule::ScheduleStatus;
     use crate::repository::models::irrigation_event::IrrigationEvent;
     use crate::repository::models::irrigation_schedule::IrrigationSchedule;
     use crate::test_fixtures::irrigation::schedule::{
@@ -67,7 +100,7 @@ mod tests {
 
     #[rstest]
     fn test_due_statuses(
-        all_schedules_statuses: Vec<Status>,
+        all_schedules_statuses: Vec<ScheduleStatus>,
         daily_schedule: IrrigationSchedule,
         friday_schedule: IrrigationSchedule,
         last_friday_9pm: NaiveDateTime,
@@ -84,7 +117,7 @@ mod tests {
             schedule_id: 1,
         };
 
-        let friday_schedule = Status {
+        let friday_schedule = ScheduleStatus {
             schedule: friday_schedule,
             last_event: Some(event_ran_earlier_today),
         };

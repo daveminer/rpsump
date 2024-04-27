@@ -131,7 +131,6 @@ async fn patch_schedule_success() {
 
     // Act
     let response = app.post_login(&user_params()).await;
-    println!("RESP {:?}", response.status());
     let body: Value = response.json().await.unwrap();
 
     let token = body["token"].as_str().unwrap();
