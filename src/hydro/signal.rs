@@ -94,7 +94,7 @@ mod tests {
 
     use crate::{
         hydro::{
-            gpio::MockGpio,
+            gpio::{Level, MockGpio},
             irrigator::Irrigator,
             signal::{listen, Message},
             sump::Sump,
@@ -112,7 +112,7 @@ mod tests {
         let handle = tokio::runtime::Handle::current();
 
         let mock_gpio = MockGpio::new();
-        let mock_gpio = mock_irrigation_pump(mock_gpio, false, false, None);
+        let mock_gpio = mock_irrigation_pump(mock_gpio, false, Level::High, false, None);
         let mock_gpio = mock_sump_pump(mock_gpio, false, false, false);
 
         let irrigator = Irrigator::new(&SETTINGS.hydro.irrigation, &tx, &mock_gpio).unwrap();

@@ -1,6 +1,6 @@
-use chrono::{NaiveDateTime, NaiveTime};
+use chrono::{NaiveDateTime, NaiveTime, Weekday};
 use rpsump::repository::{
-    models::irrigation_schedule::{CreateIrrigationScheduleParams, DayOfWeek, IrrigationSchedule},
+    models::irrigation_schedule::{CreateIrrigationScheduleParams, IrrigationSchedule},
     Repo,
 };
 
@@ -10,7 +10,7 @@ pub async fn insert_irrigation_schedule(
     sched_name: String,
     sched_start_time: NaiveTime,
     sched_duration: i32,
-    #[allow(unused)] sched_days: String,
+    sched_days: Vec<Weekday>,
     sched_hoses: String,
     #[allow(unused)] sched_created_at: NaiveDateTime,
 ) -> IrrigationSchedule {
@@ -25,15 +25,14 @@ pub async fn insert_irrigation_schedule(
         name: sched_name.clone(),
         start_time: sched_start_time,
         duration: sched_duration,
-        days_of_week: vec![DayOfWeek::Monday, DayOfWeek::Tuesday],
-        // TODO: create serde for this
+        days_of_week: sched_days,
         hoses: hose_vec,
     };
 
     repo.create_irrigation_schedule(schedule).await.unwrap()
 }
 
-pub async fn insert_irrigation_schedules(repo: Repo, count: u8) {
+pub async fn insert_irrigation_schedules_fixed(repo: Repo, count: u8) {
     let now =
         NaiveDateTime::parse_from_str("2021-01-01 12:34:56".into(), "%Y-%m-%d %H:%M:%S").unwrap();
 
@@ -44,7 +43,8 @@ pub async fn insert_irrigation_schedules(repo: Repo, count: u8) {
         "Schedule 1".to_string(),
         dt1,
         15,
-        "Monday,Wednesday".into(),
+        vec![Weekday::Mon, Weekday::Wed],
+        //"Monday,Wednesday".into(),
         "3".into(),
         now,
     )
@@ -60,7 +60,7 @@ pub async fn insert_irrigation_schedules(repo: Repo, count: u8) {
         "Schedule 2".to_string(),
         dt2,
         15,
-        "Tuesday,Friday".into(),
+        vec![Weekday::Tue, Weekday::Fri],
         "1,2,3,4".into(),
         now,
     )
@@ -76,7 +76,13 @@ pub async fn insert_irrigation_schedules(repo: Repo, count: u8) {
         "Schedule 3".to_string(),
         dt3,
         15,
-        "Monday,Tuesday,Wednesday,Thursday,Friday".into(),
+        vec![
+            Weekday::Mon,
+            Weekday::Tue,
+            Weekday::Wed,
+            Weekday::Thu,
+            Weekday::Fri,
+        ],
         "2,4".into(),
         now,
     )
@@ -92,7 +98,7 @@ pub async fn insert_irrigation_schedules(repo: Repo, count: u8) {
         "Schedule 4".to_string(),
         dt4,
         15,
-        "Monday".into(),
+        vec![Weekday::Mon],
         "1".into(),
         now,
     )

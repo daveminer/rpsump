@@ -3,7 +3,7 @@ use rpsump::repository::models::irrigation_schedule::IrrigationSchedule;
 use rpsump::test_fixtures::gpio::build_mock_gpio;
 use serde_json::Value;
 
-use crate::common::fixtures::irrigation_schedule::insert_irrigation_schedules;
+use crate::common::fixtures::irrigation_schedule::insert_irrigation_schedules_fixed;
 use crate::common::test_app::spawn_app;
 use crate::controllers::user_params;
 
@@ -11,7 +11,7 @@ use crate::controllers::user_params;
 async fn get_schedule_not_found() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    insert_irrigation_schedules(app.repo, 1).await;
+    insert_irrigation_schedules_fixed(app.repo, 1).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -32,7 +32,7 @@ async fn get_schedule_not_found() {
 async fn get_schedule_success() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    insert_irrigation_schedules(app.repo, 1).await;
+    insert_irrigation_schedules_fixed(app.repo, 1).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -59,7 +59,7 @@ async fn get_schedule_success() {
 async fn list_schedules_success() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    insert_irrigation_schedules(app.repo, 5).await;
+    insert_irrigation_schedules_fixed(app.repo, 5).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -79,7 +79,7 @@ async fn list_schedules_success() {
 async fn delete_schedule_success() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    insert_irrigation_schedules(app.repo, 1).await;
+    insert_irrigation_schedules_fixed(app.repo, 1).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -127,37 +127,35 @@ async fn delete_schedule_not_found() {
 async fn patch_schedule_success() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    insert_irrigation_schedules(app.repo, 1).await;
+    insert_irrigation_schedules_fixed(app.repo, 1).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
-    println!("RESP {:?}", response.status());
     let body: Value = response.json().await.unwrap();
 
     let token = body["token"].as_str().unwrap();
 
     let schedule_response = app.get_irrigation_schedules(token.to_string()).await;
-    println!("SCHED {:?}", schedule_response.text().await.unwrap());
-    // let schedules = schedule_response
-    //     .json::<Vec<IrrigationSchedule>>()
-    //     .await
-    //     .unwrap();
-    // let update = &schedules[0];
-    // let name = "Updated Name";
-    // let body = serde_json::json!({
-    //     "name": name,
-    //     "start_time": "17:34:56",
-    //     "days_of_week": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    // });
-    // let response = app
-    //     .patch_irrigation_schedule(token.to_string(), update.id, body)
-    //     .await;
-    // let status = response.status();
-    // let updated_schedule: Value = response.json().await.unwrap();
+    let schedules = schedule_response
+        .json::<Vec<IrrigationSchedule>>()
+        .await
+        .unwrap();
+    let update = &schedules[0];
+    let name = "Updated Name";
+    let body = serde_json::json!({
+        "name": name,
+        "start_time": "17:34:56",
+        "days_of_week": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    });
+    let response = app
+        .patch_irrigation_schedule(token.to_string(), update.id, body)
+        .await;
+    let status = response.status();
+    let updated_schedule: Value = response.json().await.unwrap();
 
-    // assert!(updated_schedule["id"] == schedules[0].id);
-    // assert!(updated_schedule["name"] == name);
-    //assert!(status.is_success());
+    assert!(updated_schedule["id"] == schedules[0].id);
+    assert!(updated_schedule["name"] == name);
+    assert!(status.is_success());
 }
 
 #[tokio::test]
@@ -187,7 +185,7 @@ async fn patch_schedule_not_found() {
 async fn patch_schedule_invalid() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    insert_irrigation_schedules(app.repo, 1).await;
+    insert_irrigation_schedules_fixed(app.repo, 1).await;
 
     // Act
     let response = app.post_login(&user_params()).await;

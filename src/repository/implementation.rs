@@ -4,7 +4,7 @@ use chrono::{NaiveDateTime, NaiveTime, Utc};
 
 use crate::auth::password::Password;
 use crate::auth::token::Token;
-use crate::hydro::schedule::Status;
+use crate::hydro::schedule::ScheduleStatus;
 use crate::repository::models::{
     irrigation_event::{IrrigationEvent, IrrigationEventStatus, StatusQueryResult},
     irrigation_schedule::{
@@ -27,9 +27,10 @@ use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
 use diesel::sql_types::{Bool, Nullable};
 use diesel::sqlite::SqliteConnection;
-use diesel::BoxableExpression;
+use diesel::{BoxableExpression, JoinOnDsl};
 use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 
+use super::models::irrigation_event::NewIrrigationEvent;
 use super::models::user::UserUpdateFilter;
 
 type DbPool = Pool<ConnectionManager<SqliteConnection>>;
@@ -67,23 +68,45 @@ pub struct Implementation {
     pub pool: DbPool,
 }
 
-// impl Implementation {
-//     pub async fn new(database_uri: Option<String>) -> Result<Self, Error> {
-//         let connection_string = if let Some(uri) = database_uri {
-//             uri
-//         } else {
-//             ":memory:".to_string()
-//         };
-
-//         let manager = ConnectionManager::<SqliteConnection>::new(connection_string);
-//         let pool = Pool::new(manager)?;
-
-//         Ok(Implementation { pool })
-//     }
-// }
-
 #[async_trait]
 impl Repository for Implementation {
+    async fn begin_irrigation(&self, event: IrrigationEvent) -> Result<(), Error> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| anyhow!("Database error: {:?}", e))?;
+
+        // In a tx - check last event is valid, create the new irrigation event with in progress
+        let _row_updated = spawn_blocking_with_tracing(move || {
+            conn.transaction::<_, Error, _>(|conn| {
+                // Guard for in progress event
+                match irrigation_event::table
+                    .filter(
+                        irrigation_event::status.eq(IrrigationEventStatus::InProgress.to_string()),
+                    )
+                    .first::<IrrigationEvent>(conn)
+                {
+                    Ok(_) => return Err(anyhow!("An event is already in progress")),
+                    Err(e) => match e {
+                        DieselError::NotFound => (),
+                        e => return Err(anyhow!("Error when fetching in progress event: {}", e)),
+                    },
+                };
+
+                diesel::update(irrigation_event::table)
+                    .filter(irrigation_event::id.eq(event.id))
+                    .set(irrigation_event::status.eq(IrrigationEventStatus::InProgress.to_string()))
+                    .execute(conn)
+                    .map_err(|e| anyhow!("Error beginning irrigation event: {}", e))?;
+
+                Ok(())
+            })
+        })
+        .await?;
+
+        Ok(())
+    }
+
     async fn create(path: Option<String>) -> Result<Self, Error> {
         let path = if let Some(path) = path {
             path
@@ -92,7 +115,7 @@ impl Repository for Implementation {
         };
 
         let manager = ConnectionManager::<SqliteConnection>::new(path);
-        let pool = Pool::new(manager)?;
+        let pool = Pool::builder().max_size(1).build(manager)?;
 
         Ok(Implementation { pool })
     }
@@ -420,54 +443,75 @@ impl Repository for Implementation {
         Ok(irrigation_sched)
     }
 
-    async fn next_queued_irrigation_event(&self) -> Result<Option<(i32, IrrigationEvent)>, Error> {
+    async fn next_queued_irrigation_event(
+        &self,
+    ) -> Result<Option<(IrrigationEvent, IrrigationSchedule)>, Error> {
         let mut conn = self
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
 
-        let result = spawn_blocking_with_tracing(move || {
-            let result = irrigation_event::table
-                .inner_join(irrigation_schedule::table)
+        let event = spawn_blocking_with_tracing(move || {
+            let event = irrigation_event::table
+                .inner_join(
+                    irrigation_schedule::table
+                        .on(irrigation_event::schedule_id.eq(irrigation_schedule::id)),
+                )
                 .filter(irrigation_event::status.eq(IrrigationEventStatus::Queued.to_string()))
-                .select((irrigation_schedule::duration, irrigation_event::all_columns))
                 .order(irrigation_event::created_at.asc())
-                .first::<(i32, IrrigationEvent)>(&mut conn);
+                .first::<(IrrigationEvent, IrrigationSchedule)>(&mut conn)
+                .map_err(|e| match e {
+                    DieselError::NotFound => anyhow!("No queued events found."),
+                    e => anyhow!("Internal server error when fetching queued event: {}", e),
+                })?;
 
-            match result {
-                Ok(event) => Ok(Some(event)),
-                Err(e) => match e {
-                    DieselError::NotFound => Ok(None),
-                    _ => Err(anyhow!(e)),
-                },
-            }
+            Ok::<(IrrigationEvent, IrrigationSchedule), Error>(event)
         })
         .await??;
 
-        Ok(result)
+        Ok(Some(event))
     }
 
     async fn pool(&self) -> Result<Pool<ConnectionManager<SqliteConnection>>, Error> {
         Ok(self.pool.clone())
     }
 
-    // TODO: finish
-    async fn queue_irrigation_events(&self, _events: Vec<Status>) -> Result<(), Error> {
+    /// Creates events in 'queued' status for any schedules that are eligible to run.
+    async fn queue_irrigation_events(
+        &self,
+        schedules: Vec<IrrigationSchedule>,
+    ) -> Result<(), Error> {
         let mut conn = self
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
 
-        let _: () = spawn_blocking_with_tracing(move || {
-            let _row_updated = diesel::update(irrigation_event::table)
-                .filter(irrigation_event::status.eq(IrrigationEventStatus::Queued.to_string()))
-                .set(irrigation_event::status.eq(IrrigationEventStatus::InProgress.to_string()))
-                .execute(&mut conn)
-                .map_err(|e| anyhow!(e))?;
+        let new_events: Vec<NewIrrigationEvent> = schedules
+            .iter()
+            .flat_map(|schedule| {
+                schedule
+                    .hoses
+                    .split(',')
+                    .filter_map(|hose| hose.parse::<i32>().ok())
+                    .map(|hose_id| NewIrrigationEvent {
+                        schedule_id: schedule.id,
+                        hose_id,
+                        status: IrrigationEventStatus::Queued.to_string(),
+                        created_at: Utc::now().naive_utc(),
+                        end_time: None,
+                    })
+                    .collect::<Vec<NewIrrigationEvent>>()
+            })
+            .collect();
 
-            Ok::<(), Error>(())
+        spawn_blocking_with_tracing(move || {
+            diesel::insert_into(irrigation_event::table)
+                .values(&new_events)
+                .execute(&mut conn)
+                .map_err(|e| anyhow!("Error creating irrigation events: {}", e))
         })
-        .await??;
+        .await?
+        .map_err(|e| anyhow!("Internal server error when creating irrigation events: {e}"))?;
 
         Ok(())
     }
@@ -521,7 +565,7 @@ impl Repository for Implementation {
         Ok(())
     }
 
-    async fn schedule_statuses(&self) -> Result<Vec<Status>, Error> {
+    async fn schedule_statuses(&self) -> Result<Vec<ScheduleStatus>, Error> {
         let mut conn = self
             .pool
             .get()
@@ -719,7 +763,6 @@ impl Repository for Implementation {
         Ok(users)
     }
 
-    // TODO: review
     async fn validate_login(&self, email: String, _password: String) -> Result<User, Error> {
         let mut conn = self
             .pool
@@ -783,84 +826,99 @@ impl Repository for Implementation {
     }
 }
 
-fn build_statuses(results: Vec<StatusQueryResult>) -> Vec<Status> {
+fn build_statuses(results: Vec<StatusQueryResult>) -> Vec<ScheduleStatus> {
     results
         .into_iter()
         .map(|result: StatusQueryResult| {
             let StatusQueryResult {
-                schedule_schedule_id,
-                schedule_active,
-                schedule_name,
-                schedule_duration,
-                schedule_start_time,
-                schedule_days_of_week,
-                schedule_hoses,
-                schedule_created_at,
-                schedule_updated_at,
+                id,
+                active,
+                name,
+                duration,
+                start_time,
+                days_of_week,
+                hoses,
+                created_at,
+                updated_at,
                 event_id,
-                event_hose_id,
-                event_status,
+                hose_id,
+                status,
+                end_time,
                 event_created_at,
-                event_end_time,
-                ..
             } = result;
 
             let schedule = IrrigationSchedule {
-                id: schedule_schedule_id,
-                active: schedule_active,
-                name: schedule_name,
-                duration: schedule_duration,
-                start_time: NaiveTime::parse_from_str(&schedule_start_time, "%H:%M:%S").unwrap(),
-                days_of_week: schedule_days_of_week,
-                hoses: schedule_hoses,
-                created_at: NaiveDateTime::parse_from_str(
-                    &schedule_created_at,
-                    "%Y-%m-%d %H:%M:%S",
-                )
-                .unwrap(),
-                updated_at: NaiveDateTime::parse_from_str(
-                    &schedule_updated_at,
-                    "%Y-%m-%d %H:%M:%S",
-                )
-                .unwrap(),
+                id,
+                active,
+                name,
+                duration,
+                start_time: NaiveTime::parse_from_str(&start_time, "%H:%M:%S%.9f").unwrap(),
+                days_of_week,
+                hoses,
+                created_at: NaiveDateTime::parse_from_str(&created_at, "%Y-%m-%d %H:%M:%S")
+                    .unwrap(),
+                updated_at: NaiveDateTime::parse_from_str(&updated_at, "%Y-%m-%d %H:%M:%S")
+                    .unwrap(),
             };
 
             if event_id.is_none() {
-                return Status {
+                return ScheduleStatus {
                     schedule,
                     last_event: None,
                 };
             }
 
+            if event_id.is_none()
+                || hose_id.is_none()
+                || status.is_none()
+                || event_created_at.is_none()
+            {
+                return ScheduleStatus {
+                    schedule,
+                    last_event: None,
+                };
+            }
+
+            let end_time = match end_time {
+                Some(et) => match NaiveDateTime::parse_from_str(&et, "%Y-%m-%d %H:%M:%S") {
+                    Ok(et) => Some(et),
+                    Err(e) => {
+                        tracing::error!("Error parsing end time: {:?}", e);
+                        return ScheduleStatus {
+                            schedule,
+                            last_event: None,
+                        };
+                    }
+                },
+                None => None,
+            };
+
             let last_event = IrrigationEvent {
                 id: event_id.unwrap(),
-                hose_id: event_hose_id.unwrap(),
-                schedule_id: schedule_schedule_id,
-                status: event_status.unwrap(),
-                end_time: Some(
-                    NaiveDateTime::parse_from_str(&event_end_time.unwrap(), "%Y-%m-%d %H:%M:%S")
-                        .unwrap(),
-                ),
+                hose_id: hose_id.unwrap(),
+                schedule_id: id,
+                status: status.unwrap(),
+                end_time,
                 created_at: NaiveDateTime::parse_from_str(
                     &event_created_at.unwrap(),
-                    "%Y-%m-%d %H:%M:%S",
+                    "%Y-%m-%d %H:%M:%S%.9f",
                 )
                 .unwrap(),
             };
 
-            Status {
+            ScheduleStatus {
                 schedule,
                 last_event: Some(last_event),
             }
         })
-        .collect::<Vec<Status>>()
+        .collect::<Vec<ScheduleStatus>>()
 }
 // mod tests {
 //     use chrono::NaiveDateTime;
 //     use rstest::rstest;
 
 //     use crate::{
-//         hydro::schedule::Status,
+//         hydro::schedule::ScheduleStatus,
 //         repository::{
 //             implementation::build_statuses,
 //             models::{
@@ -889,11 +947,11 @@ fn build_statuses(results: Vec<StatusQueryResult>) -> Vec<Status> {
 //         let due = build_statuses(status_query_results);
 //         assert!(
 //             due == vec![
-//                 Status {
+//                 ScheduleStatus {
 //                     schedule: daily_schedule,
 //                     last_event: Some(completed_event.clone())
 //                 },
-//                 Status {
+//                 ScheduleStatus {
 //                     schedule: tues_thurs_schedule,
 //                     last_event: Some(completed_event)
 //                 },
@@ -905,7 +963,7 @@ fn build_statuses(results: Vec<StatusQueryResult>) -> Vec<Status> {
 //     // are deactivated or not run on Fridays. This leaves two schedules due.
 //     #[rstest]
 //     fn due_statuses_success(
-//         #[from(all_schedules_statuses)] statuses: Vec<Status>,
+//         #[from(all_schedules_statuses)] statuses: Vec<ScheduleStatus>,
 //         #[from(time)] time: NaiveDateTime,
 //     ) {
 //         let due = due_statuses(statuses, time);

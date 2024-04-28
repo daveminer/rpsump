@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
-    use chrono::{Datelike, NaiveDateTime, Utc};
+    use chrono::{Datelike, NaiveDateTime, Utc, Weekday};
+    use rpsump::repository::models::irrigation_event::IrrigationEventStatus;
     use rpsump::repository::Repo;
     use rpsump::test_fixtures::gpio::build_mock_gpio;
 
@@ -15,24 +16,51 @@ mod tests {
     async fn test_irrigation_schedule() -> Result<(), Box<dyn Error>> {
         let app = spawn_app(&build_mock_gpio()).await;
 
-        let schedules_before = app.repo.irrigation_schedules().await?;
-        println!("SB: {:?}", schedules_before);
-        let events_before = app.repo.irrigation_events().await?;
-        println!("EB: {:?}", events_before);
-
         insert_test_data(app.repo).await;
 
-        // Wait three seconds
-        tokio::time::sleep(Duration::from_secs(10)).await;
+        let events_before = app.repo.irrigation_events().await?;
+        let queued_events = events_before
+            .iter()
+            .filter(|e| e.status == IrrigationEventStatus::Queued.to_string())
+            .count();
+
+        let in_prog_events = events_before
+            .iter()
+            .filter(|e| e.status == IrrigationEventStatus::InProgress.to_string())
+            .count();
+
+        let completed_events = events_before
+            .iter()
+            .filter(|e| e.status == IrrigationEventStatus::Completed.to_string())
+            .count();
+
+        assert!(queued_events == 1);
+        assert!(in_prog_events == 0);
+        assert!(completed_events == 0);
+
+        // Wait long enough for two 1-second jobs to complete
+        tokio::time::sleep(Duration::from_secs(5)).await;
 
         // Check that the schedules have been run
-        let schedules_after = app.repo.irrigation_schedules().await?;
-        println!("SA: {:?}", schedules_after);
         let events_after = app.repo.irrigation_events().await?;
-        println!("EA: {:?}", events_after);
+        let queued_events = events_after
+            .iter()
+            .filter(|e| e.status == IrrigationEventStatus::Queued.to_string())
+            .count();
 
-        // TODO
-        // assert
+        let in_prog_events = events_after
+            .iter()
+            .filter(|e| e.status == IrrigationEventStatus::InProgress.to_string())
+            .count();
+
+        let completed_events = events_after
+            .iter()
+            .filter(|e| e.status == IrrigationEventStatus::Completed.to_string())
+            .count();
+
+        assert!(queued_events == 3);
+        assert!(in_prog_events == 0);
+        assert!(completed_events == 2);
 
         Ok(())
     }
@@ -45,12 +73,8 @@ mod tests {
         let now = Utc::now().naive_utc();
         let day = now.weekday();
         let just_passed = now - Duration::from_secs(3);
-        let today_and_neighbors_str = format!(
-            "{},{},{}",
-            day.pred().to_string(),
-            day.to_string(),
-            day.succ().to_string()
-        );
+
+        let active_days = vec![day.pred(), day, day.succ()];
 
         // Eligible but inactive
         insert_irrigation_schedule(
@@ -58,8 +82,8 @@ mod tests {
             false,
             "Inactive Test Schedule".to_string(),
             just_passed.time(),
-            15,
-            today_and_neighbors_str.clone(),
+            1,
+            active_days.clone(),
             "1,3,4".to_string(),
             the_past,
         )
@@ -71,8 +95,8 @@ mod tests {
             true,
             "Inactive Test Schedule".to_string(),
             just_passed.time(),
-            15,
-            day.pred().to_string(),
+            1,
+            vec![day.pred()],
             "1,3,4".to_string(),
             the_past,
         )
@@ -84,8 +108,8 @@ mod tests {
             true,
             "Inactive Test Schedule".to_string(),
             just_passed.time(),
-            15,
-            day.pred().to_string(),
+            1,
+            vec![day.pred()],
             "1,3,4".to_string(),
             the_past,
         )
@@ -107,8 +131,8 @@ mod tests {
             true,
             "Inactive Test Schedule".to_string(),
             just_passed.time(),
-            15,
-            day.pred().to_string(),
+            1,
+            vec![day.pred()],
             "1,3,4".to_string(),
             the_past,
         )
@@ -120,8 +144,8 @@ mod tests {
             true,
             "Eligible Test Schedule 1".to_string(),
             just_passed.time(),
-            15,
-            today_and_neighbors_str,
+            1,
+            active_days,
             "1,3,4".to_string(),
             the_past,
         )
@@ -133,8 +157,16 @@ mod tests {
             true,
             "Eligible Test Schedule 2".to_string(),
             just_passed.time(),
-            15,
-            "Monday,Tuesday,Wednesday,Thursday,Friday,Saturday,Sunday".to_string(),
+            1,
+            vec![
+                Weekday::Mon,
+                Weekday::Tue,
+                Weekday::Wed,
+                Weekday::Thu,
+                Weekday::Fri,
+                Weekday::Sat,
+                Weekday::Sun,
+            ],
             "2".to_string(),
             the_past,
         )

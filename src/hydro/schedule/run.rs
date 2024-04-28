@@ -7,14 +7,12 @@ use crate::hydro::{control::Control, schedule::IrrigationEvent, sensor::Input, I
 use crate::repository::Repo;
 
 #[tracing::instrument(skip(irrigator, repo))]
-pub async fn run_next_event(repo: Repo, irrigator: &Irrigator) {
+pub async fn run_irrigation_event(repo: Repo, irrigator: &Irrigator) {
     // Get the next event
-    let (duration, event) = match repo.next_queued_irrigation_event().await {
+    let (event, schedule) = match repo.next_queued_irrigation_event().await {
         Ok(dur_event) => match dur_event {
             Some(dur_event) => dur_event,
-            None => {
-                return;
-            }
+            None => return,
         },
         Err(e) => {
             tracing::error!(
@@ -35,7 +33,7 @@ pub async fn run_next_event(repo: Repo, irrigator: &Irrigator) {
     }
 
     // Start the irrigation
-    if let Err(err) = irrigate(repo, event, duration, irrigator).await {
+    if let Err(err) = irrigate(repo, event, schedule.duration, irrigator).await {
         tracing::error!(
             target = module_path!(),
             error = err.to_string(),
@@ -53,6 +51,18 @@ pub async fn irrigate(
 ) -> Result<(), Error> {
     tracing::info!(target = module_path!(), "Starting irrigation job");
     let start_time = SystemTime::now();
+
+    match repo.begin_irrigation(event.clone()).await {
+        Ok(()) => (),
+        Err(e) => {
+            tracing::error!(
+                target = module_path!(),
+                error = e.to_string(),
+                "Error beginning irrigation event"
+            );
+            return Err(anyhow!(e.to_string()));
+        }
+    }
 
     let hose = match event_hose_pin(&event, irrigator) {
         Ok(hose) => hose,
@@ -148,30 +158,33 @@ fn job_complete(duration: Duration, start_time: SystemTime) -> bool {
 mod tests {
     use rstest::rstest;
 
+    use crate::hydro::irrigator::Irrigator;
+    use crate::hydro::schedule::run::{event_hose_pin, job_complete, run_irrigation_event};
+    use crate::repository::models::irrigation_event::IrrigationEvent;
     use crate::{
         repository::{MockRepository, Repository},
         test_fixtures::irrigation::{event::completed_event, irrigator::irrigator},
     };
 
-    use super::*;
     use std::time::{Duration, SystemTime};
 
     #[rstest]
     #[tokio::test]
-    async fn test_run_next_event(completed_event: IrrigationEvent, irrigator: Irrigator) {
+    async fn test_run_next_event(irrigator: Irrigator) {
         let mut mock_repo = MockRepository::new();
-        let duration = 1; // Set the duration for testing
 
         let _ = mock_repo
             .expect_next_queued_irrigation_event()
-            .returning(move || Ok(Some((duration, completed_event.clone()))));
+            .returning(|| Ok(None));
+
         let _ = mock_repo
             .expect_finish_irrigation_event()
             .returning(|| Ok(()));
         let repo = Box::new(mock_repo);
 
         let repo_static: &'static dyn Repository = Box::leak(repo);
-        run_next_event(repo_static, &irrigator).await;
+
+        run_irrigation_event(repo_static, &irrigator).await;
     }
 
     #[rstest]

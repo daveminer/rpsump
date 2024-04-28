@@ -15,7 +15,7 @@ use models::{
 };
 
 use crate::auth::{password::Password, token::Token};
-use crate::hydro::schedule::Status;
+use crate::hydro::schedule::ScheduleStatus;
 use crate::repository::models::{
     irrigation_schedule::CreateIrrigationScheduleParams,
     user::{UserFilter, UserUpdateFilter},
@@ -30,6 +30,7 @@ pub type Repo = &'static dyn Repository;
 #[automock]
 #[async_trait]
 pub trait Repository: Send + Sync + 'static {
+    async fn begin_irrigation(&self, event: IrrigationEvent) -> Result<(), Error>;
     async fn create(path: Option<String>) -> Result<Self, Error>
     where
         Self: Sized;
@@ -43,7 +44,6 @@ pub trait Repository: Send + Sync + 'static {
         &self,
         params: CreateIrrigationScheduleParams,
     ) -> Result<IrrigationSchedule, Error>;
-    // TODO: move this import out of controllers module
     async fn create_password_reset(&self, user: User) -> Result<Token, Error>;
     async fn create_sump_event(&self, info: String, kind: String) -> Result<(), Error>;
     async fn create_user(
@@ -63,16 +63,20 @@ pub trait Repository: Send + Sync + 'static {
     async fn irrigation_events(&self) -> Result<Vec<IrrigationEvent>, Error>;
     async fn irrigation_schedules(&self) -> Result<Vec<IrrigationSchedule>, Error>;
     async fn irrigation_schedule_by_id(&self, sched_id: i32) -> Result<IrrigationSchedule, Error>;
-    async fn next_queued_irrigation_event(&self) -> Result<Option<(i32, IrrigationEvent)>, Error>;
-
+    async fn next_queued_irrigation_event(
+        &self,
+    ) -> Result<Option<(IrrigationEvent, IrrigationSchedule)>, Error>;
     async fn pool(&self) -> Result<Pool<ConnectionManager<SqliteConnection>>, Error>;
-    async fn queue_irrigation_events(&self, events: Vec<Status>) -> Result<(), Error>;
+    async fn queue_irrigation_events(
+        &self,
+        schedules: Vec<IrrigationSchedule>,
+    ) -> Result<(), Error>;
     async fn reset_password(
         &self,
         password: &Password,
         token: String,
     ) -> Result<(), ResetPasswordError>;
-    async fn schedule_statuses(&self) -> Result<Vec<Status>, Error>;
+    async fn schedule_statuses(&self) -> Result<Vec<ScheduleStatus>, Error>;
     async fn sump_events(&self) -> Result<Vec<SumpEvent>, Error>;
     async fn update_irrigation_schedule(
         &self,
