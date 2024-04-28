@@ -99,12 +99,11 @@ async fn signup_success() {
     let events = recent_signup_events(email.to_string(), app.repo)
         .await
         .unwrap();
+
     assert_eq!(events.len(), 1);
 }
 
 async fn recent_signup_events(email: String, repo: Repo) -> Result<Vec<UserEvent>, Error> {
-    //let mut conn = db_pool.get().unwrap();
-    //let user = User::by_email(email).first(&mut conn).unwrap();
     let user_filter = UserFilter {
         email: Some(email),
         ..Default::default()

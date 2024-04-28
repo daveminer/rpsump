@@ -28,6 +28,7 @@ pub async fn verify_email(
                 error = e.to_string(),
                 "Failed to verify email"
             );
+
             Ok(ApiResponse::internal_server_error())
         }
         Err(e) => Ok(ApiResponse::bad_request(e.to_string())),

@@ -15,9 +15,8 @@ use crate::controllers::{
 async fn email_verification_token_expired() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    let db = app.repo.pool().await.unwrap().get().unwrap();
     let params = signup_params();
-    let _mock = mock_email_verification_send(&app).await;
+    let _email_mock = mock_email_verification_send(&app).await;
 
     // Act
     let response = app.post_signup(&params).await;
@@ -31,6 +30,7 @@ async fn email_verification_token_expired() {
 
     let token_expiry = user.email_verification_token_expires_at.unwrap();
     let yesterday = token_expiry - Duration::days(1);
+    let db = app.repo.pool().await.unwrap().get().unwrap();
     let _ = set_email_verification_expiry(user.email, yesterday, db).await;
 
     let email_verif_response = app
@@ -87,28 +87,28 @@ async fn email_verification_failed_no_token() {
     assert!(body.message == "Invalid token.");
 }
 
-// TODO: make server URL in link testable
-// #[tokio::test]
-// async fn email_verification_succeeded() {
-//     // Arrange
-//     let app = spawn_app(build_mock_gpio).await;
-//     let params = signup_params();
+#[tokio::test]
+async fn email_verification_succeeded() {
+    let app = spawn_app(&build_mock_gpio()).await;
+    let params = signup_params();
 
-//     let _mock = mock_email_verification_send(&app).await;
+    let _mock = mock_email_verification_send(&app).await;
 
-//     let response = app.post_signup(&params).await;
-//     let status = response.status();
-//     assert!(status.is_success());
+    let response = app.post_signup(&params).await;
+    let status = response.status();
+    assert!(status.is_success());
 
-//     let link = email_link_from_mock_server(&app).await;
-//     println!("LINK: {}", link);
+    let link = email_link_from_mock_server(&app).await;
 
-//     let response = reqwest::get(link).await.unwrap();
-//     assert!(response.status().is_success());
-//     let body: ApiResponse = response.json().await.unwrap();
+    // Add the port of the test app to the URL
+    let link = link.replace("localhost", &format!("localhost:{}", app.port));
 
-//     assert!(body.message == "Email verified.");
-// }
+    let response = reqwest::get(link).await.unwrap();
+    assert!(response.status().is_success());
+    let body: ApiResponse = response.json().await.unwrap();
+
+    assert!(body.message == "Email verified.");
+}
 
 async fn set_email_verification_expiry(
     email: String,

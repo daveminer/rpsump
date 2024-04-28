@@ -71,7 +71,6 @@ pub trait Repository: Send + Sync + 'static {
         &self,
         schedules: Vec<IrrigationSchedule>,
     ) -> Result<(), Error>;
-    //async fn queue_irrigation_events(&self, events: Vec<ScheduleStatus>) -> Result<(), Error>;
     async fn reset_password(
         &self,
         password: &Password,

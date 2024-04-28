@@ -136,27 +136,26 @@ async fn patch_schedule_success() {
     let token = body["token"].as_str().unwrap();
 
     let schedule_response = app.get_irrigation_schedules(token.to_string()).await;
-    println!("SCHED {:?}", schedule_response.text().await.unwrap());
-    // let schedules = schedule_response
-    //     .json::<Vec<IrrigationSchedule>>()
-    //     .await
-    //     .unwrap();
-    // let update = &schedules[0];
-    // let name = "Updated Name";
-    // let body = serde_json::json!({
-    //     "name": name,
-    //     "start_time": "17:34:56",
-    //     "days_of_week": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    // });
-    // let response = app
-    //     .patch_irrigation_schedule(token.to_string(), update.id, body)
-    //     .await;
-    // let status = response.status();
-    // let updated_schedule: Value = response.json().await.unwrap();
+    let schedules = schedule_response
+        .json::<Vec<IrrigationSchedule>>()
+        .await
+        .unwrap();
+    let update = &schedules[0];
+    let name = "Updated Name";
+    let body = serde_json::json!({
+        "name": name,
+        "start_time": "17:34:56",
+        "days_of_week": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    });
+    let response = app
+        .patch_irrigation_schedule(token.to_string(), update.id, body)
+        .await;
+    let status = response.status();
+    let updated_schedule: Value = response.json().await.unwrap();
 
-    // assert!(updated_schedule["id"] == schedules[0].id);
-    // assert!(updated_schedule["name"] == name);
-    //assert!(status.is_success());
+    assert!(updated_schedule["id"] == schedules[0].id);
+    assert!(updated_schedule["name"] == name);
+    assert!(status.is_success());
 }
 
 #[tokio::test]

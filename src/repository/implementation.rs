@@ -491,7 +491,7 @@ impl Repository for Implementation {
             .flat_map(|schedule| {
                 schedule
                     .hoses
-                    .split(",")
+                    .split(',')
                     .filter_map(|hose| hose.parse::<i32>().ok())
                     .map(|hose_id| NewIrrigationEvent {
                         schedule_id: schedule.id,
@@ -763,7 +763,6 @@ impl Repository for Implementation {
         Ok(users)
     }
 
-    // TODO: review
     async fn validate_login(&self, email: String, _password: String) -> Result<User, Error> {
         let mut conn = self
             .pool
@@ -850,12 +849,12 @@ fn build_statuses(results: Vec<StatusQueryResult>) -> Vec<ScheduleStatus> {
 
             let schedule = IrrigationSchedule {
                 id,
-                active: active,
-                name: name,
-                duration: duration,
+                active,
+                name,
+                duration,
                 start_time: NaiveTime::parse_from_str(&start_time, "%H:%M:%S%.9f").unwrap(),
-                days_of_week: days_of_week,
-                hoses: hoses,
+                days_of_week,
+                hoses,
                 created_at: NaiveDateTime::parse_from_str(&created_at, "%Y-%m-%d %H:%M:%S")
                     .unwrap(),
                 updated_at: NaiveDateTime::parse_from_str(&updated_at, "%Y-%m-%d %H:%M:%S")
