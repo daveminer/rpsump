@@ -72,7 +72,7 @@ impl Irrigator {
 #[cfg(test)]
 mod tests {
     use crate::{
-        hydro::gpio::MockGpio,
+        hydro::gpio::{Level, MockGpio},
         test_fixtures::{gpio::mock_irrigation_pump, settings::SETTINGS},
     };
 
@@ -83,7 +83,7 @@ mod tests {
         let mpsc = tokio::sync::mpsc::channel(32);
 
         let mut mock_gpio = MockGpio::new();
-        mock_gpio = mock_irrigation_pump(mock_gpio, false, false, None);
+        mock_gpio = mock_irrigation_pump(mock_gpio, false, Level::High, false, None);
 
         let _irrigator: Irrigator =
             Irrigator::new(&SETTINGS.hydro.irrigation, &mpsc.0, &mock_gpio).unwrap();

@@ -3,7 +3,7 @@ use rpsump::repository::models::irrigation_schedule::IrrigationSchedule;
 use rpsump::test_fixtures::gpio::build_mock_gpio;
 use serde_json::Value;
 
-use crate::common::fixtures::irrigation_schedule::insert_irrigation_schedules;
+use crate::common::fixtures::irrigation_schedule::insert_irrigation_schedules_fixed;
 use crate::common::test_app::spawn_app;
 use crate::controllers::user_params;
 
@@ -11,7 +11,7 @@ use crate::controllers::user_params;
 async fn get_schedule_not_found() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    insert_irrigation_schedules(app.repo, 1).await;
+    insert_irrigation_schedules_fixed(app.repo, 1).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -32,7 +32,7 @@ async fn get_schedule_not_found() {
 async fn get_schedule_success() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    insert_irrigation_schedules(app.repo, 1).await;
+    insert_irrigation_schedules_fixed(app.repo, 1).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -59,7 +59,7 @@ async fn get_schedule_success() {
 async fn list_schedules_success() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    insert_irrigation_schedules(app.repo, 5).await;
+    insert_irrigation_schedules_fixed(app.repo, 5).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -79,7 +79,7 @@ async fn list_schedules_success() {
 async fn delete_schedule_success() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    insert_irrigation_schedules(app.repo, 1).await;
+    insert_irrigation_schedules_fixed(app.repo, 1).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -127,7 +127,7 @@ async fn delete_schedule_not_found() {
 async fn patch_schedule_success() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    insert_irrigation_schedules(app.repo, 1).await;
+    insert_irrigation_schedules_fixed(app.repo, 1).await;
 
     // Act
     let response = app.post_login(&user_params()).await;
@@ -186,7 +186,7 @@ async fn patch_schedule_not_found() {
 async fn patch_schedule_invalid() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    insert_irrigation_schedules(app.repo, 1).await;
+    insert_irrigation_schedules_fixed(app.repo, 1).await;
 
     // Act
     let response = app.post_login(&user_params()).await;

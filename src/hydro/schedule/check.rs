@@ -10,42 +10,8 @@ pub(crate) async fn check_schedule(repo: Repo) -> Result<Vec<ScheduleStatus>, Er
 
     // Determine which statuses are due to run
     let statuses_to_run = due_statuses(statuses, Utc::now().naive_utc());
-    //let status_to_run = next_due_status(statuses, Utc::now().naive_utc());
-
-    //repo.start_irrigation_event(event_to_run).await?;
 
     Ok(statuses_to_run)
-}
-
-fn next_due_status(status_list: Vec<ScheduleStatus>, now: NaiveDateTime) -> ScheduleStatus {
-    let mut schedules_to_run = status_list
-        .into_iter()
-        // Schedule is active
-        .filter(|status| status.schedule.active)
-        // Schedule is for today
-        .filter(|status| {
-            status
-                .schedule
-                .days_of_week
-                .contains(&now.weekday().to_string())
-        })
-        // Schedule's run time has passed
-        .filter(|status| status.schedule.start_time < now.time())
-        // Schedule has not been queued already today
-        .filter(|status| {
-            if status.last_event.is_none() {
-                return true;
-            }
-
-            let last_event = status.last_event.clone().unwrap();
-            // If the last event was not created today
-            last_event.created_at.date() != now.date()
-        })
-        .collect::<Vec<ScheduleStatus>>();
-
-    schedules_to_run.sort_by(|a, b| a.schedule.start_time.cmp(&b.schedule.start_time));
-
-    schedules_to_run[0].clone()
 }
 
 fn due_statuses(status_list: Vec<ScheduleStatus>, now: NaiveDateTime) -> Vec<ScheduleStatus> {

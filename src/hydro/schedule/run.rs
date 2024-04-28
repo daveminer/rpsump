@@ -8,18 +8,13 @@ use crate::repository::Repo;
 
 #[tracing::instrument(skip(irrigator, repo))]
 pub async fn run_irrigation_event(repo: Repo, irrigator: &Irrigator) {
-    println!("RUNNING");
     // Get the next event
     let (event, schedule) = match repo.next_queued_irrigation_event().await {
         Ok(dur_event) => match dur_event {
             Some(dur_event) => dur_event,
-            None => {
-                println!("NO EVENT");
-                return;
-            }
+            None => return,
         },
         Err(e) => {
-            println!("ERRRR: {:?}", e);
             tracing::error!(
                 target = module_path!(),
                 error = e.to_string(),
@@ -28,8 +23,6 @@ pub async fn run_irrigation_event(repo: Repo, irrigator: &Irrigator) {
             return;
         }
     };
-
-    println!("EVENT: {:?}", event);
 
     if irrigator.low_sensor.is_low() {
         tracing::warn!(

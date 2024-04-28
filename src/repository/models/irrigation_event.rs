@@ -9,6 +9,8 @@ use crate::schema::irrigation_event;
 type BoxedQuery<'a> = irrigation_event::BoxedQuery<'a, Sqlite, irrigation_event::SqlType>;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+
 pub enum IrrigationEventStatus {
     Cancelled,
     Completed,

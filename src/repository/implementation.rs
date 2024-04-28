@@ -30,13 +30,10 @@ use diesel::sqlite::SqliteConnection;
 use diesel::{BoxableExpression, JoinOnDsl};
 use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 
-use super::models;
 use super::models::irrigation_event::NewIrrigationEvent;
 use super::models::user::UserUpdateFilter;
 
 type DbPool = Pool<ConnectionManager<SqliteConnection>>;
-
-const TOO_RECENT: &str = "Last event was completed too recently";
 
 #[derive(thiserror::Error, Debug)]
 pub enum ResetPasswordError {
@@ -103,18 +100,7 @@ impl Repository for Implementation {
                     .map_err(|e| anyhow!("Error beginning irrigation event: {}", e))?;
 
                 Ok(())
-            });
-            // let rows_updated = diesel::update(irrigation_event::table)
-            //     .filter(irrigation_event::status.eq(IrrigationEventStatus::InProgress.to_string()))
-            //     .set(irrigation_event::status.eq(IrrigationEventStatus::Completed.to_string()))
-            //     .execute(&mut conn)
-            //     .map_err(|e| anyhow!(e.to_string()))?;
-
-            // if rows_updated != 1 {
-            //     tracing::error!("Expected to update 1 row, but updated {}", rows_updated);
-            // }
-
-            // Ok::<usize, Error>(rows_updated)
+            })
         })
         .await?;
 
@@ -529,56 +515,6 @@ impl Repository for Implementation {
 
         Ok(())
     }
-    // async fn queue_irrigation_events(&self, events: Vec<ScheduleStatus>) -> Result<(), Error> {
-    //     let mut conn = self
-    //         .pool
-    //         .get()
-    //         .map_err(|e| anyhow!("Could not get db connection: {:?}", e))?;
-
-    //     let new_events: Vec<NewIrrigationEvent> = events
-    //         .iter()
-    //         .flat_map(|event| {
-    //             let hoses: Result<Vec<i32>, _> = event
-    //                 .schedule
-    //                 .hoses
-    //                 .split(",")
-    //                 .map(|hose| {
-    //                     hose.parse::<i32>()
-    //                         .map_err(|e| format!("Failed to parse hose id '{}': {}", hose, e))
-    //                 })
-    //                 .collect();
-
-    //             let hoses = match hoses {
-    //                 Ok(hoses) => hoses,
-    //                 Err(e) => {
-    //                     tracing::error!(e);
-    //                     return Vec::new();
-    //                 }
-    //             };
-
-    //             hoses
-    //                 .into_iter()
-    //                 .map(|hose_id| NewIrrigationEvent {
-    //                     schedule_id: event.schedule.id,
-    //                     hose_id,
-    //                     status: IrrigationEventStatus::Queued.to_string(),
-    //                     created_at: Utc::now().naive_utc(),
-    //                     end_time: None,
-    //                 })
-    //                 .collect()
-    //         })
-    //         .collect();
-
-    //     let _: usize = spawn_blocking_with_tracing(move || {
-    //         diesel::insert_into(irrigation_event::table)
-    //             .values(&new_events)
-    //             .execute(&mut conn)
-    //             .map_err(|e| anyhow!(e))
-    //     })
-    //     .await??;
-
-    //     Ok(())
-    // }
 
     // TODO: move Token from auth module
     async fn reset_password(
@@ -966,7 +902,7 @@ fn build_statuses(results: Vec<StatusQueryResult>) -> Vec<ScheduleStatus> {
                 end_time,
                 created_at: NaiveDateTime::parse_from_str(
                     &event_created_at.unwrap(),
-                    "%Y-%m-%d %H:%M:%S",
+                    "%Y-%m-%d %H:%M:%S%.9f",
                 )
                 .unwrap(),
             };

@@ -1,4 +1,4 @@
-use chrono::{NaiveDateTime, NaiveTime};
+use chrono::{NaiveDateTime, NaiveTime, Weekday};
 use diesel::prelude::*;
 use serde::{
     de::{self, Visitor},
@@ -7,17 +7,6 @@ use serde::{
 use std::fmt;
 
 use crate::schema::irrigation_schedule;
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub enum DayOfWeek {
-    Monday,
-    Tuesday,
-    Wednesday,
-    Thursday,
-    Friday,
-    Saturday,
-    Sunday,
-}
 
 #[derive(AsChangeset, Clone, Debug, PartialEq, Queryable, Selectable, Serialize, Deserialize)]
 #[diesel(table_name = irrigation_schedule)]
@@ -40,7 +29,7 @@ pub struct IrrigationSchedule {
 #[derive(Debug, serde::Deserialize)]
 pub struct CreateIrrigationScheduleParams {
     pub active: bool,
-    pub days_of_week: Vec<DayOfWeek>,
+    pub days_of_week: Vec<Weekday>,
     pub hoses: Vec<i32>,
     pub name: String,
     pub duration: i32,
@@ -50,25 +39,11 @@ pub struct CreateIrrigationScheduleParams {
 #[derive(Debug, serde::Deserialize)]
 pub struct UpdateIrrigationScheduleParams {
     pub active: Option<bool>,
-    pub days_of_week: Option<Vec<DayOfWeek>>,
+    pub days_of_week: Option<Vec<Weekday>>,
     pub hoses: Option<Vec<i32>>,
     pub name: Option<String>,
     pub duration: Option<i32>,
     pub start_time: Option<NaiveTime>,
-}
-
-impl fmt::Display for DayOfWeek {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            DayOfWeek::Monday => write!(f, "Monday"),
-            DayOfWeek::Tuesday => write!(f, "Tuesday"),
-            DayOfWeek::Wednesday => write!(f, "Wednesday"),
-            DayOfWeek::Thursday => write!(f, "Thursday"),
-            DayOfWeek::Friday => write!(f, "Friday"),
-            DayOfWeek::Saturday => write!(f, "Saturday"),
-            DayOfWeek::Sunday => write!(f, "Sunday"),
-        }
-    }
 }
 
 fn serialize_hoses<S>(hoses: &str, serializer: S) -> Result<S::Ok, S::Error>

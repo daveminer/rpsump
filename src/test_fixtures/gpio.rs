@@ -48,7 +48,7 @@ pub fn build_mock_gpio() -> impl Gpio {
     gpio = mock_sump_pump(gpio, false, false, false);
 
     // Irrigation pins
-    gpio = mock_irrigation_pump(gpio, false, false, None);
+    gpio = mock_irrigation_pump(gpio, true, Level::High, false, None);
 
     gpio
 }
@@ -65,11 +65,11 @@ pub fn mock_gpio_get(pins: Vec<u8>) -> MockGpio {
     mock_gpio
 }
 
-pub fn mock_input_pin_with_interrupt(is_on: bool, read_result: Level) -> Box<MockPin> {
+pub fn mock_input_pin_with_interrupt(is_low: bool, read_result: Level) -> Box<MockPin> {
     let mut mock_pin = MockPin::new();
     mock_pin.expect_into_input_pullup().returning(move || {
         let mut input_pin_stub = MockInputPin::new();
-        input_pin_stub.expect_is_low().return_const(is_on);
+        input_pin_stub.expect_is_low().return_const(is_low);
         input_pin_stub
             .expect_set_async_interrupt()
             .returning(|_, _, _| Ok(()));
@@ -104,6 +104,7 @@ pub fn mock_heater(mut mock_gpio: MockGpio, is_on: bool) -> MockGpio {
 pub fn mock_irrigation_pump(
     mut mock_gpio: MockGpio,
     low_sensor_on: bool,
+    low_sensor_level: Level,
     running: bool,
     valve: Option<u8>,
 ) -> MockGpio {
@@ -131,7 +132,12 @@ pub fn mock_irrigation_pump(
         .expect_get()
         .with(predicate::eq(SETTINGS.hydro.irrigation.low_sensor_pin))
         .times(1)
-        .returning(move |_| Ok(mock_input_pin_with_interrupt(low_sensor_on, Level::Low)));
+        .returning(move |_| {
+            Ok(mock_input_pin_with_interrupt(
+                low_sensor_on,
+                low_sensor_level,
+            ))
+        });
     mock_gpio
         .expect_get()
         .with(predicate::eq(SETTINGS.hydro.irrigation.pump_control_pin))
