@@ -274,7 +274,6 @@ impl TestApp {
     where
         Body: serde::Serialize,
     {
-        println!("STARTING");
         let result = self
             .api_client
             .post(&format!("{}/auth/signup", &self.address))
