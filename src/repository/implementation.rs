@@ -459,17 +459,20 @@ impl Repository for Implementation {
                 )
                 .filter(irrigation_event::status.eq(IrrigationEventStatus::Queued.to_string()))
                 .order(irrigation_event::created_at.asc())
-                .first::<(IrrigationEvent, IrrigationSchedule)>(&mut conn)
-                .map_err(|e| match e {
-                    DieselError::NotFound => anyhow!("No queued events found."),
-                    e => anyhow!("Internal server error when fetching queued event: {}", e),
-                })?;
+                .first::<(IrrigationEvent, IrrigationSchedule)>(&mut conn);
 
-            Ok::<(IrrigationEvent, IrrigationSchedule), Error>(event)
+            match event {
+                Ok(event) => Ok(Some(event)),
+                Err(DieselError::NotFound) => Ok(None),
+                Err(e) => Err(anyhow!(
+                    "Internal server error when fetching queued event: {}",
+                    e
+                )),
+            }
         })
         .await??;
 
-        Ok(Some(event))
+        Ok(event)
     }
 
     async fn pool(&self) -> Result<Pool<ConnectionManager<SqliteConnection>>, Error> {
