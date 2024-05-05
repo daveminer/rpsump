@@ -31,6 +31,7 @@ async fn main() -> std::io::Result<()> {
     // TODO: move to util
     let _ = diesel::sql_query("PRAGMA journal_mode=WAL;").execute(&mut conn);
     let _ = diesel::sql_query("PRAGMA busy_timeout=5000;").execute(&mut conn);
+    drop(conn);
 
     let gpio = build_gpio();
 

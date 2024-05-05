@@ -91,7 +91,6 @@ pub trait Repository: Send + Sync + 'static {
     ) -> Result<Vec<UserEvent>, Error>;
     async fn update_user(&self, filter: UserUpdateFilter) -> Result<(), Error>;
     async fn users(&self, filter: UserFilter) -> Result<Vec<User>, Error>;
-    async fn validate_login(&self, email: String, password: String) -> Result<User, Error>;
     async fn verify_email(&self, token: String) -> Result<(), VerifyEmailError>;
 }
 

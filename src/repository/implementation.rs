@@ -763,26 +763,6 @@ impl Repository for Implementation {
         Ok(users)
     }
 
-    async fn validate_login(&self, email: String, _password: String) -> Result<User, Error> {
-        let mut conn = self
-            .pool
-            .get()
-            .map_err(|e| anyhow!("Database error: {:?}", e))?;
-
-        let user = spawn_blocking_with_tracing(move || {
-            user::table
-                .filter(user::email.eq(email))
-                .first::<User>(&mut conn)
-                .map_err(|e| match e {
-                    DieselError::NotFound => anyhow!("User not found."),
-                    e => anyhow!("Internal server error when fetching user: {}", e),
-                })
-        })
-        .await??;
-
-        Ok(user)
-    }
-
     async fn verify_email(&self, token: String) -> Result<(), VerifyEmailError> {
         let mut conn = self
             .pool
