@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tokio::sync::mpsc::Sender;
+use tokio::{runtime::Runtime, sync::mpsc::Sender};
 
 use crate::hydro::{
     debounce::Debouncer,
@@ -93,6 +93,10 @@ fn callback(
         tx.clone(),
     );
     *deb = Some(debouncer);
+
+    let sleep = deb.as_ref().unwrap().sleep();
+    let rt = Runtime::new().unwrap();
+    rt.block_on(sleep);
 
     *deb = None;
     drop(deb);
