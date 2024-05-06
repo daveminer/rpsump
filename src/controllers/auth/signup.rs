@@ -31,7 +31,6 @@ pub async fn signup(
     repo: Data<Repo>,
     settings: Data<Settings>,
 ) -> Result<HttpResponse> {
-    println!("ONE");
     // Validate params
     match &params.validate() {
         Ok(_) => (),
@@ -58,7 +57,6 @@ pub async fn signup(
         Ok(user) => user,
         Err(e) => return Ok(ApiResponse::bad_request(e.to_string())),
     };
-    println!("TWO");
     let mailer_settings = Arc::clone(&settings).mailer.clone();
     // Generate an email verification token
     let token = match repo.create_email_verification(&new_user).await {
