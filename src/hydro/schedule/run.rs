@@ -96,7 +96,7 @@ pub async fn irrigate(
         is_job_done = job_complete(duration, start_time);
     }
 
-    tracing::error!(target = module_path!(), "Stopping irrigation job");
+    tracing::info!(target = module_path!(), "Stopping irrigation job");
 
     // Stop the pump and close the solenoid
     let mut pump_lock = irrigator.pump.pin.lock().await;
