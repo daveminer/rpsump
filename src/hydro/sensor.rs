@@ -56,14 +56,16 @@ impl Sensor {
             .map_err(|e| anyhow!(e))?
             .into_input_pullup();
 
+        let debounce = Arc::from(Mutex::new(None));
+
         pin_io
-            .set_async_interrupt(message, trigger, tx)
+            .set_async_interrupt(message, trigger, tx, debounce.clone())
             .map_err(|e| anyhow!(e.to_string()))?;
 
         Ok(Self {
             level: pin_io.read(),
             pin: Arc::from(Mutex::new(pin_io)),
-            debounce: Arc::from(Mutex::new(None)),
+            debounce,
         })
     }
 }

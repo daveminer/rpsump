@@ -56,15 +56,13 @@ impl InputPin for rppal::gpio::InputPin {
         message: Message,
         trigger: Trigger,
         tx: &Sender<Message>,
+        debouncer: Arc<Mutex<Option<Debouncer>>>,
     ) -> Result<(), Error> {
         let message = message.clone();
         let tx = tx.clone();
 
         let callback = move |level: rppal::gpio::Level| {
-            // Create a debouncer instance for this interrupt
-            let debouncer: Arc<Mutex<Option<Debouncer>>> = Arc::from(Mutex::new(None));
-
-            callback(level, &message, debouncer, &tx);
+            callback(level, &message, Arc::clone(&debouncer), &tx);
         };
 
         Ok(self.set_async_interrupt(trigger.into(), callback)?)

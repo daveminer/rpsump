@@ -1,9 +1,11 @@
 use anyhow::Error;
 use mockall::automock;
-use std::fmt;
+use std::{fmt, sync::Arc, sync::Mutex};
 use tokio::sync::mpsc::Sender;
 
 use crate::hydro::signal::Message;
+
+use super::debounce::Debouncer;
 
 pub mod rppal;
 
@@ -43,6 +45,7 @@ pub trait InputPin: Send + Sync {
         message: Message,
         trigger: Trigger,
         tx: &Sender<Message>,
+        debounce: Arc<Mutex<Option<Debouncer>>>,
     ) -> Result<(), Error>;
 }
 
