@@ -28,7 +28,7 @@ pub fn irrigator() -> Irrigator {
                 input_pin
                     .expect_set_async_interrupt()
                     .times(1)
-                    .returning(|_, _, _| Ok(()));
+                    .returning(|_, _, _, _| Ok(()));
                 input_pin.expect_read().times(1).returning(|| Level::High);
                 Box::new(input_pin)
             });
