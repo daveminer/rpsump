@@ -2,6 +2,7 @@ use anyhow::{anyhow, Error};
 use std::{
     fmt::Debug,
     sync::{Arc, Mutex},
+    time::Duration,
 };
 use tokio::sync::mpsc::Sender;
 
@@ -59,7 +60,7 @@ impl Sensor {
         let debounce = Arc::from(Mutex::new(None));
 
         pin_io
-            .set_async_interrupt(message, trigger, tx, debounce.clone())
+            .set_async_interrupt(message, trigger, tx, Duration::from_secs(2))
             .map_err(|e| anyhow!(e.to_string()))?;
 
         Ok(Self {

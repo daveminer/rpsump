@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tokio::{runtime::Runtime, sync::mpsc::Sender};
+use tokio::sync::mpsc::Sender;
 
 use crate::hydro::{
     debounce::Debouncer,
@@ -56,49 +56,60 @@ impl InputPin for rppal::gpio::InputPin {
         message: Message,
         trigger: Trigger,
         tx: &Sender<Message>,
-        debouncer: Arc<Mutex<Option<Debouncer>>>,
+        delay: Duration,
     ) -> Result<(), Error> {
         let message = message.clone();
         let tx = tx.clone();
+        let debouncer: Arc<Mutex<Option<Debouncer>>> = Arc::new(Mutex::new(None));
 
         let callback = move |level: rppal::gpio::Level| {
-            callback(level, &message, Arc::clone(&debouncer), &tx);
+            let shared_deb = Arc::clone(&debouncer);
+            let mut deb = shared_deb.lock().unwrap();
+
+            // Check if a debouncer exists, reset the deadline if so
+            if let Some(ref mut existing_deb) = *deb {
+                existing_deb.reset_deadline(level.into());
+            } else {
+                // Only create a new debouncer if one does not already exist
+                let debouncer = Debouncer::new(level.into(), delay, message.clone(), tx.clone());
+                *deb = Some(debouncer);
+            }
         };
 
         Ok(self.set_async_interrupt(trigger.into(), callback)?)
     }
 }
 
-fn callback(
-    level: rppal::gpio::Level,
-    message: &Message,
-    debouncer: Arc<Mutex<Option<Debouncer>>>,
-    tx: &Sender<Message>,
-) {
-    let shared_deb = Arc::clone(&debouncer);
-    let mut deb = shared_deb.lock().unwrap();
+// fn callback(
+//     level: rppal::gpio::Level,
+//     message: &Message,
+//     debouncer: Arc<Mutex<Option<Debouncer>>>,
+//     tx: &Sender<Message>,
+// ) {
+//     let shared_deb = Arc::clone(&debouncer);
+//     let mut deb = shared_deb.lock().unwrap();
 
-    // If the debouncer is already present, reset the deadline and return
-    if deb.is_some() {
-        deb.as_mut().unwrap().reset_deadline(level.into());
-        return;
-    }
+//     // If the debouncer is already present, reset the deadline and return
+//     if deb.is_some() {
+//         deb.as_mut().unwrap().reset_deadline(level.into());
+//         return;
+//     }
 
-    let debouncer = Debouncer::new(
-        level.into(),
-        Duration::new(2, 0),
-        message.clone(),
-        tx.clone(),
-    );
-    *deb = Some(debouncer);
+//     let debouncer = Debouncer::new(
+//         level.into(),
+//         Duration::new(2, 0),
+//         message.clone(),
+//         tx.clone(),
+//     );
+//     *deb = Some(debouncer);
 
-    let sleep = deb.as_ref().unwrap().sleep();
-    let rt = Runtime::new().unwrap();
-    rt.block_on(sleep);
+//     let sleep = deb.as_ref().unwrap().sleep();
+//     let rt = Runtime::new().unwrap();
+//     rt.block_on(sleep);
 
-    *deb = None;
-    drop(deb);
-}
+//     *deb = None;
+//     drop(deb);
+// }
 
 impl From<Trigger> for rppal::gpio::Trigger {
     fn from(val: Trigger) -> Self {
