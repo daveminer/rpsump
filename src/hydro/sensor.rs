@@ -13,6 +13,8 @@ use crate::hydro::{
     Level,
 };
 
+use super::signal::Signal;
+
 /// Sensors will trigger async callbacks (which create a thread) on these
 pub type SharedInputPin = Arc<Mutex<Box<dyn InputPin>>>;
 /// Threads spawned from sensor state changes will share one of these per sensor
@@ -50,7 +52,7 @@ impl Sensor {
         pin_number: u8,
         gpio: &dyn Gpio,
         trigger: Trigger,
-        tx: &Sender<Message>,
+        tx: &Sender<Signal>,
     ) -> Result<Self, Error> {
         let mut pin_io = gpio
             .get(pin_number)

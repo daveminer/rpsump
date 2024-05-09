@@ -11,6 +11,8 @@ use crate::{
     },
 };
 
+use super::signal::Signal;
+
 #[derive(Clone)]
 pub struct Sump {
     pub high_sensor: Sensor,
@@ -31,7 +33,7 @@ pub struct Sump {
 impl Sump {
     /// Create a new instance of Sump with the provided configuration, GPIO,
     /// trigger callback handle and tx channel to report triggers upon
-    pub fn new(config: &SumpConfig, tx: &Sender<Message>, gpio: &dyn Gpio) -> Result<Self, Error> {
+    pub fn new(config: &SumpConfig, tx: &Sender<Signal>, gpio: &dyn Gpio) -> Result<Self, Error> {
         let pump = Control::new("Sump Pump".into(), config.pump_control_pin, gpio)?;
 
         let high_sensor = Sensor::new(

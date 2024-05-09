@@ -1,5 +1,8 @@
 use anyhow::Error;
-use tokio::runtime::Handle;
+use tokio::{
+    runtime::Handle,
+    sync::mpsc::{Receiver, Sender},
+};
 
 use crate::{
     config::HydroConfig,
@@ -13,6 +16,8 @@ use crate::{
     },
     repository::Repo,
 };
+
+use self::signal::Signal;
 
 pub mod control;
 pub mod debounce;
@@ -41,7 +46,7 @@ impl Hydro {
         gpio: &dyn Gpio,
         repo: Repo,
     ) -> Result<Self, Error> {
-        let mpsc = tokio::sync::mpsc::channel(32);
+        let mpsc: (Sender<Signal>, Receiver<Signal>) = tokio::sync::mpsc::channel(32);
         let tx = mpsc.0;
 
         let heater = Heater::new(&config.heater, gpio)?;

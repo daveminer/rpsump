@@ -6,12 +6,19 @@ use tokio::{
     time::{sleep, Duration},
 };
 
-use super::control::SharedOutputPin;
-#[derive(Clone, Debug)]
+use super::{control::SharedOutputPin, gpio::Level};
+
+#[derive(Clone, Debug, PartialEq)]
 pub enum Message {
     SumpEmpty,
     SumpFull,
     IrrigatorEmpty,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Signal {
+    pub message: Message,
+    pub level: Level,
 }
 
 /// Set the Controls based on messages received from Sensors
@@ -26,7 +33,7 @@ pub enum Message {
 ///                        this is to clear the hose of water.
 ///
 pub fn listen(
-    mut rx: Receiver<Message>,
+    mut rx: Receiver<Signal>,
     handle: Handle,
     irrigator_pump_pin: SharedOutputPin,
     irrigator_notifier: Option<Arc<Notify>>,
@@ -37,8 +44,9 @@ pub fn listen(
     handle.spawn(async move {
         let inote = irrigator_notifier;
         let snote = sump_notifier;
-        while let Some(message) = rx.recv().await {
-            match message {
+        while let Some(signal) = rx.recv().await {
+            // TODO: check levels
+            match signal.message {
                 Message::SumpEmpty => {
                     sleep(Duration::from_secs(sump_empty_delay)).await;
 
@@ -96,7 +104,7 @@ mod tests {
         hydro::{
             gpio::{Level, MockGpio},
             irrigator::Irrigator,
-            signal::{listen, Message},
+            signal::{listen, Message, Signal},
             sump::Sump,
         },
         test_fixtures::{
@@ -134,7 +142,11 @@ mod tests {
 
         //tx.send(Message::SumpEmpty).await.unwrap();
 
-        tx.send(Message::IrrigatorEmpty).await.unwrap();
+        let signal = Signal {
+            message: Message::IrrigatorEmpty,
+            level: Level::High,
+        };
+        tx.send(signal).await.unwrap();
 
         // Wait for the state changes to occur
         irrigator_notify.notified().await;

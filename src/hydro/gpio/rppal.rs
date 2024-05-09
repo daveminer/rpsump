@@ -8,7 +8,7 @@ use tokio::sync::mpsc::Sender;
 use crate::hydro::{
     debounce::Debouncer,
     gpio::{Gpio, InputPin, OutputPin, Pin, Trigger},
-    signal::Message,
+    signal::{Message, Signal},
 };
 
 impl Gpio for rppal::gpio::Gpio {
@@ -55,12 +55,15 @@ impl InputPin for rppal::gpio::InputPin {
         &mut self,
         message: Message,
         trigger: Trigger,
-        tx: &Sender<Message>,
+        tx: &Sender<Signal>,
         delay: Duration,
     ) -> Result<(), Error> {
         let message = message.clone();
         let tx = tx.clone();
         let debouncer: Arc<Mutex<Option<Debouncer>>> = Arc::new(Mutex::new(None));
+
+        let runtime = tokio::runtime::Runtime::new()
+            .expect("Could not create tokio runtime for async interrupt");
 
         let callback = move |level: rppal::gpio::Level| {
             let shared_deb = Arc::clone(&debouncer);
@@ -68,7 +71,9 @@ impl InputPin for rppal::gpio::InputPin {
 
             // Check if a debouncer exists, reset the deadline if so
             if let Some(ref mut existing_deb) = *deb {
-                existing_deb.reset_deadline(level.into());
+                if let Err(e) = runtime.block_on(existing_deb.reset_deadline(level.into())) {
+                    tracing::error!("Error resetting deadline: {:?}", e);
+                }
             } else {
                 // Only create a new debouncer if one does not already exist
                 let debouncer = Debouncer::new(level.into(), delay, message.clone(), tx.clone());
@@ -79,37 +84,6 @@ impl InputPin for rppal::gpio::InputPin {
         Ok(self.set_async_interrupt(trigger.into(), callback)?)
     }
 }
-
-// fn callback(
-//     level: rppal::gpio::Level,
-//     message: &Message,
-//     debouncer: Arc<Mutex<Option<Debouncer>>>,
-//     tx: &Sender<Message>,
-// ) {
-//     let shared_deb = Arc::clone(&debouncer);
-//     let mut deb = shared_deb.lock().unwrap();
-
-//     // If the debouncer is already present, reset the deadline and return
-//     if deb.is_some() {
-//         deb.as_mut().unwrap().reset_deadline(level.into());
-//         return;
-//     }
-
-//     let debouncer = Debouncer::new(
-//         level.into(),
-//         Duration::new(2, 0),
-//         message.clone(),
-//         tx.clone(),
-//     );
-//     *deb = Some(debouncer);
-
-//     let sleep = deb.as_ref().unwrap().sleep();
-//     let rt = Runtime::new().unwrap();
-//     rt.block_on(sleep);
-
-//     *deb = None;
-//     drop(deb);
-// }
 
 impl From<Trigger> for rppal::gpio::Trigger {
     fn from(val: Trigger) -> Self {

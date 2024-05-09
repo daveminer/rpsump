@@ -11,6 +11,8 @@ use crate::{
     },
 };
 
+use super::signal::Signal;
+
 #[derive(Clone, Debug)]
 pub struct Irrigator {
     pub low_sensor: Sensor,
@@ -24,7 +26,7 @@ pub struct Irrigator {
 impl Irrigator {
     pub fn new(
         config: &IrrigationConfig,
-        tx: &Sender<Message>,
+        tx: &Sender<Signal>,
         gpio: &dyn Gpio,
     ) -> Result<Self, Error> {
         let pump = Control::new("Irrigation Pump".to_string(), config.pump_control_pin, gpio)?;

@@ -5,6 +5,8 @@ use tokio::sync::mpsc::Sender;
 
 use crate::hydro::signal::Message;
 
+use super::signal::Signal;
+
 pub mod rppal;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -42,7 +44,7 @@ pub trait InputPin: Send + Sync {
         &mut self,
         message: Message,
         trigger: Trigger,
-        tx: &Sender<Message>,
+        tx: &Sender<Signal>,
         delay: Duration,
     ) -> Result<(), Error>;
 }
