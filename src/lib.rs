@@ -1,3 +1,4 @@
+pub mod application;
 pub mod auth;
 pub mod config;
 pub mod controllers;
@@ -6,6 +7,5 @@ pub mod hydro;
 pub mod middleware;
 pub mod repository;
 pub mod schema;
-pub mod startup;
 pub mod test_fixtures;
 pub mod util;

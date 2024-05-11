@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tokio::sync::mpsc::Sender;
+use tokio::{runtime::Handle, sync::mpsc::Sender};
 
 use crate::hydro::{
     debounce::Debouncer,
@@ -53,6 +53,7 @@ impl Sensor {
         gpio: &dyn Gpio,
         trigger: Trigger,
         tx: &Sender<Signal>,
+        handle: Handle,
     ) -> Result<Self, Error> {
         let mut pin_io = gpio
             .get(pin_number)
@@ -62,7 +63,7 @@ impl Sensor {
         let debounce = Arc::from(Mutex::new(None));
 
         pin_io
-            .set_async_interrupt(message, trigger, tx, Duration::from_secs(2))
+            .set_async_interrupt(message, trigger, tx, Duration::from_secs(2), handle.clone())
             .map_err(|e| anyhow!(e.to_string()))?;
 
         Ok(Self {
@@ -89,6 +90,8 @@ impl Input for Sensor {
 
 #[cfg(test)]
 mod tests {
+    use tokio::runtime::Runtime;
+
     use crate::{
         hydro::{gpio::Trigger, signal::Message},
         test_fixtures::gpio::mock_sensor_gpio,
@@ -99,6 +102,8 @@ mod tests {
     #[test]
     fn test_new() {
         let (tx, _) = tokio::sync::mpsc::channel(32);
+        let rt = Runtime::new().unwrap();
+        let handle = rt.handle();
 
         let _sensor: Sensor = Sensor::new(
             Message::IrrigatorEmpty,
@@ -106,6 +111,7 @@ mod tests {
             &mock_sensor_gpio(),
             Trigger::Both,
             &tx,
+            handle.clone(),
         )
         .unwrap();
     }

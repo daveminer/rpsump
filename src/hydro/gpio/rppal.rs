@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
-use tokio::sync::mpsc::Sender;
+use tokio::{runtime::Handle, sync::mpsc::Sender};
 
 use crate::hydro::{
     debounce::Debouncer,
@@ -57,13 +57,11 @@ impl InputPin for rppal::gpio::InputPin {
         trigger: Trigger,
         tx: &Sender<Signal>,
         delay: Duration,
+        handle: Handle,
     ) -> Result<(), Error> {
         let message = message.clone();
         let tx = tx.clone();
         let debouncer: Arc<Mutex<Option<Debouncer>>> = Arc::new(Mutex::new(None));
-
-        let runtime = tokio::runtime::Runtime::new()
-            .expect("Could not create tokio runtime for async interrupt");
 
         let callback = move |level: rppal::gpio::Level| {
             let shared_deb = Arc::clone(&debouncer);
@@ -71,13 +69,16 @@ impl InputPin for rppal::gpio::InputPin {
 
             // Check if a debouncer exists, reset the deadline if so
             if let Some(ref mut existing_deb) = *deb {
-                if let Err(e) = runtime.block_on(existing_deb.reset_deadline(level.into())) {
+                if let Err(e) = handle.block_on(existing_deb.reset_deadline(level.into())) {
                     tracing::error!("Error resetting deadline: {:?}", e);
                 }
             } else {
                 // Only create a new debouncer if one does not already exist
-                let debouncer = Debouncer::new(level.into(), delay, message.clone(), tx.clone());
-                *deb = Some(debouncer);
+                handle.block_on(async {
+                    let debouncer =
+                        Debouncer::new(level.into(), delay, message.clone(), tx.clone()).await;
+                    *deb = Some(debouncer);
+                });
             }
         };
 

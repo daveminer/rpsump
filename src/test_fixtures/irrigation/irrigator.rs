@@ -1,5 +1,6 @@
 use mockall::predicate;
 use rstest::fixture;
+use tokio::runtime::Runtime;
 
 use crate::{
     hydro::{
@@ -16,6 +17,8 @@ use crate::{
 pub fn irrigator() -> Irrigator {
     let mut mock_gpio: MockGpio = mock_gpio_get(vec![1, 2, 3, 4, 5]);
     let (tx, _rx) = tokio::sync::mpsc::channel(32);
+    let rt = Runtime::new().unwrap();
+    let handle = rt.handle();
 
     mock_gpio
         .expect_get()
@@ -28,7 +31,7 @@ pub fn irrigator() -> Irrigator {
                 input_pin
                     .expect_set_async_interrupt()
                     .times(1)
-                    .returning(|_, _, _, _| Ok(()));
+                    .returning(|_, _, _, _, _| Ok(()));
                 input_pin.expect_read().times(1).returning(|| Level::High);
                 Box::new(input_pin)
             });
@@ -41,7 +44,15 @@ pub fn irrigator() -> Irrigator {
     let valve3 = Control::new("Valve3".to_string(), 4, &mock_gpio).unwrap();
     let valve4 = Control::new("Valve4".to_string(), 5, &mock_gpio).unwrap();
 
-    let low_sensor = Sensor::new(Message::SumpEmpty, 6, &mock_gpio, Trigger::Both, &tx).unwrap();
+    let low_sensor = Sensor::new(
+        Message::SumpEmpty,
+        6,
+        &mock_gpio,
+        Trigger::Both,
+        &tx,
+        handle.clone(),
+    )
+    .unwrap();
 
     Irrigator {
         low_sensor,

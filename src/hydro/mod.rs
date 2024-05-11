@@ -52,8 +52,8 @@ impl Hydro {
         let heater = Heater::new(&config.heater, gpio)?;
         let pool_pump = PoolPump::new(&config.pool_pump, gpio)?;
 
-        let sump = Sump::new(&config.sump, &tx, gpio)?;
-        let irrigator = Irrigator::new(&config.irrigation, &tx, gpio)?;
+        let sump = Sump::new(&config.sump, &tx, handle.clone(), gpio)?;
+        let irrigator = Irrigator::new(&config.irrigation, &tx, handle.clone(), gpio)?;
 
         schedule::start(
             repo,

@@ -123,8 +123,9 @@ mod tests {
         let mock_gpio = mock_irrigation_pump(mock_gpio, false, Level::High, false, None);
         let mock_gpio = mock_sump_pump(mock_gpio, false, false, false);
 
-        let irrigator = Irrigator::new(&SETTINGS.hydro.irrigation, &tx, &mock_gpio).unwrap();
-        let sump = Sump::new(&SETTINGS.hydro.sump, &tx, &mock_gpio).unwrap();
+        let irrigator =
+            Irrigator::new(&SETTINGS.hydro.irrigation, &tx, handle.clone(), &mock_gpio).unwrap();
+        let sump = Sump::new(&SETTINGS.hydro.sump, &tx, handle.clone(), &mock_gpio).unwrap();
         let sump_empty_delay = 1;
 
         let irrigator_notify = Arc::new(Notify::new());

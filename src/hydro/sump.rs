@@ -1,5 +1,5 @@
 use anyhow::Error;
-use tokio::sync::mpsc::Sender;
+use tokio::{runtime::Handle, sync::mpsc::Sender};
 
 use crate::{
     config::SumpConfig,
@@ -33,7 +33,12 @@ pub struct Sump {
 impl Sump {
     /// Create a new instance of Sump with the provided configuration, GPIO,
     /// trigger callback handle and tx channel to report triggers upon
-    pub fn new(config: &SumpConfig, tx: &Sender<Signal>, gpio: &dyn Gpio) -> Result<Self, Error> {
+    pub fn new(
+        config: &SumpConfig,
+        tx: &Sender<Signal>,
+        handle: Handle,
+        gpio: &dyn Gpio,
+    ) -> Result<Self, Error> {
         let pump = Control::new("Sump Pump".into(), config.pump_control_pin, gpio)?;
 
         let high_sensor = Sensor::new(
@@ -42,6 +47,7 @@ impl Sump {
             gpio,
             Trigger::Both,
             tx,
+            handle.clone(),
         )?;
 
         let low_sensor = Sensor::new(
@@ -50,6 +56,7 @@ impl Sump {
             gpio,
             Trigger::Both,
             tx,
+            handle.clone(),
         )?;
 
         Ok(Self {
@@ -62,6 +69,8 @@ impl Sump {
 
 #[cfg(test)]
 mod tests {
+    use tokio::runtime::Runtime;
+
     use crate::{
         hydro::gpio::MockGpio,
         test_fixtures::{gpio::mock_sump_pump, settings::SETTINGS},
@@ -72,8 +81,11 @@ mod tests {
     #[test]
     fn test_new() {
         let mpsc = tokio::sync::mpsc::channel(32);
+        let rt = Runtime::new().unwrap();
+        let handle = rt.handle();
 
         let mock_gpio = mock_sump_pump(MockGpio::new(), false, false, false);
-        let _sump: Sump = Sump::new(&SETTINGS.hydro.sump, &mpsc.0, &mock_gpio).unwrap();
+        let _sump: Sump =
+            Sump::new(&SETTINGS.hydro.sump, &mpsc.0, handle.clone(), &mock_gpio).unwrap();
     }
 }

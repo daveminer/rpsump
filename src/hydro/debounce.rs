@@ -23,7 +23,7 @@ pub struct Debouncer {
 /// when a change to the sensor pin state occurs before the deadline elapses. Otherwise, water
 /// turbulence may trigger multiple events when only one is desired.
 impl Debouncer {
-    pub fn new(level: Level, delay: Duration, message: Message, tx: Sender<Signal>) -> Self {
+    pub async fn new(level: Level, delay: Duration, message: Message, tx: Sender<Signal>) -> Self {
         let debouncer = Self {
             deadline: Instant::now() + delay,
             delay,
@@ -32,7 +32,7 @@ impl Debouncer {
             tx,
             reset_signal: Arc::new(Notify::new()),
         };
-        debouncer.start();
+        debouncer.start().await;
         debouncer
     }
 
@@ -47,7 +47,7 @@ impl Debouncer {
         Ok(())
     }
 
-    fn start(&self) {
+    async fn start(&self) {
         let reset_signal = Arc::clone(&self.reset_signal);
         let tx = self.tx.clone();
         let message = self.message.clone();
@@ -90,7 +90,8 @@ mod tests {
             Duration::from_secs(1),
             Message::SumpEmpty,
             tx.clone(),
-        );
+        )
+        .await;
         debouncer.reset_deadline(Level::Low).await.unwrap();
 
         // Wait for the message to be sent
@@ -115,7 +116,8 @@ mod tests {
             Duration::from_secs(1),
             Message::SumpFull,
             tx.clone(),
-        );
+        )
+        .await;
 
         // Wait for the message to be sent
         tokio::time::sleep(Duration::from_secs(2)).await;

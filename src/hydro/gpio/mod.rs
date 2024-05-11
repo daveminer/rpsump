@@ -1,7 +1,7 @@
 use anyhow::Error;
 use mockall::automock;
 use std::{fmt, time::Duration};
-use tokio::sync::mpsc::Sender;
+use tokio::{runtime::Handle, sync::mpsc::Sender};
 
 use crate::hydro::signal::Message;
 
@@ -46,6 +46,7 @@ pub trait InputPin: Send + Sync {
         trigger: Trigger,
         tx: &Sender<Signal>,
         delay: Duration,
+        handle: Handle,
     ) -> Result<(), Error>;
 }
 
