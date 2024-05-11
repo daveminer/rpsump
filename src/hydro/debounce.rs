@@ -72,6 +72,7 @@ impl Debouncer {
                     }
                     _ = reset_signal.notified() => {
                         // The deadline was reset, restart the sleep
+
                         continue;
                     }
                 }

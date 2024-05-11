@@ -45,7 +45,7 @@ impl Sump {
             Message::SumpFull,
             config.high_sensor_pin,
             gpio,
-            Trigger::Both,
+            Trigger::RisingEdge,
             tx,
             handle.clone(),
         )?;
@@ -54,7 +54,7 @@ impl Sump {
             Message::SumpEmpty,
             config.low_sensor_pin,
             gpio,
-            Trigger::Both,
+            Trigger::FallingEdge,
             tx,
             handle.clone(),
         )?;

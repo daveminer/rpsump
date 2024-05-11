@@ -36,7 +36,7 @@ impl Irrigator {
             Message::IrrigatorEmpty,
             config.low_sensor_pin,
             gpio,
-            Trigger::Both,
+            Trigger::FallingEdge,
             tx,
             handle,
         )?;
