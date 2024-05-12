@@ -65,9 +65,7 @@ impl Hydro {
             mpsc.1,
             handle.clone(),
             irrigator.pump.pin.clone(),
-            None,
             sump.pump.pin.clone(),
-            None,
             config.sump.pump_shutoff_delay,
         );
 
