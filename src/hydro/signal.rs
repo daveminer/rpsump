@@ -1,6 +1,7 @@
 use tokio::{
     runtime::Handle,
     sync::mpsc::Receiver,
+    task::JoinHandle,
     time::{sleep, Duration},
 };
 
@@ -36,12 +37,19 @@ pub fn listen(
     irrigator_pump_pin: SharedOutputPin,
     sump_pump_pin: SharedOutputPin,
     sump_empty_delay: u64,
+    max_pump_runtime: u64,
 ) {
     handle.spawn(async move {
+        let mut sump_pump_timer: Option<JoinHandle<()>> = None;
         while let Some(signal) = rx.recv().await {
             // TODO: check levels
             match signal.message {
                 Message::SumpEmpty => {
+                    // Cancel the running timer when pump is to be turned off
+                    if let Some(handle) = sump_pump_timer.take() {
+                        handle.abort();
+                    }
+
                     sleep(Duration::from_secs(sump_empty_delay)).await;
 
                     let pin = sump_pump_pin.clone();
@@ -50,9 +58,21 @@ pub fn listen(
                 }
                 Message::SumpFull => {
                     let pin = sump_pump_pin.clone();
-
                     let mut lock = pin.lock().await;
                     lock.on();
+
+                    // Cancel the previous timer if it exists
+                    if let Some(handle) = sump_pump_timer.take() {
+                        handle.abort();
+                    }
+                    // Start a new timer
+                    let pin_clone = sump_pump_pin.clone();
+                    sump_pump_timer = Some(tokio::spawn(async move {
+                        tokio::time::sleep(Duration::from_secs(max_pump_runtime)).await;
+                        let mut lock = pin_clone.lock().await;
+                        lock.off();
+                        tracing::warn!("Sump pump ran for too long, turning off with safety timer");
+                    }));
                 }
                 Message::IrrigatorEmpty => {
                     let pin = irrigator_pump_pin.clone();

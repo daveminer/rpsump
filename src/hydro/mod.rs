@@ -67,6 +67,7 @@ impl Hydro {
             irrigator.pump.pin.clone(),
             sump.pump.pin.clone(),
             config.sump.pump_shutoff_delay,
+            config.sump.pump_max_runtime,
         );
 
         Ok(Self {
