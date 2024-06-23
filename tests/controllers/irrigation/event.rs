@@ -16,22 +16,21 @@ async fn list_events_success() {
 
     let mut conn = app.repo.pool().await.unwrap().get().unwrap();
 
-    insert_irrigation_event(&mut conn, 1, sched.clone(), IrrigationEventStatus::Queued).await;
+    insert_irrigation_event(&mut conn, 1, sched.clone(), IrrigationEventStatus::Queued);
     insert_irrigation_event(
         &mut conn,
         1,
         sched.clone(),
         IrrigationEventStatus::InProgress,
-    )
-    .await;
+    );
+
     insert_irrigation_event(
         &mut conn,
         1,
         sched.clone(),
         IrrigationEventStatus::Completed,
-    )
-    .await;
-
+    );
+    drop(conn);
     // Act
     let response = app.post_login(&user_params()).await;
     let body: Value = response.json().await.unwrap();

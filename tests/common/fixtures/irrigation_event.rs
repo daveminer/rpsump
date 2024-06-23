@@ -10,7 +10,7 @@ use rpsump::{
     schema::irrigation_event,
 };
 
-pub async fn insert_irrigation_event(
+pub fn insert_irrigation_event(
     conn: &mut PooledConnection<ConnectionManager<SqliteConnection>>,
     hose: i32,
     schedule: IrrigationSchedule,
