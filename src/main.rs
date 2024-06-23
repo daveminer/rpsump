@@ -2,7 +2,8 @@ use std::process::exit;
 
 use diesel::RunQueryDsl;
 use rpsump::{
-    config::Settings, hydro::gpio::Gpio, middleware::telemetry, repository, startup::Application,
+    application::Application, config::Settings, hydro::gpio::Gpio, middleware::telemetry,
+    repository,
 };
 
 /// Start the application after loading settings, database, telemetry, and the RPi board.

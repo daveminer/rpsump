@@ -176,7 +176,6 @@ impl Repository for Implementation {
 
     async fn create_irrigation_schedule(
         &self,
-        // TODO: make type
         params: CreateIrrigationScheduleParams,
     ) -> Result<IrrigationSchedule, Error> {
         let mut conn = self

@@ -25,7 +25,7 @@ pub fn mock_sensor_gpio() -> impl Gpio {
             input_pin
                 .expect_set_async_interrupt()
                 .times(1)
-                .returning(|_, _, _| Ok(()));
+                .returning(|_, _, _, _, _| Ok(()));
             input_pin.expect_read().times(1).returning(|| Level::Low);
             Box::new(input_pin)
         });
@@ -72,7 +72,7 @@ pub fn mock_input_pin_with_interrupt(is_low: bool, read_result: Level) -> Box<Mo
         input_pin_stub.expect_is_low().return_const(is_low);
         input_pin_stub
             .expect_set_async_interrupt()
-            .returning(|_, _, _| Ok(()));
+            .returning(|_, _, _, _, _| Ok(()));
         input_pin_stub.expect_read().returning(move || read_result);
         Box::new(input_pin_stub)
     });

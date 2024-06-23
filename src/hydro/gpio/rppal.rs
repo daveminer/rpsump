@@ -1,14 +1,14 @@
 use anyhow::Error;
-use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
+use std::{sync::Arc, time::Duration};
+use tokio::{
+    runtime::Handle,
+    sync::{mpsc::Sender, Mutex},
 };
-use tokio::sync::mpsc::Sender;
 
 use crate::hydro::{
     debounce::Debouncer,
     gpio::{Gpio, InputPin, OutputPin, Pin, Trigger},
-    signal::Message,
+    signal::{Message, Signal},
 };
 
 impl Gpio for rppal::gpio::Gpio {
@@ -55,47 +55,37 @@ impl InputPin for rppal::gpio::InputPin {
         &mut self,
         message: Message,
         trigger: Trigger,
-        tx: &Sender<Message>,
+        tx: &Sender<Signal>,
+        delay: Duration,
+        handle: Handle,
     ) -> Result<(), Error> {
         let message = message.clone();
         let tx = tx.clone();
+        //let debouncer: Arc<Mutex<Debouncer>> = Arc::new(Mutex::new(None));
+        let debouncer = Arc::from(Mutex::new(Debouncer::new(
+            delay,
+            message.clone(),
+            tx.clone(),
+        )));
 
         let callback = move |level: rppal::gpio::Level| {
-            // Create a debouncer instance for this interrupt
-            let debouncer: Arc<Mutex<Option<Debouncer>>> = Arc::from(Mutex::new(None));
-
-            callback(level, &message, debouncer, &tx);
+            handle.block_on(handle_interrupt(Arc::clone(&debouncer), level));
         };
 
         Ok(self.set_async_interrupt(trigger.into(), callback)?)
     }
 }
 
-fn callback(
-    level: rppal::gpio::Level,
-    message: &Message,
-    debouncer: Arc<Mutex<Option<Debouncer>>>,
-    tx: &Sender<Message>,
-) {
-    let shared_deb = Arc::clone(&debouncer);
-    let mut deb = shared_deb.lock().unwrap();
-
-    // If the debouncer is already present, reset the deadline and return
-    if deb.is_some() {
-        deb.as_mut().unwrap().reset_deadline(level.into());
-        return;
+async fn handle_interrupt(debouncer: Arc<Mutex<Debouncer>>, level: rppal::gpio::Level) {
+    let mut debouncer = debouncer.lock().await;
+    let running = debouncer.running.lock().await;
+    if *running {
+        drop(running);
+        debouncer.reset_deadline(level.into()).await;
+    } else {
+        drop(running);
+        debouncer.start().await;
     }
-
-    let debouncer = Debouncer::new(
-        level.into(),
-        Duration::new(2, 0),
-        message.clone(),
-        tx.clone(),
-    );
-    *deb = Some(debouncer);
-
-    *deb = None;
-    drop(deb);
 }
 
 impl From<Trigger> for rppal::gpio::Trigger {

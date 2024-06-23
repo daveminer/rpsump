@@ -1,5 +1,5 @@
 use anyhow::Error;
-use tokio::sync::mpsc::Sender;
+use tokio::{runtime::Handle, sync::mpsc::Sender};
 
 use crate::{
     config::IrrigationConfig,
@@ -10,6 +10,8 @@ use crate::{
         Control,
     },
 };
+
+use super::signal::Signal;
 
 #[derive(Clone, Debug)]
 pub struct Irrigator {
@@ -24,7 +26,8 @@ pub struct Irrigator {
 impl Irrigator {
     pub fn new(
         config: &IrrigationConfig,
-        tx: &Sender<Message>,
+        tx: &Sender<Signal>,
+        handle: Handle,
         gpio: &dyn Gpio,
     ) -> Result<Self, Error> {
         let pump = Control::new("Irrigation Pump".to_string(), config.pump_control_pin, gpio)?;
@@ -33,8 +36,9 @@ impl Irrigator {
             Message::IrrigatorEmpty,
             config.low_sensor_pin,
             gpio,
-            Trigger::Both,
+            Trigger::FallingEdge,
             tx,
+            handle,
         )?;
 
         let valve1 = Control::new(
@@ -71,6 +75,8 @@ impl Irrigator {
 
 #[cfg(test)]
 mod tests {
+    use tokio::runtime::Runtime;
+
     use crate::{
         hydro::gpio::{Level, MockGpio},
         test_fixtures::{gpio::mock_irrigation_pump, settings::SETTINGS},
@@ -81,11 +87,18 @@ mod tests {
     #[test]
     fn test_new() {
         let mpsc = tokio::sync::mpsc::channel(32);
+        let rt = Runtime::new().unwrap();
+        let handle = rt.handle().clone();
 
         let mut mock_gpio = MockGpio::new();
         mock_gpio = mock_irrigation_pump(mock_gpio, false, Level::High, false, None);
 
-        let _irrigator: Irrigator =
-            Irrigator::new(&SETTINGS.hydro.irrigation, &mpsc.0, &mock_gpio).unwrap();
+        let _irrigator: Irrigator = Irrigator::new(
+            &SETTINGS.hydro.irrigation,
+            &mpsc.0,
+            handle.clone(),
+            &mock_gpio,
+        )
+        .unwrap();
     }
 }

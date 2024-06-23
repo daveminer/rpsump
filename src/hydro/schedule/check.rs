@@ -2,7 +2,7 @@ use anyhow::Error;
 use chrono::{Datelike, NaiveDateTime, Utc};
 
 use super::ScheduleStatus;
-use crate::repository::{models::irrigation_event::IrrigationEventStatus, Repo};
+use crate::repository::Repo;
 
 pub(crate) async fn check_schedule(repo: Repo) -> Result<Vec<ScheduleStatus>, Error> {
     // Get the statuses of all the schedules
@@ -36,8 +36,12 @@ fn due_statuses(status_list: Vec<ScheduleStatus>, now: NaiveDateTime) -> Vec<Sch
 
             let last_event = status.last_event.clone().unwrap();
             // If the last event was not created today
-            (last_event.created_at.date() != now.date())
-                && last_event.status == IrrigationEventStatus::Queued.to_string()
+            if last_event.created_at.date() < now.date() {
+                return true;
+            }
+
+            // An event already exists for today
+            return false;
         })
         .collect::<Vec<ScheduleStatus>>();
 

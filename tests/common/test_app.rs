@@ -15,10 +15,10 @@ use tempfile::TempDir;
 use tokio::sync::OnceCell;
 use wiremock::MockServer;
 
+use rpsump::application::Application;
 use rpsump::config::Settings;
 use rpsump::hydro::gpio::Gpio;
 use rpsump::repository::{self, Repo};
-use rpsump::startup::Application;
 
 use crate::auth::authenticated_user::create_auth_header;
 use crate::controllers::auth::{TEST_EMAIL, TEST_PASSWORD};
@@ -274,7 +274,6 @@ impl TestApp {
     where
         Body: serde::Serialize,
     {
-        println!("STARTING");
         let result = self
             .api_client
             .post(&format!("{}/auth/signup", &self.address))

@@ -73,7 +73,6 @@ pub async fn signup(
     new_user.email_verification_token = Some(token.value);
     new_user.email_verification_token_expires_at = Some(token.expires_at);
 
-    println!("NOHER");
     // Send email verification
     match new_user
         .send_email_verification(mailer_settings, settings.server.public_host.as_str())

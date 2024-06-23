@@ -75,6 +75,7 @@ pub struct SumpConfig {
     pub low_sensor_pin: u8,
     pub pump_control_pin: u8,
     pub pump_shutoff_delay: u64,
+    pub pump_max_runtime: u64,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -206,6 +207,9 @@ impl Settings {
         let pump_control_pin: u8 = load_system_var("SUMP_CONTROL_PIN")
             .parse()
             .expect("SUMP_CONTROL_PIN must be a number.");
+        let pump_max_runtime = load_system_var("SUMP_PUMP_MAX_RUNTIME")
+            .parse()
+            .expect("SUMP_PUMP_MAX_RUNTIME must be a number.");
         let pump_shutoff_delay: u64 = load_system_var("SUMP_SHUTOFF_DELAY")
             .parse()
             .expect("SUMP_SHUTOFF_DELAY must be a number.");
@@ -220,6 +224,7 @@ impl Settings {
             low_sensor_pin,
             pump_control_pin,
             pump_shutoff_delay,
+            pump_max_runtime,
         })
     }
 }

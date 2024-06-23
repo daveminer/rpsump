@@ -156,11 +156,17 @@ fn job_complete(duration: Duration, start_time: SystemTime) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use mockall::predicate;
     use rstest::rstest;
 
+    use crate::hydro::control::Control;
+    use crate::hydro::gpio::{Level, MockGpio, MockInputPin, MockPin, Trigger};
     use crate::hydro::irrigator::Irrigator;
     use crate::hydro::schedule::run::{event_hose_pin, job_complete, run_irrigation_event};
+    use crate::hydro::sensor::Sensor;
+    use crate::hydro::signal::Message;
     use crate::repository::models::irrigation_event::IrrigationEvent;
+    use crate::test_fixtures::gpio::mock_gpio_get;
     use crate::{
         repository::{MockRepository, Repository},
         test_fixtures::irrigation::{event::completed_event, irrigator::irrigator},
@@ -170,7 +176,7 @@ mod tests {
 
     #[rstest]
     #[tokio::test]
-    async fn test_run_next_event(irrigator: Irrigator) {
+    async fn test_run_next_event() {
         let mut mock_repo = MockRepository::new();
 
         let _ = mock_repo
@@ -183,6 +189,56 @@ mod tests {
         let repo = Box::new(mock_repo);
 
         let repo_static: &'static dyn Repository = Box::leak(repo);
+
+        // TODO: combine this with the irrigation fixture in a way that
+        // provides the runtime for unit tests (rt cannot drop in sync context)
+        let mut mock_gpio: MockGpio = mock_gpio_get(vec![1, 2, 3, 4, 5]);
+        let (tx, _rx) = tokio::sync::mpsc::channel(32);
+
+        mock_gpio
+            .expect_get()
+            .with(predicate::eq(6))
+            .times(1)
+            .returning(|_| {
+                let mut pin = MockPin::new();
+                pin.expect_into_input_pullup().times(1).returning(|| {
+                    let mut input_pin = MockInputPin::new();
+                    input_pin
+                        .expect_set_async_interrupt()
+                        .times(1)
+                        .returning(|_, _, _, _, _| Ok(()));
+                    input_pin.expect_read().times(1).returning(|| Level::High);
+                    Box::new(input_pin)
+                });
+                Ok(Box::new(pin))
+            });
+
+        let pump = Control::new("Pump".to_string(), 1, &mock_gpio).unwrap();
+        let valve1 = Control::new("Valve1".to_string(), 2, &mock_gpio).unwrap();
+        let valve2 = Control::new("Valve2".to_string(), 3, &mock_gpio).unwrap();
+        let valve3 = Control::new("Valve3".to_string(), 4, &mock_gpio).unwrap();
+        let valve4 = Control::new("Valve4".to_string(), 5, &mock_gpio).unwrap();
+
+        let handle = tokio::runtime::Handle::current();
+
+        let low_sensor = Sensor::new(
+            Message::SumpEmpty,
+            6,
+            &mock_gpio,
+            Trigger::Both,
+            &tx,
+            handle.clone(),
+        )
+        .unwrap();
+
+        let irrigator = Irrigator {
+            low_sensor,
+            pump,
+            valve1,
+            valve2,
+            valve3,
+            valve4,
+        };
 
         run_irrigation_event(repo_static, &irrigator).await;
     }

@@ -1,5 +1,8 @@
 use anyhow::Error;
-use tokio::runtime::Handle;
+use tokio::{
+    runtime::Handle,
+    sync::mpsc::{Receiver, Sender},
+};
 
 use crate::{
     config::HydroConfig,
@@ -13,6 +16,8 @@ use crate::{
     },
     repository::Repo,
 };
+
+use self::signal::Signal;
 
 pub mod control;
 pub mod debounce;
@@ -41,14 +46,14 @@ impl Hydro {
         gpio: &dyn Gpio,
         repo: Repo,
     ) -> Result<Self, Error> {
-        let mpsc = tokio::sync::mpsc::channel(32);
+        let mpsc: (Sender<Signal>, Receiver<Signal>) = tokio::sync::mpsc::channel(32);
         let tx = mpsc.0;
 
         let heater = Heater::new(&config.heater, gpio)?;
         let pool_pump = PoolPump::new(&config.pool_pump, gpio)?;
 
-        let sump = Sump::new(&config.sump, &tx, gpio)?;
-        let irrigator = Irrigator::new(&config.irrigation, &tx, gpio)?;
+        let sump = Sump::new(&config.sump, &tx, handle.clone(), gpio)?;
+        let irrigator = Irrigator::new(&config.irrigation, &tx, handle.clone(), gpio)?;
 
         schedule::start(
             repo,
@@ -60,10 +65,9 @@ impl Hydro {
             mpsc.1,
             handle.clone(),
             irrigator.pump.pin.clone(),
-            None,
             sump.pump.pin.clone(),
-            None,
             config.sump.pump_shutoff_delay,
+            config.sump.pump_max_runtime,
         );
 
         Ok(Self {

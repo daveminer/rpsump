@@ -1,82 +1,48 @@
-use chrono::NaiveDateTime;
-use rpsump::repository::{models::irrigation_schedule::IrrigationSchedule, Repo};
+use chrono::{Duration, NaiveDateTime, Utc};
+use diesel::{
+    r2d2::{ConnectionManager, PooledConnection},
+    ExpressionMethods, RunQueryDsl, SqliteConnection,
+};
+use rpsump::{
+    repository::models::{
+        irrigation_event::IrrigationEventStatus, irrigation_schedule::IrrigationSchedule,
+    },
+    schema::irrigation_event,
+};
 
-pub async fn insert_irrigation_event(
-    repo: Repo,
+pub fn insert_irrigation_event(
+    conn: &mut PooledConnection<ConnectionManager<SqliteConnection>>,
     hose: i32,
-    schedule: i32,
-    active: bool,
-    event_created_at: NaiveDateTime,
-    event_end_time: Option<NaiveDateTime>,
+    schedule: IrrigationSchedule,
+    status: IrrigationEventStatus,
 ) {
-    let schedule = IrrigationSchedule {
-        id: schedule,
-        name: "Test Schedule".into(),
-        active,
-        created_at: event_created_at,
-        updated_at: event_created_at,
-        duration: (event_end_time.unwrap() - event_created_at).num_seconds() as i32,
-        start_time: event_created_at.time(),
-        days_of_week: "Monday".into(),
-        hoses: hose.to_string(),
-    };
-    repo.create_irrigation_event(schedule, hose).await.unwrap();
+    let now = Utc::now().naive_utc();
+
+    let _ = diesel::insert_into(irrigation_event::table)
+        .values((
+            irrigation_event::hose_id.eq(hose),
+            irrigation_event::schedule_id.eq(schedule.id),
+            irrigation_event::status.eq(status.to_string()),
+            irrigation_event::created_at.eq(now),
+        ))
+        .execute(conn)
+        .map_err(|e| anyhow::Error::new(e));
 }
 
-pub async fn insert_irrigation_events(repo: Repo) {
-    let dt =
-        NaiveDateTime::parse_from_str("2022-01-01 12:34:56".into(), "%Y-%m-%d %H:%M:%S").unwrap();
-    insert_irrigation_event(
-        repo,
-        1,
-        1,
-        false,
-        dt,
-        Some(dt + chrono::Duration::seconds(30)),
-    )
-    .await;
-    let dt2 =
-        NaiveDateTime::parse_from_str("2022-01-02 16:50:22".into(), "%Y-%m-%d %H:%M:%S").unwrap();
-    insert_irrigation_event(
-        repo,
-        1,
-        1,
-        false,
-        dt2,
-        Some(dt2 + chrono::Duration::seconds(30)),
-    )
-    .await;
-    let dt3 =
-        NaiveDateTime::parse_from_str("2022-01-03 23:59:59".into(), "%Y-%m-%d %H:%M:%S").unwrap();
-    insert_irrigation_event(
-        repo,
-        1,
-        1,
-        false,
-        dt3,
-        Some(dt3 + chrono::Duration::seconds(30)),
-    )
-    .await;
-    let dt4 =
-        NaiveDateTime::parse_from_str("2022-01-04 02:10:08".into(), "%Y-%m-%d %H:%M:%S").unwrap();
-    insert_irrigation_event(
-        repo,
-        1,
-        1,
-        false,
-        dt4,
-        Some(dt4 + chrono::Duration::seconds(30)),
-    )
-    .await;
-    let dt5 =
-        NaiveDateTime::parse_from_str("2022-01-05 12:34:56".into(), "%Y-%m-%d %H:%M:%S").unwrap();
-    insert_irrigation_event(
-        repo,
-        1,
-        1,
-        false,
-        dt5,
-        Some(dt5 + chrono::Duration::seconds(30)),
-    )
-    .await;
+pub fn insert_completed_event(
+    conn: &mut PooledConnection<ConnectionManager<SqliteConnection>>,
+    hose: i32,
+    schedule: IrrigationSchedule,
+    finished_at: NaiveDateTime,
+) {
+    let _ = diesel::insert_into(irrigation_event::table)
+        .values((
+            irrigation_event::hose_id.eq(hose),
+            irrigation_event::schedule_id.eq(schedule.id),
+            irrigation_event::status.eq(IrrigationEventStatus::Completed.to_string()),
+            irrigation_event::created_at.eq(finished_at - Duration::seconds(10)),
+            irrigation_event::end_time.eq(Some(finished_at)),
+        ))
+        .execute(conn)
+        .map_err(|e| anyhow::Error::new(e));
 }

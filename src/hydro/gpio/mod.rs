@@ -1,9 +1,11 @@
 use anyhow::Error;
 use mockall::automock;
-use std::fmt;
-use tokio::sync::mpsc::Sender;
+use std::{fmt, time::Duration};
+use tokio::{runtime::Handle, sync::mpsc::Sender};
 
 use crate::hydro::signal::Message;
+
+use super::signal::Signal;
 
 pub mod rppal;
 
@@ -42,7 +44,9 @@ pub trait InputPin: Send + Sync {
         &mut self,
         message: Message,
         trigger: Trigger,
-        tx: &Sender<Message>,
+        tx: &Sender<Signal>,
+        delay: Duration,
+        handle: Handle,
     ) -> Result<(), Error>;
 }
 

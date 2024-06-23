@@ -6,6 +6,8 @@
 
 # Local database
 *.db
+*.db-shm
+*.db-wal
 
 # Coverage artifacts
 lcov.info
