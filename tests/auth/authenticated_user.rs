@@ -1,6 +1,6 @@
-use actix_web::http::header::{HeaderName, HeaderValue};
 use chrono::Utc;
 use jsonwebtoken::Algorithm;
+use reqwest::header::{HeaderName, HeaderValue};
 use std::{env, str::FromStr};
 
 use rpsump::auth::claim::Claim;
