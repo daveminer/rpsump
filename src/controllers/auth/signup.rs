@@ -14,7 +14,7 @@ use crate::util::ApiResponse;
 pub struct SignupParams {
     #[validate(email)]
     email: String,
-    #[validate(custom = "validate_password_strength")]
+    #[validate(custom(function = "validate_password_strength"))]
     password: Password,
     #[validate(must_match(
         other = "password",
