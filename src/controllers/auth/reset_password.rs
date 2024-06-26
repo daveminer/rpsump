@@ -14,7 +14,7 @@ use crate::util::ApiResponse;
 #[derive(Deserialize, Validate)]
 pub struct ResetPasswordParams {
     pub token: String,
-    #[validate(custom = "validate_password_strength")]
+    #[validate(custom(function = "validate_password_strength"))]
     pub new_password: Password,
     #[validate(must_match(
         other = "new_password",
