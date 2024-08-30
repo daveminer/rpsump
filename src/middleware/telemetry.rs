@@ -4,6 +4,7 @@ use anyhow::Error;
 use opentelemetry::{global, KeyValue};
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_sdk::{propagation::TraceContextPropagator, trace, Resource};
+use tokio::time::Duration;
 use tonic::metadata::{MetadataKey, MetadataMap};
 use tracing_subscriber::{prelude::*, EnvFilter, Registry};
 
@@ -17,7 +18,8 @@ pub fn init_tracer(settings: &Settings) -> Result<(), Error> {
     let exporter = opentelemetry_otlp::new_exporter()
         .tonic()
         .with_metadata(headers(settings))
-        .with_endpoint(&settings.telemetry.receiver_url);
+        .with_endpoint(&settings.telemetry.receiver_url)
+        .with_timeout(Duration::from_secs(10));
 
     // Export traces in batches
     let tracer = opentelemetry_otlp::new_pipeline()
