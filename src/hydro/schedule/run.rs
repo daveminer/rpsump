@@ -6,7 +6,6 @@ use tokio::time::sleep;
 use crate::hydro::{control::Control, schedule::IrrigationEvent, sensor::Input, Irrigator};
 use crate::repository::Repo;
 
-#[tracing::instrument(skip(irrigator, repo))]
 pub async fn run_irrigation_event(repo: Repo, irrigator: &Irrigator) {
     // Get the next event
     let (event, schedule) = match repo.next_queued_irrigation_event().await {
