@@ -66,6 +66,12 @@ pub enum RefreshTokenError {
     TokenRevoked,
 }
 
+impl From<DieselError> for RefreshTokenError {
+    fn from(e: DieselError) -> Self {
+        RefreshTokenError::DatabaseError(anyhow!(e))
+    }
+}
+
 #[derive(thiserror::Error, Debug)]
 pub enum VerifyEmailError {
     #[error("Database error.")]
@@ -134,29 +140,43 @@ impl Repository for Implementation {
             .map_err(|e| RefreshTokenError::DatabaseError(anyhow!(e)))?;
 
         let user_id = spawn_blocking_with_tracing(move || {
-            let record = refresh_token::table
-                .filter(refresh_token::token.eq(&token_value))
-                .first::<RefreshTokenModel>(&mut conn)
-                .map_err(|e| match e {
-                    DieselError::NotFound => RefreshTokenError::InvalidToken,
-                    e => RefreshTokenError::DatabaseError(anyhow!(e)),
-                })?;
+            conn.transaction::<_, RefreshTokenError, _>(|conn| {
+                let record = refresh_token::table
+                    .filter(refresh_token::token.eq(&token_value))
+                    .first::<RefreshTokenModel>(conn)
+                    .map_err(|e| match e {
+                        DieselError::NotFound => RefreshTokenError::InvalidToken,
+                        e => RefreshTokenError::DatabaseError(anyhow!(e)),
+                    })?;
 
-            if record.revoked_at.is_some() {
-                return Err(RefreshTokenError::TokenRevoked);
-            }
+                if record.revoked_at.is_some() {
+                    // Reuse of a revoked token signals potential theft.
+                    // Revoke all tokens for this user as a precaution.
+                    diesel::update(refresh_token::table)
+                        .filter(
+                            refresh_token::user_id
+                                .eq(record.user_id)
+                                .and(refresh_token::revoked_at.is_null()),
+                        )
+                        .set(refresh_token::revoked_at.eq(Some(Utc::now().naive_utc())))
+                        .execute(conn)
+                        .map_err(|e| RefreshTokenError::DatabaseError(anyhow!(e)))?;
 
-            if record.expires_at < Utc::now().naive_utc() {
-                return Err(RefreshTokenError::TokenExpired);
-            }
+                    return Err(RefreshTokenError::TokenRevoked);
+                }
 
-            diesel::update(refresh_token::table)
-                .filter(refresh_token::id.eq(record.id))
-                .set(refresh_token::revoked_at.eq(Some(Utc::now().naive_utc())))
-                .execute(&mut conn)
-                .map_err(|e| RefreshTokenError::DatabaseError(anyhow!(e)))?;
+                if record.expires_at < Utc::now().naive_utc() {
+                    return Err(RefreshTokenError::TokenExpired);
+                }
 
-            Ok(record.user_id)
+                diesel::update(refresh_token::table)
+                    .filter(refresh_token::id.eq(record.id))
+                    .set(refresh_token::revoked_at.eq(Some(Utc::now().naive_utc())))
+                    .execute(conn)
+                    .map_err(|e| RefreshTokenError::DatabaseError(anyhow!(e)))?;
+
+                Ok(record.user_id)
+            })
         })
         .await
         .map_err(|e| RefreshTokenError::InternalServerError(anyhow!(e)))??;
