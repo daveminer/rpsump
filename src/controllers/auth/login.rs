@@ -4,7 +4,7 @@ use bcrypt::verify;
 use secrecy::{ExposeSecret, Secret};
 use serde::{Deserialize, Serialize};
 
-use crate::auth::{claim::create_token, password::AuthParams};
+use crate::auth::{claim::create_token, password::AuthParams, token::Token};
 use crate::config::Settings;
 use crate::controllers::auth::helpers::{error_response, ip_address};
 use crate::repository::models::user::UserFilter;
@@ -17,6 +17,7 @@ use crate::util::{spawn_blocking_with_tracing, ApiResponse, BAD_CREDS, REQUIRED_
 #[derive(Serialize, Deserialize)]
 struct Response {
     token: String,
+    refresh_token: String,
 }
 
 #[post("/login")]
@@ -68,11 +69,21 @@ pub async fn login(
     let token = match create_token(
         user.id,
         settings.jwt_secret.clone(),
-        settings.server.token_duration_days,
+        settings.server.access_token_duration_minutes,
     ) {
         Ok(token) => token,
         Err(e) => return Ok(error_response(e, "Could not create token for user")),
     };
+
+    let refresh_token_obj = Token::new_refresh_token(
+        user.id,
+        settings.server.refresh_token_duration_days,
+    );
+    let refresh_token_value = refresh_token_obj.value.clone();
+
+    if let Err(e) = repo.create_refresh_token(&refresh_token_obj).await {
+        return Ok(error_response(e, "Could not create refresh token"));
+    }
 
     match repo
         .create_user_event(&user, EventType::Login, ip_addr)
@@ -84,7 +95,10 @@ pub async fn login(
 
     tracing::info!(target = module_path!(), user_id = user.id, "User logged in");
 
-    Ok(HttpResponse::Ok().json(Response { token }))
+    Ok(HttpResponse::Ok().json(Response {
+        token,
+        refresh_token: refresh_token_value,
+    }))
 }
 
 #[tracing::instrument(skip(user, password))]

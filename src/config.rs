@@ -65,7 +65,8 @@ pub struct ServerConfig {
     pub host: String,
     pub port: u16,
     pub public_host: String,
-    pub token_duration_days: u8,
+    pub access_token_duration_minutes: u16,
+    pub refresh_token_duration_days: u8,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -139,9 +140,14 @@ impl Settings {
                 host: server_host,
                 port: server_port,
                 public_host: load_system_var("PUBLIC_HOST"),
-                token_duration_days: load_system_var("SERVER_TOKEN_DURATION_DAYS")
+                access_token_duration_minutes: env::var("SERVER_ACCESS_TOKEN_DURATION_MINUTES")
+                    .unwrap_or_else(|_| "15".to_string())
                     .parse()
-                    .expect("TOKEN_DURATION must be a number."),
+                    .expect("SERVER_ACCESS_TOKEN_DURATION_MINUTES must be a number."),
+                refresh_token_duration_days: env::var("SERVER_REFRESH_TOKEN_DURATION_DAYS")
+                    .unwrap_or_else(|_| "30".to_string())
+                    .parse()
+                    .expect("SERVER_REFRESH_TOKEN_DURATION_DAYS must be a number."),
             },
             telemetry: TelemetryConfig {
                 api_key: load_system_var("TELEMETRY_API_KEY"),

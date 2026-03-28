@@ -16,7 +16,9 @@ use crate::repository::models::{
     user_event::{EventType, UserEvent},
 };
 use crate::repository::Repository;
-use crate::schema::{irrigation_event, irrigation_schedule, sump_event, user, user_event};
+use crate::schema::{
+    irrigation_event, irrigation_schedule, refresh_token, sump_event, user, user_event,
+};
 use crate::schema::{
     irrigation_event::dsl as irrigation_event_dsl,
     irrigation_schedule::dsl as irrigation_schedule_dsl, sump_event::dsl as sump_event_dsl,
@@ -31,6 +33,7 @@ use diesel::{BoxableExpression, JoinOnDsl};
 use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 
 use super::models::irrigation_event::NewIrrigationEvent;
+use super::models::refresh_token::RefreshToken as RefreshTokenModel;
 use super::models::user::UserUpdateFilter;
 
 type DbPool = Pool<ConnectionManager<SqliteConnection>>;
@@ -47,6 +50,20 @@ pub enum ResetPasswordError {
     InvalidToken,
     #[error("Token expired.")]
     TokenExpired,
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum RefreshTokenError {
+    #[error("Database error.")]
+    DatabaseError(anyhow::Error),
+    #[error("Internal server error.")]
+    InternalServerError(anyhow::Error),
+    #[error("Invalid token.")]
+    InvalidToken,
+    #[error("Token expired.")]
+    TokenExpired,
+    #[error("Token revoked.")]
+    TokenRevoked,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -105,6 +122,46 @@ impl Repository for Implementation {
         .await?;
 
         Ok(())
+    }
+
+    async fn consume_refresh_token(
+        &self,
+        token_value: String,
+    ) -> Result<i32, RefreshTokenError> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| RefreshTokenError::DatabaseError(anyhow!(e)))?;
+
+        let user_id = spawn_blocking_with_tracing(move || {
+            let record = refresh_token::table
+                .filter(refresh_token::token.eq(&token_value))
+                .first::<RefreshTokenModel>(&mut conn)
+                .map_err(|e| match e {
+                    DieselError::NotFound => RefreshTokenError::InvalidToken,
+                    e => RefreshTokenError::DatabaseError(anyhow!(e)),
+                })?;
+
+            if record.revoked_at.is_some() {
+                return Err(RefreshTokenError::TokenRevoked);
+            }
+
+            if record.expires_at < Utc::now().naive_utc() {
+                return Err(RefreshTokenError::TokenExpired);
+            }
+
+            diesel::update(refresh_token::table)
+                .filter(refresh_token::id.eq(record.id))
+                .set(refresh_token::revoked_at.eq(Some(Utc::now().naive_utc())))
+                .execute(&mut conn)
+                .map_err(|e| RefreshTokenError::DatabaseError(anyhow!(e)))?;
+
+            Ok(record.user_id)
+        })
+        .await
+        .map_err(|e| RefreshTokenError::InternalServerError(anyhow!(e)))??;
+
+        Ok(user_id)
     }
 
     async fn create(path: Option<String>) -> Result<Self, Error> {
@@ -239,6 +296,32 @@ impl Repository for Implementation {
         .await??;
 
         Ok(token_result)
+    }
+
+    async fn create_refresh_token(&self, token: &Token) -> Result<(), Error> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| anyhow!("Database error: {:?}", e))?;
+
+        let token_value = token.value.clone();
+        let user_id = token.user_id;
+        let expires_at = token.expires_at;
+
+        spawn_blocking_with_tracing(move || {
+            diesel::insert_into(refresh_token::table)
+                .values((
+                    refresh_token::user_id.eq(user_id),
+                    refresh_token::token.eq(token_value),
+                    refresh_token::expires_at.eq(expires_at),
+                ))
+                .execute(&mut conn)
+                .map_err(|e| anyhow!("Error creating refresh token: {}", e))
+        })
+        .await?
+        .map_err(|e| anyhow!("Internal server error when creating refresh token: {e}"))?;
+
+        Ok(())
     }
 
     async fn create_sump_event(&self, info: String, kind: String) -> Result<(), Error> {
@@ -514,6 +597,29 @@ impl Repository for Implementation {
         })
         .await?
         .map_err(|e| anyhow!("Internal server error when creating irrigation events: {e}"))?;
+
+        Ok(())
+    }
+
+    async fn revoke_refresh_tokens_for_user(&self, user_id: i32) -> Result<(), Error> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| anyhow!("Database error: {:?}", e))?;
+
+        spawn_blocking_with_tracing(move || {
+            diesel::update(refresh_token::table)
+                .filter(
+                    refresh_token::user_id
+                        .eq(user_id)
+                        .and(refresh_token::revoked_at.is_null()),
+                )
+                .set(refresh_token::revoked_at.eq(Some(Utc::now().naive_utc())))
+                .execute(&mut conn)
+                .map_err(|e| anyhow!("Error revoking refresh tokens: {}", e))
+        })
+        .await?
+        .map_err(|e| anyhow!("Internal server error when revoking refresh tokens: {e}"))?;
 
         Ok(())
     }

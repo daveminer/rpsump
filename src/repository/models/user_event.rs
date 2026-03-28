@@ -24,6 +24,7 @@ pub enum EventType {
     Logout,
     PasswordReset,
     Signup,
+    TokenRefresh,
 }
 
 impl Display for EventType {
@@ -34,6 +35,7 @@ impl Display for EventType {
             EventType::Logout => write!(f, "logout"),
             EventType::PasswordReset => write!(f, "password_reset"),
             EventType::Signup => write!(f, "signup"),
+            EventType::TokenRefresh => write!(f, "token_refresh"),
         }
     }
 }

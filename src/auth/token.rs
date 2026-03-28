@@ -21,6 +21,11 @@ impl Token {
         Self::new_token(user_id, PASSWORD_RESET_TOKEN_VALIDITY_DURATION)
     }
 
+    pub fn new_refresh_token(user_id: i32, duration_days: u8) -> Self {
+        let duration_secs = duration_days as i64 * 24 * 3600;
+        Self::new_token(user_id, duration_secs)
+    }
+
     fn new_token(user_id: i32, duration: i64) -> Self {
         let now = Utc::now().naive_utc();
         let expires_at = now + Duration::seconds(duration);
