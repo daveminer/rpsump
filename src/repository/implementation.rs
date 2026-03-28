@@ -30,7 +30,7 @@ use diesel::result::{DatabaseErrorKind, Error as DieselError};
 use diesel::sql_types::{Bool, Nullable};
 use diesel::sqlite::SqliteConnection;
 use diesel::{BoxableExpression, JoinOnDsl};
-use diesel::{Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
+use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 
 use super::models::irrigation_event::NewIrrigationEvent;
 use super::models::refresh_token::RefreshToken as RefreshTokenModel;
@@ -159,8 +159,7 @@ impl Repository for Implementation {
                                 .and(refresh_token::revoked_at.is_null()),
                         )
                         .set(refresh_token::revoked_at.eq(Some(Utc::now().naive_utc())))
-                        .execute(conn)
-                        .map_err(|e| RefreshTokenError::DatabaseError(anyhow!(e)))?;
+                        .execute(conn)?;
 
                     return Err(RefreshTokenError::TokenRevoked);
                 }
@@ -172,8 +171,7 @@ impl Repository for Implementation {
                 diesel::update(refresh_token::table)
                     .filter(refresh_token::id.eq(record.id))
                     .set(refresh_token::revoked_at.eq(Some(Utc::now().naive_utc())))
-                    .execute(conn)
-                    .map_err(|e| RefreshTokenError::DatabaseError(anyhow!(e)))?;
+                    .execute(conn)?;
 
                 Ok(record.user_id)
             })
