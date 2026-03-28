@@ -14,10 +14,10 @@ pub struct Claim {
 pub fn create_token(
     user_id: i32,
     private_key: String,
-    duration_days: u8,
+    duration_minutes: u16,
 ) -> Result<String, anyhow::Error> {
     let from_epoch = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH)?;
-    let seconds = duration_days as u64 * 24 * 60 * 60;
+    let seconds = duration_minutes as u64 * 60;
     let exp_time = from_epoch.as_secs() + seconds;
 
     Ok(encode(

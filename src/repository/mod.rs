@@ -21,7 +21,7 @@ use crate::repository::models::{
     user::{UserFilter, UserUpdateFilter},
 };
 
-use self::implementation::{ResetPasswordError, VerifyEmailError};
+use self::implementation::{RefreshTokenError, ResetPasswordError, VerifyEmailError};
 
 /// Used in the application to access the database
 pub type Repo = &'static dyn Repository;
@@ -31,6 +31,7 @@ pub type Repo = &'static dyn Repository;
 #[async_trait]
 pub trait Repository: Send + Sync + 'static {
     async fn begin_irrigation(&self, event: IrrigationEvent) -> Result<(), Error>;
+    async fn consume_refresh_token(&self, token_value: String) -> Result<i32, RefreshTokenError>;
     async fn create(path: Option<String>) -> Result<Self, Error>
     where
         Self: Sized;
@@ -45,6 +46,7 @@ pub trait Repository: Send + Sync + 'static {
         params: CreateIrrigationScheduleParams,
     ) -> Result<IrrigationSchedule, Error>;
     async fn create_password_reset(&self, user: User) -> Result<Token, Error>;
+    async fn create_refresh_token(&self, token: &Token) -> Result<(), Error>;
     async fn create_sump_event(&self, info: String, kind: String) -> Result<(), Error>;
     async fn create_user(
         &self,
@@ -71,6 +73,7 @@ pub trait Repository: Send + Sync + 'static {
         &self,
         schedules: Vec<IrrigationSchedule>,
     ) -> Result<(), Error>;
+    async fn revoke_refresh_tokens_for_user(&self, user_id: i32) -> Result<(), Error>;
     async fn reset_password(
         &self,
         password: &Password,

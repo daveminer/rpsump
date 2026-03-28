@@ -8,7 +8,7 @@ fn test_create_token() {
     let user_id = 1;
     let private_key = "secret_key".to_string();
 
-    let result = create_token(user_id, private_key.clone(), 7);
+    let result = create_token(user_id, private_key.clone(), 15);
     assert!(result.is_ok());
 
     let token = result.unwrap();
@@ -19,5 +19,5 @@ fn test_create_token() {
         &Validation::default(),
     )
     .unwrap();
-    assert!(decoded_token.claims.exp <= (Utc::now().timestamp() as u64 + 7 * 24 * 60 * 60));
+    assert!(decoded_token.claims.exp <= (Utc::now().timestamp() as u64 + 15 * 60));
 }
