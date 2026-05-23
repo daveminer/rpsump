@@ -4,6 +4,7 @@ use chrono::{Datelike, NaiveDate, Utc, Weekday};
 
 use crate::auth::password::Password;
 use crate::auth::token::Token;
+use crate::hydro::weather::{should_skip, PrecipSnapshot};
 use crate::repository::models::{
     garden_event::{GardenEvent, GardenEventSource, GardenEventStatus, NewGardenEvent},
     garden_schedule::{
@@ -659,7 +660,7 @@ impl Repository for Implementation {
                 if !days.iter().any(|d| *d == today_weekday) {
                     continue;
                 }
-                let skip = crate::hydro::weather::should_skip(schedule, &precip);
+                let skip = should_skip(schedule, &precip);
                 let status = if skip {
                     GardenEventStatus::Skipped
                 } else {
