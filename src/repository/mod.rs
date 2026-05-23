@@ -3,23 +3,22 @@ pub mod models;
 
 use anyhow::Error;
 use async_trait::async_trait;
+use chrono::NaiveDateTime;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use mockall::automock;
 use models::{
-    irrigation_event::IrrigationEvent,
-    irrigation_schedule::{IrrigationSchedule, UpdateIrrigationScheduleParams},
+    garden_event::{GardenEvent, GardenEventSource, GardenEventStatus},
+    garden_schedule::{
+        CreateGardenScheduleParams, GardenSchedule, UpdateGardenScheduleParams,
+    },
     sump_event::SumpEvent,
     user::User,
     user_event::{EventType, UserEvent},
 };
 
 use crate::auth::{password::Password, token::Token};
-use crate::hydro::schedule::ScheduleStatus;
-use crate::repository::models::{
-    irrigation_schedule::CreateIrrigationScheduleParams,
-    user::{UserFilter, UserUpdateFilter},
-};
+use crate::repository::models::user::{UserFilter, UserUpdateFilter};
 
 use self::implementation::{RefreshTokenError, ResetPasswordError, VerifyEmailError};
 
@@ -30,21 +29,20 @@ pub type Repo = &'static dyn Repository;
 #[automock]
 #[async_trait]
 pub trait Repository: Send + Sync + 'static {
-    async fn begin_irrigation(&self, event: IrrigationEvent) -> Result<(), Error>;
+    async fn begin_garden_event(&self, event_id: i32) -> Result<(), Error>;
     async fn consume_refresh_token(&self, token_value: String) -> Result<i32, RefreshTokenError>;
     async fn create(path: Option<String>) -> Result<Self, Error>
     where
         Self: Sized;
     async fn create_email_verification(&self, user: &User) -> Result<Token, Error>;
-    async fn create_irrigation_event(
+    async fn create_garden_schedule(
         &self,
-        schedule: IrrigationSchedule,
-        hose: i32,
-    ) -> Result<(), Error>;
-    async fn create_irrigation_schedule(
+        params: CreateGardenScheduleParams,
+    ) -> Result<GardenSchedule, Error>;
+    async fn create_manual_garden_event(
         &self,
-        params: CreateIrrigationScheduleParams,
-    ) -> Result<IrrigationSchedule, Error>;
+        duration_secs: i32,
+    ) -> Result<GardenEvent, Error>;
     async fn create_password_reset(&self, user: User) -> Result<Token, Error>;
     async fn create_refresh_token(&self, token: &Token) -> Result<(), Error>;
     async fn create_sump_event(&self, info: String, kind: String) -> Result<(), Error>;
@@ -60,32 +58,41 @@ pub trait Repository: Send + Sync + 'static {
         request_event_type: EventType,
         request_ip_address: String,
     ) -> Result<(), Error>;
-    async fn delete_irrigation_schedule(&self, sched_id: i32) -> Result<Option<usize>, Error>;
-    async fn finish_irrigation_event(&self) -> Result<(), Error>;
-    async fn irrigation_events(&self) -> Result<Vec<IrrigationEvent>, Error>;
-    async fn irrigation_schedules(&self) -> Result<Vec<IrrigationSchedule>, Error>;
-    async fn irrigation_schedule_by_id(&self, sched_id: i32) -> Result<IrrigationSchedule, Error>;
-    async fn next_queued_irrigation_event(
+    async fn current_garden_event(&self) -> Result<Option<GardenEvent>, Error>;
+    async fn delete_garden_schedule(&self, sched_id: i32) -> Result<Option<usize>, Error>;
+    async fn finish_garden_event(
         &self,
-    ) -> Result<Option<(IrrigationEvent, IrrigationSchedule)>, Error>;
-    async fn pool(&self) -> Result<Pool<ConnectionManager<SqliteConnection>>, Error>;
-    async fn queue_irrigation_events(
-        &self,
-        schedules: Vec<IrrigationSchedule>,
+        event_id: i32,
+        status: GardenEventStatus,
     ) -> Result<(), Error>;
+    async fn garden_event_by_id(&self, event_id: i32) -> Result<Option<GardenEvent>, Error>;
+    async fn garden_events(
+        &self,
+        limit: i64,
+        offset: i64,
+        source: Option<GardenEventSource>,
+    ) -> Result<Vec<GardenEvent>, Error>;
+    async fn garden_schedule_by_id(
+        &self,
+        sched_id: i32,
+    ) -> Result<Option<GardenSchedule>, Error>;
+    async fn garden_schedules(&self) -> Result<Vec<GardenSchedule>, Error>;
+    async fn next_queued_garden_event(&self) -> Result<Option<GardenEvent>, Error>;
+    async fn pool(&self) -> Result<Pool<ConnectionManager<SqliteConnection>>, Error>;
+    async fn queue_due_garden_events(&self, now: NaiveDateTime) -> Result<usize, Error>;
+    async fn request_garden_stop(&self) -> Result<Option<i32>, Error>;
     async fn revoke_refresh_tokens_for_user(&self, user_id: i32) -> Result<(), Error>;
     async fn reset_password(
         &self,
         password: &Password,
         token: String,
     ) -> Result<(), ResetPasswordError>;
-    async fn schedule_statuses(&self) -> Result<Vec<ScheduleStatus>, Error>;
     async fn sump_events(&self) -> Result<Vec<SumpEvent>, Error>;
-    async fn update_irrigation_schedule(
+    async fn update_garden_schedule(
         &self,
         sched_id: i32,
-        params: UpdateIrrigationScheduleParams,
-    ) -> Result<Option<IrrigationSchedule>, Error>;
+        params: UpdateGardenScheduleParams,
+    ) -> Result<Option<GardenSchedule>, Error>;
     async fn user_events(
         &self,
         user_id: i32,

@@ -1,14 +1,14 @@
 use anyhow::{anyhow, Error};
 use async_trait::async_trait;
-use chrono::{NaiveDateTime, NaiveTime, Utc};
+use chrono::{Datelike, NaiveDate, Utc, Weekday};
 
 use crate::auth::password::Password;
 use crate::auth::token::Token;
-use crate::hydro::schedule::ScheduleStatus;
 use crate::repository::models::{
-    irrigation_event::{IrrigationEvent, IrrigationEventStatus, StatusQueryResult},
-    irrigation_schedule::{
-        CreateIrrigationScheduleParams, IrrigationSchedule, UpdateIrrigationScheduleParams,
+    garden_event::{GardenEvent, GardenEventSource, GardenEventStatus, NewGardenEvent},
+    garden_schedule::{
+        days_to_csv, times_to_csv, CreateGardenScheduleParams, GardenSchedule,
+        NewGardenSchedule, UpdateGardenScheduleParams,
     },
     sump_event::SumpEvent,
     user::User,
@@ -17,11 +17,11 @@ use crate::repository::models::{
 };
 use crate::repository::Repository;
 use crate::schema::{
-    irrigation_event, irrigation_schedule, refresh_token, sump_event, user, user_event,
+    garden_event, garden_schedule, refresh_token, sump_event, user, user_event,
 };
 use crate::schema::{
-    irrigation_event::dsl as irrigation_event_dsl,
-    irrigation_schedule::dsl as irrigation_schedule_dsl, sump_event::dsl as sump_event_dsl,
+    garden_event::dsl as garden_event_dsl, garden_schedule::dsl as garden_schedule_dsl,
+    sump_event::dsl as sump_event_dsl,
 };
 use crate::util::spawn_blocking_with_tracing;
 use diesel::internal::table_macro::BoxedSelectStatement;
@@ -29,10 +29,9 @@ use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
 use diesel::sql_types::{Bool, Nullable};
 use diesel::sqlite::SqliteConnection;
-use diesel::{BoxableExpression, JoinOnDsl};
+use diesel::BoxableExpression;
 use diesel::{BoolExpressionMethods, Connection, ExpressionMethods, QueryDsl, RunQueryDsl};
 
-use super::models::irrigation_event::NewIrrigationEvent;
 use super::models::refresh_token::RefreshToken as RefreshTokenModel;
 use super::models::user::UserUpdateFilter;
 
@@ -93,39 +92,39 @@ pub struct Implementation {
 
 #[async_trait]
 impl Repository for Implementation {
-    async fn begin_irrigation(&self, event: IrrigationEvent) -> Result<(), Error> {
+    async fn begin_garden_event(&self, event_id: i32) -> Result<(), Error> {
         let mut conn = self
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
 
-        // In a tx - check last event is valid, create the new irrigation event with in progress
-        let _row_updated = spawn_blocking_with_tracing(move || {
+        spawn_blocking_with_tracing(move || {
             conn.transaction::<_, Error, _>(|conn| {
-                // Guard for in progress event
-                match irrigation_event::table
-                    .filter(
-                        irrigation_event::status.eq(IrrigationEventStatus::InProgress.to_string()),
-                    )
-                    .first::<IrrigationEvent>(conn)
-                {
-                    Ok(_) => return Err(anyhow!("An event is already in progress")),
-                    Err(e) => match e {
-                        DieselError::NotFound => (),
-                        e => return Err(anyhow!("Error when fetching in progress event: {}", e)),
-                    },
-                };
+                // Guard: only one in-progress event at a time.
+                let in_progress = garden_event::table
+                    .filter(garden_event::status.eq(GardenEventStatus::InProgress.to_string()))
+                    .first::<GardenEvent>(conn);
 
-                diesel::update(irrigation_event::table)
-                    .filter(irrigation_event::id.eq(event.id))
-                    .set(irrigation_event::status.eq(IrrigationEventStatus::InProgress.to_string()))
+                match in_progress {
+                    Ok(_) => return Err(anyhow!("A garden event is already in progress")),
+                    Err(DieselError::NotFound) => (),
+                    Err(e) => return Err(anyhow!("Error checking in-progress event: {}", e)),
+                }
+
+                diesel::update(garden_event::table)
+                    .filter(garden_event::id.eq(event_id))
+                    .filter(garden_event::status.eq(GardenEventStatus::Queued.to_string()))
+                    .set((
+                        garden_event::status.eq(GardenEventStatus::InProgress.to_string()),
+                        garden_event::start_time.eq(Utc::now().naive_utc()),
+                    ))
                     .execute(conn)
-                    .map_err(|e| anyhow!("Error beginning irrigation event: {}", e))?;
+                    .map_err(|e| anyhow!("Error starting garden event: {}", e))?;
 
                 Ok(())
             })
         })
-        .await?;
+        .await??;
 
         Ok(())
     }
@@ -223,72 +222,60 @@ impl Repository for Implementation {
         Ok(token)
     }
 
-    async fn create_irrigation_event(
+    async fn create_garden_schedule(
         &self,
-        schedule: IrrigationSchedule,
-        hose: i32,
-    ) -> Result<(), Error> {
+        params: CreateGardenScheduleParams,
+    ) -> Result<GardenSchedule, Error> {
         let mut conn = self
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
 
-        spawn_blocking_with_tracing(move || {
-            diesel::insert_into(irrigation_event::table)
-                .values((
-                    irrigation_event_dsl::schedule_id.eq(schedule.id),
-                    irrigation_event_dsl::hose_id.eq(hose),
-                    irrigation_event_dsl::status.eq(IrrigationEventStatus::Queued.to_string()),
-                ))
-                .execute(&mut conn)
-                .map_err(|e| anyhow!("Error creating irrigation event: {}", e))
-        })
-        .await?
-        .map_err(|e| anyhow!("Internal server error when creating irrigation event: {e}"))?;
+        let sched = spawn_blocking_with_tracing(move || {
+            let new = NewGardenSchedule {
+                name: params.name,
+                active: params.active,
+                start_times: times_to_csv(&params.start_times),
+                days_of_week: days_to_csv(&params.days_of_week),
+                duration_secs: params.duration_secs,
+            };
 
-        Ok(())
-    }
-
-    async fn create_irrigation_schedule(
-        &self,
-        params: CreateIrrigationScheduleParams,
-    ) -> Result<IrrigationSchedule, Error> {
-        let mut conn = self
-            .pool
-            .get()
-            .map_err(|e| anyhow!("Database error: {:?}", e))?;
-
-        let irrigation_sched = spawn_blocking_with_tracing(move || {
-            let days = params
-                .days_of_week
-                .iter()
-                .map(|d| d.to_string())
-                .collect::<Vec<String>>()
-                .join(",");
-
-            let hoses = params
-                .hoses
-                .iter()
-                .map(|d| d.to_string())
-                .collect::<Vec<String>>()
-                .join(",");
-
-            diesel::insert_into(irrigation_schedule::table)
-                .values((
-                    irrigation_schedule_dsl::active.eq(params.active),
-                    irrigation_schedule_dsl::name.eq(params.name),
-                    irrigation_schedule_dsl::duration.eq(params.duration),
-                    irrigation_schedule_dsl::start_time.eq(params.start_time),
-                    irrigation_schedule_dsl::days_of_week.eq(days),
-                    irrigation_schedule_dsl::hoses.eq(hoses),
-                    //TODO: check created at
-                ))
-                .get_result::<IrrigationSchedule>(&mut conn)
-                .map_err(|e| anyhow!("Error creating irrigation schedule: {}", e))
+            diesel::insert_into(garden_schedule::table)
+                .values(&new)
+                .get_result::<GardenSchedule>(&mut conn)
+                .map_err(|e| anyhow!("Error creating garden schedule: {}", e))
         })
         .await??;
 
-        Ok(irrigation_sched)
+        Ok(sched)
+    }
+
+    async fn create_manual_garden_event(
+        &self,
+        duration_secs: i32,
+    ) -> Result<GardenEvent, Error> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| anyhow!("Database error: {:?}", e))?;
+
+        let event = spawn_blocking_with_tracing(move || {
+            let new = NewGardenEvent {
+                schedule_id: None,
+                source: GardenEventSource::Manual.to_string(),
+                status: GardenEventStatus::Queued.to_string(),
+                scheduled_for: Utc::now().naive_utc(),
+                duration_secs,
+            };
+
+            diesel::insert_into(garden_event::table)
+                .values(&new)
+                .get_result::<GardenEvent>(&mut conn)
+                .map_err(|e| anyhow!("Error creating manual garden event: {}", e))
+        })
+        .await??;
+
+        Ok(event)
     }
 
     async fn create_password_reset(&self, current_user: User) -> Result<Token, Error> {
@@ -434,43 +421,84 @@ impl Repository for Implementation {
         Ok(())
     }
 
-    async fn delete_irrigation_schedule(&self, sched_id: i32) -> Result<Option<usize>, Error> {
+    async fn current_garden_event(&self) -> Result<Option<GardenEvent>, Error> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| anyhow!("Database error: {:?}", e))?;
+
+        let event = spawn_blocking_with_tracing(move || {
+            match garden_event_dsl::garden_event
+                .filter(garden_event_dsl::status.eq(GardenEventStatus::InProgress.to_string()))
+                .order(garden_event_dsl::start_time.desc())
+                .first::<GardenEvent>(&mut conn)
+            {
+                Ok(e) => Ok(Some(e)),
+                Err(DieselError::NotFound) => Ok(None),
+                Err(e) => Err(anyhow!("Error fetching current garden event: {}", e)),
+            }
+        })
+        .await??;
+
+        Ok(event)
+    }
+
+    async fn delete_garden_schedule(&self, sched_id: i32) -> Result<Option<usize>, Error> {
         let mut conn = self
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
 
         let maybe_row_deleted = spawn_blocking_with_tracing(move || {
-            match diesel::delete(irrigation_schedule::table)
-                .filter(irrigation_schedule::id.eq(sched_id))
+            match diesel::delete(garden_schedule::table)
+                .filter(garden_schedule::id.eq(sched_id))
                 .execute(&mut conn)
             {
                 Ok(0) => Ok(None),
                 Ok(n) => Ok(Some(n)),
-                Err(e) => Err(e),
+                Err(e) => Err(anyhow!(e)),
             }
         })
-        .await
-        .map_err(|e| anyhow!(e.to_string()))??;
+        .await??;
 
         Ok(maybe_row_deleted)
     }
 
-    async fn finish_irrigation_event(&self) -> Result<(), Error> {
+    async fn finish_garden_event(
+        &self,
+        event_id: i32,
+        status: GardenEventStatus,
+    ) -> Result<(), Error> {
+        if !matches!(
+            status,
+            GardenEventStatus::Completed | GardenEventStatus::Cancelled
+        ) {
+            return Err(anyhow!(
+                "finish_garden_event requires a terminal status (completed or cancelled)"
+            ));
+        }
+
         let mut conn = self
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
 
-        let _row_updated = spawn_blocking_with_tracing(move || {
-            let rows_updated = diesel::update(irrigation_event::table)
-                .filter(irrigation_event::status.eq(IrrigationEventStatus::InProgress.to_string()))
-                .set(irrigation_event::status.eq(IrrigationEventStatus::Completed.to_string()))
+        spawn_blocking_with_tracing(move || {
+            let rows_updated = diesel::update(garden_event::table)
+                .filter(garden_event::id.eq(event_id))
+                .set((
+                    garden_event::status.eq(status.to_string()),
+                    garden_event::end_time.eq(Utc::now().naive_utc()),
+                ))
                 .execute(&mut conn)
-                .map_err(|e| anyhow!(e.to_string()))?;
+                .map_err(|e| anyhow!(e))?;
 
             if rows_updated != 1 {
-                tracing::error!("Expected to update 1 row, but updated {}", rows_updated);
+                tracing::warn!(
+                    event_id,
+                    rows_updated,
+                    "finish_garden_event affected unexpected row count"
+                );
             }
 
             Ok::<usize, Error>(rows_updated)
@@ -480,94 +508,112 @@ impl Repository for Implementation {
         Ok(())
     }
 
-    async fn irrigation_events(&self) -> Result<Vec<IrrigationEvent>, Error> {
-        let mut conn = self
-            .pool
-            .get()
-            .map_err(|e| anyhow!("Database error: {:?}", e))?;
-
-        let irrigation_events = spawn_blocking_with_tracing(move || {
-            irrigation_event_dsl::irrigation_event
-                .limit(100)
-                .load::<IrrigationEvent>(&mut conn)
-                .map_err(|e| anyhow!(e))
-        })
-        .await?
-        .map_err(|e| {
-            anyhow!(
-                "Internal server error when getting irrigation events: {}",
-                e
-            )
-        })?;
-
-        Ok(irrigation_events)
-    }
-
-    async fn irrigation_schedules(&self) -> Result<Vec<IrrigationSchedule>, Error> {
-        let mut conn = self
-            .pool
-            .get()
-            .map_err(|e| anyhow!("Database error: {:?}", e))?;
-
-        let irrigation_schedules = spawn_blocking_with_tracing(move || {
-            irrigation_schedule_dsl::irrigation_schedule
-                .limit(100)
-                .load::<IrrigationSchedule>(&mut conn)
-                .map_err(|e| anyhow!(e))
-        })
-        .await??;
-
-        Ok(irrigation_schedules)
-    }
-
-    async fn irrigation_schedule_by_id(&self, sched_id: i32) -> Result<IrrigationSchedule, Error> {
-        let mut conn = self
-            .pool
-            .get()
-            .map_err(|e| anyhow!("Database error: {:?}", e))?;
-
-        let irrigation_sched = spawn_blocking_with_tracing(move || {
-            irrigation_schedule_dsl::irrigation_schedule
-                .filter(irrigation_schedule_dsl::id.eq(sched_id))
-                .first::<IrrigationSchedule>(&mut conn)
-                .map_err(|e| match e {
-                    DieselError::NotFound => anyhow!("Irrigation schedule not found."),
-                    e => anyhow!(
-                        "Internal server error when fetching irrigation schedule: {}",
-                        e
-                    ),
-                })
-        })
-        .await??;
-
-        Ok(irrigation_sched)
-    }
-
-    async fn next_queued_irrigation_event(
-        &self,
-    ) -> Result<Option<(IrrigationEvent, IrrigationSchedule)>, Error> {
+    async fn garden_event_by_id(&self, event_id: i32) -> Result<Option<GardenEvent>, Error> {
         let mut conn = self
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
 
         let event = spawn_blocking_with_tracing(move || {
-            let event = irrigation_event::table
-                .inner_join(
-                    irrigation_schedule::table
-                        .on(irrigation_event::schedule_id.eq(irrigation_schedule::id)),
-                )
-                .filter(irrigation_event::status.eq(IrrigationEventStatus::Queued.to_string()))
-                .order(irrigation_event::created_at.asc())
-                .first::<(IrrigationEvent, IrrigationSchedule)>(&mut conn);
-
-            match event {
-                Ok(event) => Ok(Some(event)),
+            match garden_event_dsl::garden_event
+                .filter(garden_event_dsl::id.eq(event_id))
+                .first::<GardenEvent>(&mut conn)
+            {
+                Ok(e) => Ok(Some(e)),
                 Err(DieselError::NotFound) => Ok(None),
-                Err(e) => Err(anyhow!(
-                    "Internal server error when fetching queued event: {}",
-                    e
-                )),
+                Err(e) => Err(anyhow!(e)),
+            }
+        })
+        .await??;
+
+        Ok(event)
+    }
+
+    async fn garden_events(
+        &self,
+        limit: i64,
+        offset: i64,
+        source: Option<GardenEventSource>,
+    ) -> Result<Vec<GardenEvent>, Error> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| anyhow!("Database error: {:?}", e))?;
+
+        let events = spawn_blocking_with_tracing(move || {
+            let mut q = garden_event_dsl::garden_event.into_boxed();
+            if let Some(src) = source {
+                q = q.filter(garden_event_dsl::source.eq(src.to_string()));
+            }
+
+            q.order(garden_event_dsl::created_at.desc())
+                .limit(limit)
+                .offset(offset)
+                .load::<GardenEvent>(&mut conn)
+                .map_err(|e| anyhow!(e))
+        })
+        .await??;
+
+        Ok(events)
+    }
+
+    async fn garden_schedule_by_id(
+        &self,
+        sched_id: i32,
+    ) -> Result<Option<GardenSchedule>, Error> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| anyhow!("Database error: {:?}", e))?;
+
+        let sched = spawn_blocking_with_tracing(move || {
+            match garden_schedule_dsl::garden_schedule
+                .filter(garden_schedule_dsl::id.eq(sched_id))
+                .first::<GardenSchedule>(&mut conn)
+            {
+                Ok(s) => Ok(Some(s)),
+                Err(DieselError::NotFound) => Ok(None),
+                Err(e) => Err(anyhow!(e)),
+            }
+        })
+        .await??;
+
+        Ok(sched)
+    }
+
+    async fn garden_schedules(&self) -> Result<Vec<GardenSchedule>, Error> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| anyhow!("Database error: {:?}", e))?;
+
+        let schedules = spawn_blocking_with_tracing(move || {
+            garden_schedule_dsl::garden_schedule
+                .order(garden_schedule_dsl::created_at.desc())
+                .limit(200)
+                .load::<GardenSchedule>(&mut conn)
+                .map_err(|e| anyhow!(e))
+        })
+        .await??;
+
+        Ok(schedules)
+    }
+
+    async fn next_queued_garden_event(&self) -> Result<Option<GardenEvent>, Error> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| anyhow!("Database error: {:?}", e))?;
+
+        let event = spawn_blocking_with_tracing(move || {
+            match garden_event_dsl::garden_event
+                .filter(garden_event_dsl::status.eq(GardenEventStatus::Queued.to_string()))
+                .order(garden_event_dsl::scheduled_for.asc())
+                .first::<GardenEvent>(&mut conn)
+            {
+                Ok(e) => Ok(Some(e)),
+                Err(DieselError::NotFound) => Ok(None),
+                Err(e) => Err(anyhow!(e)),
             }
         })
         .await??;
@@ -579,44 +625,108 @@ impl Repository for Implementation {
         Ok(self.pool.clone())
     }
 
-    /// Creates events in 'queued' status for any schedules that are eligible to run.
-    async fn queue_irrigation_events(
+    /// Walks every active schedule, computes its candidate `scheduled_for`
+    /// instants for today that are at or before `now`, and inserts a queued
+    /// event for any combo that doesn't already have one. The
+    /// `(schedule_id, scheduled_for)` unique index makes the inserts
+    /// idempotent across restarts.
+    async fn queue_due_garden_events(
         &self,
-        schedules: Vec<IrrigationSchedule>,
-    ) -> Result<(), Error> {
+        now: chrono::NaiveDateTime,
+    ) -> Result<usize, Error> {
         let mut conn = self
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
 
-        let new_events: Vec<NewIrrigationEvent> = schedules
-            .iter()
-            .flat_map(|schedule| {
-                schedule
-                    .hoses
-                    .split(',')
-                    .filter_map(|hose| hose.parse::<i32>().ok())
-                    .map(|hose_id| NewIrrigationEvent {
-                        schedule_id: schedule.id,
-                        hose_id,
-                        status: IrrigationEventStatus::Queued.to_string(),
-                        created_at: Utc::now().naive_utc(),
-                        end_time: None,
-                    })
-                    .collect::<Vec<NewIrrigationEvent>>()
-            })
-            .collect();
+        let inserted = spawn_blocking_with_tracing(move || {
+            let schedules: Vec<GardenSchedule> = garden_schedule_dsl::garden_schedule
+                .filter(garden_schedule_dsl::active.eq(true))
+                .load::<GardenSchedule>(&mut conn)
+                .map_err(|e| anyhow!(e))?;
 
-        spawn_blocking_with_tracing(move || {
-            diesel::insert_into(irrigation_event::table)
-                .values(&new_events)
-                .execute(&mut conn)
-                .map_err(|e| anyhow!("Error creating irrigation events: {}", e))
+            let today_weekday: Weekday = now.date().weekday();
+            let today: NaiveDate = now.date();
+
+            let mut new_rows: Vec<NewGardenEvent> = Vec::new();
+            for schedule in &schedules {
+                let days = schedule.parsed_days_of_week();
+                if !days.iter().any(|d| *d == today_weekday) {
+                    continue;
+                }
+                for time in schedule.parsed_start_times() {
+                    let scheduled_for = today.and_time(time);
+                    if scheduled_for > now {
+                        continue;
+                    }
+                    new_rows.push(NewGardenEvent {
+                        schedule_id: Some(schedule.id),
+                        source: GardenEventSource::Scheduled.to_string(),
+                        status: GardenEventStatus::Queued.to_string(),
+                        scheduled_for,
+                        duration_secs: schedule.duration_secs,
+                    });
+                }
+            }
+
+            if new_rows.is_empty() {
+                return Ok(0_usize);
+            }
+
+            // Insert one-at-a-time so a duplicate (caught by the unique index)
+            // doesn't blow away the whole batch.
+            let mut count = 0_usize;
+            for row in new_rows {
+                match diesel::insert_into(garden_event::table)
+                    .values(&row)
+                    .execute(&mut conn)
+                {
+                    Ok(n) => count += n,
+                    Err(DieselError::DatabaseError(
+                        DatabaseErrorKind::UniqueViolation,
+                        _,
+                    )) => {} // already queued
+                    Err(e) => return Err(anyhow!(e)),
+                }
+            }
+            Ok(count)
         })
-        .await?
-        .map_err(|e| anyhow!("Internal server error when creating irrigation events: {e}"))?;
+        .await??;
 
-        Ok(())
+        Ok(inserted)
+    }
+
+    async fn request_garden_stop(&self) -> Result<Option<i32>, Error> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| anyhow!("Database error: {:?}", e))?;
+
+        let maybe_id = spawn_blocking_with_tracing(move || {
+            conn.transaction::<_, Error, _>(|conn| {
+                let current = garden_event::table
+                    .filter(
+                        garden_event::status.eq(GardenEventStatus::InProgress.to_string()),
+                    )
+                    .first::<GardenEvent>(conn);
+
+                match current {
+                    Ok(event) => {
+                        diesel::update(garden_event::table)
+                            .filter(garden_event::id.eq(event.id))
+                            .set(garden_event::status.eq(GardenEventStatus::Cancelled.to_string()))
+                            .execute(conn)
+                            .map_err(|e| anyhow!(e))?;
+                        Ok(Some(event.id))
+                    }
+                    Err(DieselError::NotFound) => Ok(None),
+                    Err(e) => Err(anyhow!(e)),
+                }
+            })
+        })
+        .await??;
+
+        Ok(maybe_id)
     }
 
     async fn revoke_refresh_tokens_for_user(&self, user_id: i32) -> Result<(), Error> {
@@ -691,24 +801,6 @@ impl Repository for Implementation {
         Ok(())
     }
 
-    async fn schedule_statuses(&self) -> Result<Vec<ScheduleStatus>, Error> {
-        let mut conn = self
-            .pool
-            .get()
-            .map_err(|e| anyhow!("Database error: {:?}", e))?;
-
-        let statuses = spawn_blocking_with_tracing(move || {
-            IrrigationEvent::status_query()
-                .load::<StatusQueryResult>(&mut conn)
-                .map(build_statuses)
-                .map_err(|e| anyhow!(e))
-        })
-        .await?
-        .map_err(|e| anyhow!(e))?;
-
-        Ok(statuses)
-    }
-
     async fn sump_events(&self) -> Result<Vec<SumpEvent>, Error> {
         let mut conn = self
             .pool
@@ -726,76 +818,62 @@ impl Repository for Implementation {
         Ok(sump_events)
     }
 
-    async fn update_irrigation_schedule(
+    async fn update_garden_schedule(
         &self,
         schedule_id: i32,
-        params: UpdateIrrigationScheduleParams,
-    ) -> Result<Option<IrrigationSchedule>, Error> {
+        params: UpdateGardenScheduleParams,
+    ) -> Result<Option<GardenSchedule>, Error> {
         let mut conn = self
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
 
-        let irrigation_sched = spawn_blocking_with_tracing(move || {
-            let result = irrigation_schedule_dsl::irrigation_schedule
-                .filter(irrigation_schedule_dsl::id.eq(schedule_id))
-                .first::<IrrigationSchedule>(&mut conn);
+        let sched = spawn_blocking_with_tracing(move || {
+            let result = garden_schedule_dsl::garden_schedule
+                .filter(garden_schedule_dsl::id.eq(schedule_id))
+                .first::<GardenSchedule>(&mut conn);
 
             match result {
-                Ok(mut irrigation_sched) => {
-                    if let Some(active) = params.active {
-                        irrigation_sched.active = active;
-                    }
+                Ok(mut s) => {
                     if let Some(name) = params.name {
-                        irrigation_sched.name = name;
+                        s.name = name;
                     }
-                    if let Some(duration) = params.duration {
-                        irrigation_sched.duration = duration;
+                    if let Some(active) = params.active {
+                        s.active = active;
                     }
-                    if let Some(start_time) = params.start_time {
-                        irrigation_sched.start_time = start_time;
+                    if let Some(start_times) = params.start_times {
+                        s.start_times = times_to_csv(&start_times);
                     }
                     if let Some(days_of_week) = params.days_of_week {
-                        irrigation_sched.days_of_week = days_of_week
-                            .iter()
-                            .map(|d| d.to_string())
-                            .collect::<Vec<String>>()
-                            .join(",");
+                        s.days_of_week = days_to_csv(&days_of_week);
                     }
-                    if let Some(hoses) = params.hoses {
-                        irrigation_sched.hoses = hoses
-                            .iter()
-                            .map(|d| d.to_string())
-                            .collect::<Vec<String>>()
-                            .join(",");
+                    if let Some(duration_secs) = params.duration_secs {
+                        s.duration_secs = duration_secs;
                     }
+                    s.updated_at = Utc::now().naive_utc();
 
-                    let irrigation_sched_clone = irrigation_sched.clone();
-
-                    let _row_updated = diesel::update(irrigation_schedule::table)
-                        .filter(irrigation_schedule::id.eq(schedule_id))
+                    let updated = diesel::update(garden_schedule::table)
+                        .filter(garden_schedule::id.eq(schedule_id))
                         .set((
-                            irrigation_schedule::active.eq(irrigation_sched.active),
-                            irrigation_schedule::name.eq(irrigation_sched.name),
-                            irrigation_schedule::duration.eq(irrigation_sched.duration),
-                            irrigation_schedule::start_time.eq(irrigation_sched.start_time),
-                            irrigation_schedule::days_of_week.eq(irrigation_sched.days_of_week),
-                            irrigation_schedule::hoses.eq(irrigation_sched.hoses),
+                            garden_schedule::name.eq(&s.name),
+                            garden_schedule::active.eq(s.active),
+                            garden_schedule::start_times.eq(&s.start_times),
+                            garden_schedule::days_of_week.eq(&s.days_of_week),
+                            garden_schedule::duration_secs.eq(s.duration_secs),
+                            garden_schedule::updated_at.eq(s.updated_at),
                         ))
-                        .execute(&mut conn)
+                        .get_result::<GardenSchedule>(&mut conn)
                         .map_err(|e| anyhow!(e))?;
 
-                    Ok(Some(irrigation_sched_clone))
+                    Ok(Some(updated))
                 }
-                Err(e) => match e {
-                    DieselError::NotFound => Ok(None),
-                    _ => Err(anyhow!(e)),
-                },
+                Err(DieselError::NotFound) => Ok(None),
+                Err(e) => Err(anyhow!(e)),
             }
         })
         .await??;
 
-        Ok(irrigation_sched)
+        Ok(sched)
     }
 
     async fn update_user(&self, updates: UserUpdateFilter) -> Result<(), Error> {
@@ -931,157 +1009,3 @@ impl Repository for Implementation {
         Ok(())
     }
 }
-
-fn build_statuses(results: Vec<StatusQueryResult>) -> Vec<ScheduleStatus> {
-    results
-        .into_iter()
-        .map(|result: StatusQueryResult| {
-            let StatusQueryResult {
-                id,
-                active,
-                name,
-                duration,
-                start_time,
-                days_of_week,
-                hoses,
-                created_at,
-                updated_at,
-                event_id,
-                hose_id,
-                status,
-                end_time,
-                event_created_at,
-            } = result;
-
-            let schedule = IrrigationSchedule {
-                id,
-                active,
-                name,
-                duration,
-                start_time: NaiveTime::parse_from_str(&start_time, "%H:%M:%S%.9f").unwrap(),
-                days_of_week,
-                hoses,
-                created_at: NaiveDateTime::parse_from_str(&created_at, "%Y-%m-%d %H:%M:%S")
-                    .unwrap(),
-                updated_at: NaiveDateTime::parse_from_str(&updated_at, "%Y-%m-%d %H:%M:%S")
-                    .unwrap(),
-            };
-
-            if event_id.is_none() {
-                return ScheduleStatus {
-                    schedule,
-                    last_event: None,
-                };
-            }
-
-            if event_id.is_none()
-                || hose_id.is_none()
-                || status.is_none()
-                || event_created_at.is_none()
-            {
-                return ScheduleStatus {
-                    schedule,
-                    last_event: None,
-                };
-            }
-
-            let end_time = match end_time {
-                Some(et) => match NaiveDateTime::parse_from_str(&et, "%Y-%m-%d %H:%M:%S") {
-                    Ok(et) => Some(et),
-                    Err(e) => {
-                        tracing::error!("Error parsing end time: {:?}", e);
-                        return ScheduleStatus {
-                            schedule,
-                            last_event: None,
-                        };
-                    }
-                },
-                None => None,
-            };
-
-            let last_event = IrrigationEvent {
-                id: event_id.unwrap(),
-                hose_id: hose_id.unwrap(),
-                schedule_id: id,
-                status: status.unwrap(),
-                end_time,
-                created_at: NaiveDateTime::parse_from_str(
-                    &event_created_at.unwrap(),
-                    "%Y-%m-%d %H:%M:%S%.9f",
-                )
-                .unwrap(),
-            };
-
-            ScheduleStatus {
-                schedule,
-                last_event: Some(last_event),
-            }
-        })
-        .collect::<Vec<ScheduleStatus>>()
-}
-// mod tests {
-//     use chrono::NaiveDateTime;
-//     use rstest::rstest;
-
-//     use crate::{
-//         hydro::schedule::ScheduleStatus,
-//         repository::{
-//             implementation::build_statuses,
-//             models::{
-//                 irrigation_event::{IrrigationEvent, StatusQueryResult},
-//                 irrigation_schedule::IrrigationSchedule,
-//             },
-//         },
-//         test_fixtures::{
-//             irrigation::{
-//                 event::completed_event,
-//                 schedule::{daily_schedule, tues_thurs_schedule},
-//                 status::all_schedules_statuses,
-//                 status_query::status_query_results,
-//             },
-//             tests::time,
-//         },
-//     };
-
-//     #[rstest]
-//     fn build_statuses_success(
-//         #[from(status_query_results)] status_query_results: Vec<StatusQueryResult>,
-//         #[from(completed_event)] completed_event: IrrigationEvent,
-//         #[from(daily_schedule)] daily_schedule: IrrigationSchedule,
-//         #[from(tues_thurs_schedule)] tues_thurs_schedule: IrrigationSchedule,
-//     ) {
-//         let due = build_statuses(status_query_results);
-//         assert!(
-//             due == vec![
-//                 ScheduleStatus {
-//                     schedule: daily_schedule,
-//                     last_event: Some(completed_event.clone())
-//                 },
-//                 ScheduleStatus {
-//                     schedule: tues_thurs_schedule,
-//                     last_event: Some(completed_event)
-//                 },
-//             ]
-//         )
-//     }
-
-//     // "Test Schedule Friday" has an event that has run already; the others
-//     // are deactivated or not run on Fridays. This leaves two schedules due.
-//     #[rstest]
-//     fn due_statuses_success(
-//         #[from(all_schedules_statuses)] statuses: Vec<ScheduleStatus>,
-//         #[from(time)] time: NaiveDateTime,
-//     ) {
-//         let due = due_statuses(statuses, time);
-
-//         assert!(due.len() == 2);
-//         assert!(due
-//             .iter()
-//             .find(|s| s.schedule.name == "Test Schedule Daily")
-//             .is_some());
-//         assert!(due
-//             .iter()
-//             .find(|s| s.schedule.name == "Test Schedule Weekday")
-//             .is_some());
-//     }
-// }

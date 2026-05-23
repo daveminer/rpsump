@@ -1,5 +1,5 @@
+pub mod garden;
 pub mod gpio;
-pub mod irrigation;
 pub mod settings;
 
 #[cfg(test)]

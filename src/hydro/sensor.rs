@@ -106,7 +106,7 @@ mod tests {
         let handle = rt.handle();
 
         let _sensor: Sensor = Sensor::new(
-            Message::IrrigatorEmpty,
+            Message::SumpEmpty,
             1,
             &mock_sensor_gpio(),
             Trigger::Both,

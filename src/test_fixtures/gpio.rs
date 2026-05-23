@@ -1,5 +1,6 @@
 use crate::hydro::gpio::{Gpio, Level, MockGpio, MockInputPin, MockOutputPin, MockPin};
 use crate::hydro::pool_pump::PoolPumpSpeed;
+use crate::test_fixtures::garden::mock_garden;
 use crate::test_fixtures::settings::SETTINGS;
 use mockall::*;
 
@@ -47,8 +48,8 @@ pub fn build_mock_gpio() -> impl Gpio {
     // Sump pump pins
     gpio = mock_sump_pump(gpio, false, false, false);
 
-    // Irrigation pins
-    gpio = mock_irrigation_pump(gpio, true, Level::High, false, None);
+    // Garden solenoid
+    gpio = mock_garden(gpio, false);
 
     gpio
 }
@@ -97,72 +98,6 @@ pub fn mock_heater(mut mock_gpio: MockGpio, is_on: bool) -> MockGpio {
         .with(predicate::eq(SETTINGS.hydro.heater.control_pin))
         .times(1)
         .returning(move |_| Ok(mock_output_pin(is_on)));
-
-    mock_gpio
-}
-
-pub fn mock_irrigation_pump(
-    mut mock_gpio: MockGpio,
-    low_sensor_on: bool,
-    low_sensor_level: Level,
-    running: bool,
-    valve: Option<u8>,
-) -> MockGpio {
-    let mut valve1_open = false;
-    let mut valve2_open = false;
-    let mut valve3_open = false;
-    let mut valve4_open = false;
-
-    if running {
-        let valve = valve.expect("Open valve is required if pump is running");
-        if valve == 1 {
-            valve1_open = true;
-        } else if valve == 2 {
-            valve2_open = true;
-        } else if valve == 3 {
-            valve3_open = true;
-        } else if valve == 4 {
-            valve4_open = true;
-        } else {
-            panic!("Invalid valve number");
-        }
-    }
-
-    mock_gpio
-        .expect_get()
-        .with(predicate::eq(SETTINGS.hydro.irrigation.low_sensor_pin))
-        .times(1)
-        .returning(move |_| {
-            Ok(mock_input_pin_with_interrupt(
-                low_sensor_on,
-                low_sensor_level,
-            ))
-        });
-    mock_gpio
-        .expect_get()
-        .with(predicate::eq(SETTINGS.hydro.irrigation.pump_control_pin))
-        .times(1)
-        .returning(move |_| Ok(mock_output_pin(running)));
-    mock_gpio
-        .expect_get()
-        .with(predicate::eq(SETTINGS.hydro.irrigation.valve_1_control_pin))
-        .times(1)
-        .returning(move |_| Ok(mock_output_pin(valve1_open)));
-    mock_gpio
-        .expect_get()
-        .with(predicate::eq(SETTINGS.hydro.irrigation.valve_2_control_pin))
-        .times(1)
-        .returning(move |_| Ok(mock_output_pin(valve2_open)));
-    mock_gpio
-        .expect_get()
-        .with(predicate::eq(SETTINGS.hydro.irrigation.valve_3_control_pin))
-        .times(1)
-        .returning(move |_| Ok(mock_output_pin(valve3_open)));
-    mock_gpio
-        .expect_get()
-        .with(predicate::eq(SETTINGS.hydro.irrigation.valve_4_control_pin))
-        .times(1)
-        .returning(move |_| Ok(mock_output_pin(valve4_open)));
 
     mock_gpio
 }
