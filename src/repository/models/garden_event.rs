@@ -13,6 +13,7 @@ pub enum GardenEventStatus {
     InProgress,
     Completed,
     Cancelled,
+    Skipped,
 }
 
 impl fmt::Display for GardenEventStatus {
@@ -22,6 +23,7 @@ impl fmt::Display for GardenEventStatus {
             GardenEventStatus::InProgress => write!(f, "in_progress"),
             GardenEventStatus::Completed => write!(f, "completed"),
             GardenEventStatus::Cancelled => write!(f, "cancelled"),
+            GardenEventStatus::Skipped => write!(f, "skipped"),
         }
     }
 }
@@ -35,6 +37,7 @@ impl FromStr for GardenEventStatus {
             "in_progress" => Ok(GardenEventStatus::InProgress),
             "completed" => Ok(GardenEventStatus::Completed),
             "cancelled" => Ok(GardenEventStatus::Cancelled),
+            "skipped" => Ok(GardenEventStatus::Skipped),
             other => Err(format!("unknown garden event status: {}", other)),
         }
     }

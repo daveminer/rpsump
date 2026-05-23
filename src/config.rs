@@ -2,6 +2,8 @@ use dotenv::dotenv;
 use serde::Deserialize;
 use std::env;
 
+use crate::hydro::weather::WeatherConfig;
+
 #[derive(Clone, Debug, Deserialize)]
 pub struct Settings {
     pub console: ConsoleConfig,
@@ -29,6 +31,7 @@ pub struct HydroConfig {
     pub heater: HeaterConfig,
     pub pool_pump: PoolPumpConfig,
     pub sump: SumpConfig,
+    pub weather: WeatherConfig,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -121,6 +124,7 @@ impl Settings {
                         .expect("POOL_PUMP_MAX_PIN must be a number."),
                 },
                 sump: Self::sump_config().expect("Could not load sump config."),
+                weather: Self::weather_config(),
             },
             jwt_secret,
             mailer: MailerConfig {
@@ -171,6 +175,53 @@ impl Settings {
             process_frequency_sec,
             max_seconds_runtime,
         })
+    }
+
+    fn weather_config() -> WeatherConfig {
+        // If WEATHER_ENABLED is unset or false, fall back to a fully-defaulted
+        // disabled config — no other env vars are required for that case.
+        let enabled = env::var("WEATHER_ENABLED")
+            .ok()
+            .and_then(|v| v.parse::<bool>().ok())
+            .unwrap_or(false);
+
+        if !enabled {
+            return WeatherConfig::disabled();
+        }
+
+        WeatherConfig {
+            enabled: true,
+            latitude: load_system_var("WEATHER_LATITUDE")
+                .parse()
+                .expect("WEATHER_LATITUDE must be a number."),
+            longitude: load_system_var("WEATHER_LONGITUDE")
+                .parse()
+                .expect("WEATHER_LONGITUDE must be a number."),
+            past_hours: env::var("WEATHER_PAST_HOURS")
+                .unwrap_or_else(|_| "24".to_string())
+                .parse()
+                .expect("WEATHER_PAST_HOURS must be a number."),
+            forecast_hours: env::var("WEATHER_FORECAST_HOURS")
+                .unwrap_or_else(|_| "12".to_string())
+                .parse()
+                .expect("WEATHER_FORECAST_HOURS must be a number."),
+            threshold_mm: env::var("WEATHER_THRESHOLD_MM")
+                .unwrap_or_else(|_| "5.0".to_string())
+                .parse()
+                .expect("WEATHER_THRESHOLD_MM must be a number."),
+            forecast_weight: env::var("WEATHER_FORECAST_WEIGHT")
+                .unwrap_or_else(|_| "0.5".to_string())
+                .parse()
+                .expect("WEATHER_FORECAST_WEIGHT must be a number."),
+            active_rain_mm: env::var("WEATHER_ACTIVE_RAIN_MM")
+                .unwrap_or_else(|_| "0.3".to_string())
+                .parse()
+                .expect("WEATHER_ACTIVE_RAIN_MM must be a number."),
+            cache_ttl_secs: env::var("WEATHER_CACHE_TTL_SECS")
+                .unwrap_or_else(|_| "900".to_string())
+                .parse()
+                .expect("WEATHER_CACHE_TTL_SECS must be a number."),
+        }
     }
 
     fn sump_config() -> Option<SumpConfig> {

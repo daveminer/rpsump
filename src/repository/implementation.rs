@@ -238,6 +238,7 @@ impl Repository for Implementation {
                 start_times: times_to_csv(&params.start_times),
                 days_of_week: days_to_csv(&params.days_of_week),
                 duration_secs: params.duration_secs,
+                skip_on_rain: params.skip_on_rain,
             };
 
             diesel::insert_into(garden_schedule::table)
@@ -633,11 +634,15 @@ impl Repository for Implementation {
     async fn queue_due_garden_events(
         &self,
         now: chrono::NaiveDateTime,
+        precip: &PrecipSnapshot,
     ) -> Result<usize, Error> {
         let mut conn = self
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
+
+        // Copy out of &PrecipSnapshot so the spawn_blocking closure can be 'static.
+        let precip = *precip;
 
         let inserted = spawn_blocking_with_tracing(move || {
             let schedules: Vec<GardenSchedule> = garden_schedule_dsl::garden_schedule
@@ -654,15 +659,32 @@ impl Repository for Implementation {
                 if !days.iter().any(|d| *d == today_weekday) {
                     continue;
                 }
+                let skip = crate::hydro::weather::should_skip(schedule, &precip);
+                let status = if skip {
+                    GardenEventStatus::Skipped
+                } else {
+                    GardenEventStatus::Queued
+                };
                 for time in schedule.parsed_start_times() {
                     let scheduled_for = today.and_time(time);
                     if scheduled_for > now {
                         continue;
                     }
+                    if skip {
+                        tracing::info!(
+                            schedule_id = schedule.id,
+                            name = %schedule.name,
+                            past_mm = precip.past_mm,
+                            forecast_mm = precip.forecast_mm,
+                            current_mm = precip.current_mm,
+                            threshold_mm = precip.threshold_mm,
+                            "garden: skipping due event for precipitation"
+                        );
+                    }
                     new_rows.push(NewGardenEvent {
                         schedule_id: Some(schedule.id),
                         source: GardenEventSource::Scheduled.to_string(),
-                        status: GardenEventStatus::Queued.to_string(),
+                        status: status.to_string(),
                         scheduled_for,
                         duration_secs: schedule.duration_secs,
                     });
@@ -850,6 +872,9 @@ impl Repository for Implementation {
                     if let Some(duration_secs) = params.duration_secs {
                         s.duration_secs = duration_secs;
                     }
+                    if let Some(skip_on_rain) = params.skip_on_rain {
+                        s.skip_on_rain = skip_on_rain;
+                    }
                     s.updated_at = Utc::now().naive_utc();
 
                     let updated = diesel::update(garden_schedule::table)
@@ -860,6 +885,7 @@ impl Repository for Implementation {
                             garden_schedule::start_times.eq(&s.start_times),
                             garden_schedule::days_of_week.eq(&s.days_of_week),
                             garden_schedule::duration_secs.eq(s.duration_secs),
+                            garden_schedule::skip_on_rain.eq(s.skip_on_rain),
                             garden_schedule::updated_at.eq(s.updated_at),
                         ))
                         .get_result::<GardenSchedule>(&mut conn)

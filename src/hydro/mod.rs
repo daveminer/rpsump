@@ -6,7 +6,10 @@ use tokio::{
 
 use crate::{
     config::HydroConfig,
-    hydro::{garden::Garden, gpio::Gpio, heater::Heater, pool_pump::PoolPump, sump::Sump},
+    hydro::{
+        garden::Garden, gpio::Gpio, heater::Heater, pool_pump::PoolPump, sump::Sump,
+        weather::WeatherClient,
+    },
     repository::Repo,
 };
 
@@ -21,6 +24,7 @@ pub mod pool_pump;
 pub mod sensor;
 pub mod signal;
 mod sump;
+pub mod weather;
 
 // Re-exports so siblings can reference `crate::hydro::Control` / `crate::hydro::Level`
 // (matches the convention from prior to the garden refactor).
@@ -51,8 +55,14 @@ impl Hydro {
 
         let sump = Sump::new(&config.sump, &tx, handle.clone(), gpio)?;
         let garden = Garden::new(&config.garden, gpio)?;
+        let weather = WeatherClient::new(config.weather.clone());
 
-        garden::schedule::start(repo, garden.clone(), config.garden.process_frequency_sec);
+        garden::schedule::start(
+            repo,
+            garden.clone(),
+            weather,
+            config.garden.process_frequency_sec,
+        );
 
         signal::listen(
             mpsc.1,

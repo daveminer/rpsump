@@ -26,6 +26,7 @@ pub struct GardenSchedule {
     )]
     pub days_of_week: String,
     pub duration_secs: i32,
+    pub skip_on_rain: bool,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
 }
@@ -38,6 +39,7 @@ pub struct NewGardenSchedule {
     pub start_times: String,
     pub days_of_week: String,
     pub duration_secs: i32,
+    pub skip_on_rain: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -48,6 +50,8 @@ pub struct CreateGardenScheduleParams {
     pub start_times: Vec<NaiveTime>,
     pub days_of_week: Vec<Weekday>,
     pub duration_secs: i32,
+    #[serde(default = "default_true")]
+    pub skip_on_rain: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -57,6 +61,7 @@ pub struct UpdateGardenScheduleParams {
     pub start_times: Option<Vec<NaiveTime>>,
     pub days_of_week: Option<Vec<Weekday>>,
     pub duration_secs: Option<i32>,
+    pub skip_on_rain: Option<bool>,
 }
 
 fn default_true() -> bool {

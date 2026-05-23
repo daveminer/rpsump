@@ -16,6 +16,7 @@ fn schedule(
         start_times: start_times.to_string(),
         days_of_week: days.to_string(),
         duration_secs,
+        skip_on_rain: true,
         created_at: NaiveDateTime::parse_from_str("2026-01-01 00:00:00", "%Y-%m-%d %H:%M:%S")
             .unwrap(),
         updated_at: NaiveDateTime::parse_from_str("2026-01-01 00:00:00", "%Y-%m-%d %H:%M:%S")

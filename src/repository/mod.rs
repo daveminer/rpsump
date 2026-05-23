@@ -18,6 +18,7 @@ use models::{
 };
 
 use crate::auth::{password::Password, token::Token};
+use crate::hydro::weather::PrecipSnapshot;
 use crate::repository::models::user::{UserFilter, UserUpdateFilter};
 
 use self::implementation::{RefreshTokenError, ResetPasswordError, VerifyEmailError};
@@ -79,7 +80,11 @@ pub trait Repository: Send + Sync + 'static {
     async fn garden_schedules(&self) -> Result<Vec<GardenSchedule>, Error>;
     async fn next_queued_garden_event(&self) -> Result<Option<GardenEvent>, Error>;
     async fn pool(&self) -> Result<Pool<ConnectionManager<SqliteConnection>>, Error>;
-    async fn queue_due_garden_events(&self, now: NaiveDateTime) -> Result<usize, Error>;
+    async fn queue_due_garden_events(
+        &self,
+        now: NaiveDateTime,
+        precip: &PrecipSnapshot,
+    ) -> Result<usize, Error>;
     async fn request_garden_stop(&self) -> Result<Option<i32>, Error>;
     async fn revoke_refresh_tokens_for_user(&self, user_id: i32) -> Result<(), Error>;
     async fn reset_password(
