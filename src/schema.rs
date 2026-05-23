@@ -19,9 +19,9 @@ diesel::table! {
         start_times -> Text,
         days_of_week -> Text,
         duration_secs -> Integer,
-        skip_on_rain -> Bool,
         created_at -> Timestamp,
         updated_at -> Timestamp,
+        skip_on_rain -> Bool,
     }
 }
 
