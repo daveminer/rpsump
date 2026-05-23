@@ -26,9 +26,9 @@ pub struct GardenSchedule {
     )]
     pub days_of_week: String,
     pub duration_secs: i32,
-    pub skip_on_rain: bool,
     pub created_at: NaiveDateTime,
     pub updated_at: NaiveDateTime,
+    pub skip_on_rain: bool,
 }
 
 #[derive(Clone, Debug, Insertable)]
