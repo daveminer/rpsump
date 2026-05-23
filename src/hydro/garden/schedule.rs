@@ -3,6 +3,7 @@ use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
 
 use crate::hydro::garden::Garden;
+use crate::hydro::weather::WeatherClient;
 use crate::repository::models::{
     garden_event::{GardenEvent, GardenEventStatus},
     garden_schedule::GardenSchedule,
@@ -11,12 +12,18 @@ use crate::repository::Repo;
 
 /// Spawned at startup. Each tick: queue any newly-due events, then drive the
 /// next queued event to completion before sleeping again.
-pub fn start(repo: Repo, garden: Garden, frequency_sec: u64) -> JoinHandle<()> {
+pub fn start(
+    repo: Repo,
+    garden: Garden,
+    weather: WeatherClient,
+    frequency_sec: u64,
+) -> JoinHandle<()> {
     tokio::spawn(async move {
         loop {
             let now = Utc::now().naive_utc();
+            let precip = weather.snapshot().await;
 
-            if let Err(e) = repo.queue_due_garden_events(now).await {
+            if let Err(e) = repo.queue_due_garden_events(now, &precip).await {
                 tracing::error!("garden: failed to queue due events: {}", e);
             }
 
