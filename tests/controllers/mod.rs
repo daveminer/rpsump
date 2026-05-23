@@ -10,9 +10,9 @@ use serde_json::{Map, Value};
 use self::auth::{NEW_EMAIL, TEST_EMAIL, TEST_PASSWORD};
 
 pub mod auth;
+pub mod garden;
 pub mod heater;
 pub mod info;
-pub mod irrigation;
 pub mod pool_pump;
 pub mod sump_event;
 

@@ -1,5 +1,5 @@
-pub mod irrigation_event;
-pub mod irrigation_schedule;
+pub mod garden_event;
+pub mod garden_schedule;
 pub mod refresh_token;
 pub mod sump_event;
 pub mod user;

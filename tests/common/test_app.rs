@@ -93,11 +93,11 @@ pub async fn migrated_pathbuf() -> (PathBuf, TempDir) {
 }
 
 impl TestApp {
-    pub async fn delete_irrigation_schedule(&self, token: String, id: i32) -> reqwest::Response {
+    pub async fn delete_garden_schedule(&self, token: String, id: i32) -> reqwest::Response {
         let (header_name, header_value) = create_auth_header(&token);
 
         self.api_client
-            .delete(&format!("{}/irrigation/schedule/{}", &self.address, id))
+            .delete(&format!("{}/garden/schedule/{}", &self.address, id))
             .header(header_name, header_value)
             .send()
             .await
@@ -126,33 +126,44 @@ impl TestApp {
             .unwrap()
     }
 
-    pub async fn get_irrigation_events(&self, token: String) -> reqwest::Response {
+    pub async fn get_garden_events(&self, token: String) -> reqwest::Response {
         let (header_name, header_value) = create_auth_header(&token);
 
         self.api_client
-            .get(&format!("{}/irrigation/event", &self.address))
+            .get(&format!("{}/garden/event", &self.address))
             .header(header_name, header_value)
             .send()
             .await
             .unwrap()
     }
 
-    pub async fn get_irrigation_schedule(&self, token: String, id: i32) -> reqwest::Response {
+    pub async fn get_garden_schedule(&self, token: String, id: i32) -> reqwest::Response {
         let (header_name, header_value) = create_auth_header(&token);
 
         self.api_client
-            .get(&format!("{}/irrigation/schedule/{}", &self.address, id))
+            .get(&format!("{}/garden/schedule/{}", &self.address, id))
             .header(header_name, header_value)
             .send()
             .await
             .unwrap()
     }
 
-    pub async fn get_irrigation_schedules(&self, token: String) -> reqwest::Response {
+    pub async fn get_garden_schedules(&self, token: String) -> reqwest::Response {
         let (header_name, header_value) = create_auth_header(&token);
 
         self.api_client
-            .get(&format!("{}/irrigation/schedule", &self.address))
+            .get(&format!("{}/garden/schedule", &self.address))
+            .header(header_name, header_value)
+            .send()
+            .await
+            .unwrap()
+    }
+
+    pub async fn get_garden_status(&self, token: String) -> reqwest::Response {
+        let (header_name, header_value) = create_auth_header(&token);
+
+        self.api_client
+            .get(&format!("{}/garden/status", &self.address))
             .header(header_name, header_value)
             .send()
             .await
@@ -170,7 +181,7 @@ impl TestApp {
             .unwrap()
     }
 
-    pub async fn patch_irrigation_schedule(
+    pub async fn patch_garden_schedule(
         &self,
         token: String,
         id: i32,
@@ -179,7 +190,7 @@ impl TestApp {
         let (header_name, header_value) = create_auth_header(&token);
 
         self.api_client
-            .patch(&format!("{}/irrigation/schedule/{}", &self.address, id))
+            .patch(&format!("{}/garden/schedule/{}", &self.address, id))
             .header(header_name, header_value)
             .json(&body)
             .send()
@@ -211,13 +222,36 @@ impl TestApp {
             .unwrap()
     }
 
-    pub async fn post_irrigation_schedule(&self, token: String, body: Value) -> reqwest::Response {
+    pub async fn post_garden_schedule(&self, token: String, body: Value) -> reqwest::Response {
         let (header_name, header_value) = create_auth_header(&token);
 
         self.api_client
-            .post(&format!("{}/irrigation/schedule", &self.address))
+            .post(&format!("{}/garden/schedule", &self.address))
             .header(header_name, header_value)
             .json(&body)
+            .send()
+            .await
+            .unwrap()
+    }
+
+    pub async fn post_garden_run(&self, token: String, body: Value) -> reqwest::Response {
+        let (header_name, header_value) = create_auth_header(&token);
+
+        self.api_client
+            .post(&format!("{}/garden/run", &self.address))
+            .header(header_name, header_value)
+            .json(&body)
+            .send()
+            .await
+            .unwrap()
+    }
+
+    pub async fn post_garden_stop(&self, token: String) -> reqwest::Response {
+        let (header_name, header_value) = create_auth_header(&token);
+
+        self.api_client
+            .post(&format!("{}/garden/stop", &self.address))
+            .header(header_name, header_value)
             .send()
             .await
             .unwrap()

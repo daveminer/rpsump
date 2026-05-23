@@ -25,23 +25,18 @@ pub struct HeaterConfig {
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct HydroConfig {
-    pub irrigation: IrrigationConfig,
+    pub garden: GardenConfig,
     pub heater: HeaterConfig,
     pub pool_pump: PoolPumpConfig,
     pub sump: SumpConfig,
 }
 
 #[derive(Clone, Debug, Deserialize)]
-pub struct IrrigationConfig {
+pub struct GardenConfig {
     pub enabled: bool,
-    pub low_sensor_pin: u8,
-    pub max_seconds_runtime: u8,
+    pub solenoid_pin: u8,
     pub process_frequency_sec: u64,
-    pub pump_control_pin: u8,
-    pub valve_1_control_pin: u8,
-    pub valve_2_control_pin: u8,
-    pub valve_3_control_pin: u8,
-    pub valve_4_control_pin: u8,
+    pub max_seconds_runtime: u32,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -105,7 +100,7 @@ impl Settings {
             },
             database_path,
             hydro: HydroConfig {
-                irrigation: Self::irrigation_config().expect("Could not load irrigation config."),
+                garden: Self::garden_config().expect("Could not load garden config."),
                 heater: HeaterConfig {
                     control_pin: load_system_var("HEATER_CONTROL_PIN")
                         .parse()
@@ -156,46 +151,25 @@ impl Settings {
         }
     }
 
-    fn irrigation_config() -> Option<IrrigationConfig> {
-        let enabled: bool = load_system_var("IRRIGATION_ENABLED")
+    fn garden_config() -> Option<GardenConfig> {
+        let enabled: bool = load_system_var("GARDEN_ENABLED")
             .parse()
-            .expect("IRRIGATION_ENABLED must be a boolean.");
+            .expect("GARDEN_ENABLED must be a boolean.");
+        let solenoid_pin: u8 = load_system_var("GARDEN_SOLENOID_PIN")
+            .parse()
+            .expect("GARDEN_SOLENOID_PIN must be a number.");
+        let process_frequency_sec: u64 = load_system_var("GARDEN_PROCESS_FREQ_SEC")
+            .parse()
+            .expect("GARDEN_PROCESS_FREQ_SEC must be a number.");
+        let max_seconds_runtime: u32 = load_system_var("GARDEN_MAX_RUNTIME_SEC")
+            .parse()
+            .expect("GARDEN_MAX_RUNTIME_SEC must be a number.");
 
-        let low_sensor_pin: u8 = load_system_var("IRRIGATION_LOW_SENSOR_PIN")
-            .parse()
-            .expect("IRRIGATION_LOW_SENSOR_PIN must be a number.");
-        let max_seconds_runtime: u8 = load_system_var("IRRIGATION_MAX_RUNTIME")
-            .parse()
-            .expect("IRRIGATION_MAX_RUNTIME must be a number");
-        let process_frequency_sec: u64 = load_system_var("IRRIGATION_PROCESS_FREQ_SEC")
-            .parse()
-            .expect("IRRIGATION_PROCESS_FREQ_SEC must be a number.");
-        let pump_control_pin: u8 = load_system_var("IRRIGATION_PUMP_CONTROL_PIN")
-            .parse()
-            .expect("IRRIGATION_PUMP_CONTROL_PIN must be a number.");
-        let valve_1_control_pin: u8 = load_system_var("IRRIGATION_VALVE_1_CONTROL_PIN")
-            .parse()
-            .expect("IRRIGATION_VALVE_1_CONTROL_PIN must be a number.");
-        let valve_2_control_pin: u8 = load_system_var("IRRIGATION_VALVE_2_CONTROL_PIN")
-            .parse()
-            .expect("IRRIGATION_VALVE_2_CONTROL_PIN must be a number.");
-        let valve_3_control_pin: u8 = load_system_var("IRRIGATION_VALVE_3_CONTROL_PIN")
-            .parse()
-            .expect("IRRIGATION_VALVE_3_CONTROL_PIN must be a number.");
-        let valve_4_control_pin: u8 = load_system_var("IRRIGATION_VALVE_4_CONTROL_PIN")
-            .parse()
-            .expect("IRRIGATION_VALVE_4_CONTROL_PIN must be a number.");
-
-        Some(IrrigationConfig {
+        Some(GardenConfig {
             enabled,
-            low_sensor_pin,
-            max_seconds_runtime,
+            solenoid_pin,
             process_frequency_sec,
-            pump_control_pin,
-            valve_1_control_pin,
-            valve_2_control_pin,
-            valve_3_control_pin,
-            valve_4_control_pin,
+            max_seconds_runtime,
         })
     }
 

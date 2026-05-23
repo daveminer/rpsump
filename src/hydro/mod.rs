@@ -6,14 +6,7 @@ use tokio::{
 
 use crate::{
     config::HydroConfig,
-    hydro::{
-        control::Control,
-        gpio::{Gpio, Level},
-        heater::Heater,
-        irrigator::Irrigator,
-        pool_pump::PoolPump,
-        sump::Sump,
-    },
+    hydro::{garden::Garden, gpio::Gpio, heater::Heater, pool_pump::PoolPump, sump::Sump},
     repository::Repo,
 };
 
@@ -21,14 +14,18 @@ use self::signal::Signal;
 
 pub mod control;
 pub mod debounce;
+pub mod garden;
 pub mod gpio;
 pub mod heater;
-pub mod irrigator;
 pub mod pool_pump;
-pub mod schedule;
 pub mod sensor;
 pub mod signal;
 mod sump;
+
+// Re-exports so siblings can reference `crate::hydro::Control` / `crate::hydro::Level`
+// (matches the convention from prior to the garden refactor).
+pub use control::Control;
+pub use gpio::Level;
 
 pub struct Hydro {
     pub repo: Repo,
@@ -36,7 +33,7 @@ pub struct Hydro {
     pub pool_pump: PoolPump,
     pub handle: Handle,
     pub sump: Sump,
-    pub irrigator: Irrigator,
+    pub garden: Garden,
 }
 
 impl Hydro {
@@ -53,25 +50,20 @@ impl Hydro {
         let pool_pump = PoolPump::new(&config.pool_pump, gpio)?;
 
         let sump = Sump::new(&config.sump, &tx, handle.clone(), gpio)?;
-        let irrigator = Irrigator::new(&config.irrigation, &tx, handle.clone(), gpio)?;
+        let garden = Garden::new(&config.garden, gpio)?;
 
-        schedule::start(
-            repo,
-            irrigator.clone(),
-            config.irrigation.process_frequency_sec,
-        );
+        garden::schedule::start(repo, garden.clone(), config.garden.process_frequency_sec);
 
         signal::listen(
             mpsc.1,
             handle.clone(),
-            irrigator.pump.pin.clone(),
             sump.pump.pin.clone(),
             config.sump.pump_shutoff_delay,
             config.sump.pump_max_runtime,
         );
 
         Ok(Self {
-            irrigator,
+            garden,
             heater,
             pool_pump,
             repo,

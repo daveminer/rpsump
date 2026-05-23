@@ -12,27 +12,29 @@ diesel::table! {
 }
 
 diesel::table! {
-    irrigation_event (id) {
+    garden_schedule (id) {
         id -> Integer,
-        hose_id -> Integer,
+        name -> Text,
+        active -> Bool,
+        start_times -> Text,
+        days_of_week -> Text,
+        duration_secs -> Integer,
         created_at -> Timestamp,
-        end_time -> Nullable<Timestamp>,
-        status -> Text,
-        schedule_id -> Integer,
+        updated_at -> Timestamp,
     }
 }
 
 diesel::table! {
-    irrigation_schedule (id) {
+    garden_event (id) {
         id -> Integer,
-        active -> Bool,
-        name -> Text,
-        duration -> Integer,
-        start_time -> Time,
-        days_of_week -> Text,
-        hoses -> Text,
+        schedule_id -> Nullable<Integer>,
+        source -> Text,
+        status -> Text,
+        scheduled_for -> Timestamp,
+        duration_secs -> Integer,
+        start_time -> Nullable<Timestamp>,
+        end_time -> Nullable<Timestamp>,
         created_at -> Timestamp,
-        updated_at -> Timestamp,
     }
 }
 
@@ -70,13 +72,13 @@ diesel::table! {
     }
 }
 
-diesel::joinable!(irrigation_event -> irrigation_schedule (schedule_id));
+diesel::joinable!(garden_event -> garden_schedule (schedule_id));
 diesel::joinable!(refresh_token -> user (user_id));
 diesel::joinable!(user_event -> user (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
-    irrigation_event,
-    irrigation_schedule,
+    garden_event,
+    garden_schedule,
     refresh_token,
     sump_event,
     user,

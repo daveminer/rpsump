@@ -12,7 +12,7 @@ use tokio::sync::Mutex;
 
 use crate::config::Settings;
 use crate::controllers::{
-    auth::auth_routes, heater::heater, info::info, irrigation::irrigation_routes,
+    auth::auth_routes, garden::garden_routes, heater::heater, info::info,
     pool_pump::pool_pump, sump_event::sump_event,
 };
 
@@ -78,7 +78,7 @@ impl Application {
                 .service(pool_pump)
                 .service(sump_event)
                 .service(web::scope("/auth").configure(auth_routes))
-                .service(web::scope("/irrigation").configure(irrigation_routes))
+                .service(web::scope("/garden").configure(garden_routes))
                 // Application configuration
                 .app_data(JsonConfig::default().error_handler(|err, _req| {
                     ErrorBadRequest(json!({
