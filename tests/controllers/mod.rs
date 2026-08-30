@@ -10,6 +10,7 @@ use serde_json::{Map, Value};
 use self::auth::{NEW_EMAIL, TEST_EMAIL, TEST_PASSWORD};
 
 pub mod auth;
+pub mod cors;
 pub mod garden;
 pub mod heater;
 pub mod info;

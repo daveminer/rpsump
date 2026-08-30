@@ -21,4 +21,12 @@ async fn status_endpoint_returns_expected_shape() {
     assert!(body.get("next_run_at").is_some());
     assert_eq!(body["is_on"], false);
     assert!(body["current_event"].is_null());
+
+    // The Irrigation screen reads its rolling totals and its slider bound
+    // straight off this response.
+    assert_eq!(body["watering_totals"]["last_24h_secs"], 0);
+    assert_eq!(body["watering_totals"]["last_3d_secs"], 0);
+    assert_eq!(body["watering_totals"]["last_7d_secs"], 0);
+    assert_eq!(body["rain_skips_48h"], 0);
+    assert_eq!(body["max_runtime_secs"], 60);
 }

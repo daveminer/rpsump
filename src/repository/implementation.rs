@@ -6,7 +6,9 @@ use crate::auth::password::Password;
 use crate::auth::token::Token;
 use crate::hydro::weather::{should_skip, PrecipSnapshot};
 use crate::repository::models::{
-    garden_event::{GardenEvent, GardenEventSource, GardenEventStatus, NewGardenEvent},
+    garden_event::{
+        GardenEvent, GardenEventFilter, GardenEventSource, GardenEventStatus, NewGardenEvent,
+    },
     garden_schedule::{
         days_to_csv, times_to_csv, CreateGardenScheduleParams, GardenSchedule,
         NewGardenSchedule, UpdateGardenScheduleParams,
@@ -93,13 +95,13 @@ pub struct Implementation {
 
 #[async_trait]
 impl Repository for Implementation {
-    async fn begin_garden_event(&self, event_id: i32) -> Result<(), Error> {
+    async fn begin_garden_event(&self, event_id: i32) -> Result<bool, Error> {
         let mut conn = self
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
 
-        spawn_blocking_with_tracing(move || {
+        let started = spawn_blocking_with_tracing(move || {
             conn.transaction::<_, Error, _>(|conn| {
                 // Guard: only one in-progress event at a time.
                 let in_progress = garden_event::table
@@ -112,7 +114,9 @@ impl Repository for Implementation {
                     Err(e) => return Err(anyhow!("Error checking in-progress event: {}", e)),
                 }
 
-                diesel::update(garden_event::table)
+                // The status guard makes this a no-op if the event was
+                // cancelled (e.g. by POST /garden/stop) after it was fetched.
+                let rows_updated = diesel::update(garden_event::table)
                     .filter(garden_event::id.eq(event_id))
                     .filter(garden_event::status.eq(GardenEventStatus::Queued.to_string()))
                     .set((
@@ -122,12 +126,12 @@ impl Repository for Implementation {
                     .execute(conn)
                     .map_err(|e| anyhow!("Error starting garden event: {}", e))?;
 
-                Ok(())
+                Ok(rows_updated == 1)
             })
         })
         .await??;
 
-        Ok(())
+        Ok(started)
     }
 
     async fn consume_refresh_token(
@@ -255,25 +259,46 @@ impl Repository for Implementation {
     async fn create_manual_garden_event(
         &self,
         duration_secs: i32,
-    ) -> Result<GardenEvent, Error> {
+    ) -> Result<Option<GardenEvent>, Error> {
         let mut conn = self
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
 
         let event = spawn_blocking_with_tracing(move || {
-            let new = NewGardenEvent {
-                schedule_id: None,
-                source: GardenEventSource::Manual.to_string(),
-                status: GardenEventStatus::Queued.to_string(),
-                scheduled_for: Utc::now().naive_utc(),
-                duration_secs,
-            };
+            conn.transaction::<_, Error, _>(|conn| {
+                // One run at a time: a queued or in-progress event means the
+                // caller's tap would otherwise stack up behind it.
+                let pending: i64 = garden_event::table
+                    .filter(
+                        garden_event::status
+                            .eq(GardenEventStatus::Queued.to_string())
+                            .or(garden_event::status
+                                .eq(GardenEventStatus::InProgress.to_string())),
+                    )
+                    .count()
+                    .get_result(conn)
+                    .map_err(|e| anyhow!("Error checking pending garden events: {}", e))?;
 
-            diesel::insert_into(garden_event::table)
-                .values(&new)
-                .get_result::<GardenEvent>(&mut conn)
-                .map_err(|e| anyhow!("Error creating manual garden event: {}", e))
+                if pending > 0 {
+                    return Ok(None);
+                }
+
+                let new = NewGardenEvent {
+                    schedule_id: None,
+                    source: GardenEventSource::Manual.to_string(),
+                    status: GardenEventStatus::Queued.to_string(),
+                    scheduled_for: Utc::now().naive_utc(),
+                    duration_secs,
+                    schedule_name: None,
+                };
+
+                diesel::insert_into(garden_event::table)
+                    .values(&new)
+                    .get_result::<GardenEvent>(conn)
+                    .map(Some)
+                    .map_err(|e| anyhow!("Error creating manual garden event: {}", e))
+            })
         })
         .await??;
 
@@ -533,9 +558,7 @@ impl Repository for Implementation {
 
     async fn garden_events(
         &self,
-        limit: i64,
-        offset: i64,
-        source: Option<GardenEventSource>,
+        filter: GardenEventFilter,
     ) -> Result<Vec<GardenEvent>, Error> {
         let mut conn = self
             .pool
@@ -544,15 +567,32 @@ impl Repository for Implementation {
 
         let events = spawn_blocking_with_tracing(move || {
             let mut q = garden_event_dsl::garden_event.into_boxed();
-            if let Some(src) = source {
+            if let Some(src) = filter.source {
                 q = q.filter(garden_event_dsl::source.eq(src.to_string()));
             }
+            if let Some(status) = filter.status {
+                q = q.filter(garden_event_dsl::status.eq(status.to_string()));
+            }
+            if let Some(from) = filter.from {
+                q = q.filter(garden_event_dsl::scheduled_for.ge(from));
+            }
+            if let Some(to) = filter.to {
+                q = q.filter(garden_event_dsl::scheduled_for.le(to));
+            }
+            match (filter.limit, filter.offset) {
+                (Some(limit), Some(offset)) => q = q.limit(limit).offset(offset),
+                (Some(limit), None) => q = q.limit(limit),
+                // SQLite only accepts OFFSET after a LIMIT.
+                (None, Some(offset)) => q = q.limit(i64::MAX).offset(offset),
+                (None, None) => (),
+            }
 
-            q.order(garden_event_dsl::created_at.desc())
-                .limit(limit)
-                .offset(offset)
-                .load::<GardenEvent>(&mut conn)
-                .map_err(|e| anyhow!(e))
+            q.order((
+                garden_event_dsl::scheduled_for.desc(),
+                garden_event_dsl::id.desc(),
+            ))
+            .load::<GardenEvent>(&mut conn)
+            .map_err(|e| anyhow!(e))
         })
         .await??;
 
@@ -688,6 +728,7 @@ impl Repository for Implementation {
                         status: status.to_string(),
                         scheduled_for,
                         duration_secs: schedule.duration_secs,
+                        schedule_name: Some(schedule.name.clone()),
                     });
                 }
             }
@@ -719,37 +760,46 @@ impl Repository for Implementation {
         Ok(inserted)
     }
 
-    async fn request_garden_stop(&self) -> Result<Option<i32>, Error> {
+    async fn request_garden_stop(&self) -> Result<Vec<i32>, Error> {
         let mut conn = self
             .pool
             .get()
             .map_err(|e| anyhow!("Database error: {:?}", e))?;
 
-        let maybe_id = spawn_blocking_with_tracing(move || {
+        let ids = spawn_blocking_with_tracing(move || {
             conn.transaction::<_, Error, _>(|conn| {
-                let current = garden_event::table
+                // Queued events are only ever inserted once they are already
+                // due, so "stop" means both the running event and anything
+                // waiting to start right behind it.
+                let pending: Vec<GardenEvent> = garden_event::table
                     .filter(
-                        garden_event::status.eq(GardenEventStatus::InProgress.to_string()),
+                        garden_event::status
+                            .eq(GardenEventStatus::InProgress.to_string())
+                            .or(garden_event::status
+                                .eq(GardenEventStatus::Queued.to_string())),
                     )
-                    .first::<GardenEvent>(conn);
+                    .order(garden_event::id.desc())
+                    .load::<GardenEvent>(conn)
+                    .map_err(|e| anyhow!(e))?;
 
-                match current {
-                    Ok(event) => {
-                        diesel::update(garden_event::table)
-                            .filter(garden_event::id.eq(event.id))
-                            .set(garden_event::status.eq(GardenEventStatus::Cancelled.to_string()))
-                            .execute(conn)
-                            .map_err(|e| anyhow!(e))?;
-                        Ok(Some(event.id))
-                    }
-                    Err(DieselError::NotFound) => Ok(None),
-                    Err(e) => Err(anyhow!(e)),
+                if pending.is_empty() {
+                    return Ok(Vec::new());
                 }
+
+                let ids: Vec<i32> = pending.iter().map(|e| e.id).collect();
+
+                diesel::update(garden_event::table)
+                    .filter(garden_event::id.eq_any(ids.clone()))
+                    .set(garden_event::status.eq(GardenEventStatus::Cancelled.to_string()))
+                    .execute(conn)
+                    .map_err(|e| anyhow!(e))?;
+
+                Ok(ids)
             })
         })
         .await??;
 
-        Ok(maybe_id)
+        Ok(ids)
     }
 
     async fn revoke_refresh_tokens_for_user(&self, user_id: i32) -> Result<(), Error> {

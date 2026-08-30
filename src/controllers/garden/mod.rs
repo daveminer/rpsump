@@ -1,6 +1,7 @@
 use actix_web::web::ServiceConfig;
 
 pub mod event;
+pub mod report;
 pub mod run;
 pub mod schedule;
 pub mod status;
@@ -16,4 +17,5 @@ pub fn garden_routes(cfg: &mut ServiceConfig) {
     cfg.service(run::run_now);
     cfg.service(stop::stop);
     cfg.service(event::list_events);
+    cfg.service(report::report);
 }

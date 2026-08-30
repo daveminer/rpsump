@@ -116,3 +116,50 @@ async fn schedule_unauthorized() {
         .await;
     assert_eq!(response.status(), 401);
 }
+
+#[tokio::test]
+async fn create_schedule_rejects_a_duration_over_the_hardware_limit() {
+    let app = spawn_app(&build_mock_gpio()).await;
+    let token = login_token(&app).await;
+
+    // .env.test sets GARDEN_MAX_RUNTIME_SEC=60.
+    let mut params = schedule_params();
+    params["duration_secs"] = json!(3600);
+
+    let response = app.post_garden_schedule(token, params).await;
+    assert_eq!(response.status(), 400);
+
+    let body: Value = response.json().await.unwrap();
+    assert!(body["message"].as_str().unwrap().contains("60"));
+}
+
+#[tokio::test]
+async fn update_schedule_holds_a_patch_to_the_same_rules_as_a_post() {
+    let app = spawn_app(&build_mock_gpio()).await;
+    let token = login_token(&app).await;
+
+    let create = app
+        .post_garden_schedule(token.clone(), schedule_params())
+        .await;
+    let body: Value = create.json().await.unwrap();
+    let id = body["id"].as_i64().unwrap() as i32;
+
+    for patch in [
+        json!({ "start_times": [] }),
+        json!({ "days_of_week": [] }),
+        json!({ "duration_secs": 0 }),
+        json!({ "duration_secs": 3600 }),
+        json!({ "name": "   " }),
+    ] {
+        let response = app
+            .patch_garden_schedule(token.clone(), id, patch.clone())
+            .await;
+        assert_eq!(response.status(), 400, "expected 400 for {}", patch);
+    }
+
+    // The schedule is untouched by the rejected patches.
+    let response = app.get_garden_schedule(token, id).await;
+    let body: Value = response.json().await.unwrap();
+    assert_eq!(body["duration_secs"], 30);
+    assert_eq!(body["name"], "Test Schedule");
+}
