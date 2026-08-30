@@ -54,7 +54,7 @@ impl Application {
             };
 
             cors = cors
-                .allowed_methods(vec!["GET", "OPTION", "POST"])
+                .allowed_methods(vec!["GET", "POST", "PATCH", "DELETE", "OPTIONS"])
                 .allowed_headers(vec![
                     http::header::AUTHORIZATION,
                     http::header::ACCEPT,
