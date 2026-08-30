@@ -127,10 +127,29 @@ impl TestApp {
     }
 
     pub async fn get_garden_events(&self, token: String) -> reqwest::Response {
+        self.get_garden_events_with_query(token, "").await
+    }
+
+    pub async fn get_garden_events_with_query(
+        &self,
+        token: String,
+        query: &str,
+    ) -> reqwest::Response {
         let (header_name, header_value) = create_auth_header(&token);
 
         self.api_client
-            .get(&format!("{}/garden/event", &self.address))
+            .get(&format!("{}/garden/event{}", &self.address, query))
+            .header(header_name, header_value)
+            .send()
+            .await
+            .unwrap()
+    }
+
+    pub async fn get_garden_report(&self, token: String, query: &str) -> reqwest::Response {
+        let (header_name, header_value) = create_auth_header(&token);
+
+        self.api_client
+            .get(&format!("{}/garden/report{}", &self.address, query))
             .header(header_name, header_value)
             .send()
             .await

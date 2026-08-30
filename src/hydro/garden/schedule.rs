@@ -28,27 +28,41 @@ pub fn start(
             }
 
             match repo.next_queued_garden_event().await {
-                Ok(Some(event)) => {
-                    if let Err(e) = run_event(repo, &garden, event).await {
-                        tracing::error!("garden: run_event failed: {}", e);
-                    }
-                }
+                // A run just finished; look again before sleeping so a backlog
+                // drains rather than trickling out one event per tick.
+                Ok(Some(event)) => match run_event(repo, &garden, event).await {
+                    Ok(true) => continue,
+                    Ok(false) => {}
+                    Err(e) => tracing::error!("garden: run_event failed: {}", e),
+                },
                 Ok(None) => {}
                 Err(e) => tracing::error!("garden: failed to fetch next event: {}", e),
             }
 
-            sleep(Duration::from_secs(frequency_sec)).await;
+            // A run queued over HTTP wakes us early; otherwise tick normally.
+            tokio::select! {
+                _ = sleep(Duration::from_secs(frequency_sec)) => {}
+                _ = garden.woken() => {}
+            }
         }
     })
 }
 
+/// Runs one event to completion. Returns whether the solenoid was opened;
+/// `false` means the event was no longer runnable and nothing happened.
 pub async fn run_event(
     repo: Repo,
     garden: &Garden,
     event: GardenEvent,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<bool> {
     let event_id = event.id;
-    repo.begin_garden_event(event_id).await?;
+
+    // A cancellation between fetching the event and starting it leaves the row
+    // out of the queued state; the solenoid must stay shut.
+    if !repo.begin_garden_event(event_id).await? {
+        tracing::info!(event_id, "garden: event no longer queued, not running");
+        return Ok(false);
+    }
 
     let duration_secs = clamp_duration(event.duration_secs, garden.max_seconds_runtime);
     tracing::info!(event_id, duration_secs, "garden: opening solenoid");
@@ -88,7 +102,7 @@ pub async fn run_event(
     tracing::info!(event_id, ?terminal_status, "garden: closed solenoid");
 
     repo.finish_garden_event(event_id, terminal_status).await?;
-    Ok(())
+    Ok(true)
 }
 
 fn clamp_duration(requested: i32, max: u32) -> i32 {

@@ -10,10 +10,13 @@ use crate::util::ApiResponse;
 #[tracing::instrument(skip(repo, _user))]
 pub async fn stop(repo: Data<Repo>, _user: AuthenticatedUser) -> Result<HttpResponse> {
     match repo.request_garden_stop().await {
-        Ok(Some(event_id)) => Ok(HttpResponse::Ok().json(json!({ "cancelled_event_id": event_id }))),
-        Ok(None) => Ok(ApiResponse::bad_request(
-            "No garden event is currently running".into(),
+        Ok(ids) if ids.is_empty() => Ok(ApiResponse::bad_request(
+            "No garden event is currently running or queued".into(),
         )),
+        Ok(ids) => Ok(HttpResponse::Ok().json(json!({
+            "cancelled_event_id": ids.first(),
+            "cancelled_event_ids": ids,
+        }))),
         Err(e) => Ok(error_response(e, "Could not stop garden event")),
     }
 }

@@ -42,18 +42,24 @@ impl Application {
         let hydro_data = Data::new(Mutex::new(hydro));
         let repo_data = Data::new(repo);
         let settings_data = Data::new(settings.clone());
+        let session_key = cookie::Key::generate();
 
         let server = HttpServer::new(move || {
-            let mut cors = if settings.server.allow_localhost_cors {
-                Cors::default().allowed_origin_fn(|origin, _req_head| match origin.to_str() {
-                    Ok(str) => str.contains("localhost"),
-                    Err(_) => false,
-                })
-            } else {
-                Cors::default()
-            };
+            let allow_localhost = settings.server.allow_localhost_cors;
+            let allowed_origins = settings.server.allowed_origins.clone();
 
-            cors = cors
+            let cors = Cors::default()
+                .allowed_origin_fn(move |origin, _req_head| {
+                    let Ok(origin) = origin.to_str() else {
+                        return false;
+                    };
+
+                    if allow_localhost && is_localhost_origin(origin) {
+                        return true;
+                    }
+
+                    allowed_origins.iter().any(|allowed| allowed == origin)
+                })
                 .allowed_methods(vec!["GET", "POST", "PATCH", "DELETE", "OPTIONS"])
                 .allowed_headers(vec![
                     http::header::AUTHORIZATION,
@@ -70,7 +76,7 @@ impl Application {
                 .wrap(IdentityMiddleware::default())
                 .wrap(SessionMiddleware::new(
                     CookieSessionStore::default(),
-                    cookie::Key::generate(),
+                    session_key.clone(),
                 ))
                 // HTTP API Routes
                 .service(heater)
@@ -105,6 +111,26 @@ impl Application {
     }
 }
 
+/// Matches a development origin by host, so a hostname that merely contains
+/// "localhost" (`https://localhost.attacker.com`) is not treated as local.
+fn is_localhost_origin(origin: &str) -> bool {
+    let Some((scheme, rest)) = origin.split_once("://") else {
+        return false;
+    };
+
+    if scheme != "http" && scheme != "https" {
+        return false;
+    }
+
+    let host = match rest.rsplit_once(':') {
+        // An IPv6 host keeps its brackets; only a trailing :port is stripped.
+        Some((host, port)) if port.chars().all(|c| c.is_ascii_digit()) => host,
+        _ => rest,
+    };
+
+    matches!(host, "localhost" | "127.0.0.1" | "[::1]")
+}
+
 fn web_server_config(settings: &Settings) -> (String, u16, TcpListener) {
     let address = format!("{}:{}", settings.server.host, settings.server.port);
     let address_clone = address.clone();
@@ -116,4 +142,26 @@ fn web_server_config(settings: &Settings) -> (String, u16, TcpListener) {
         .port();
 
     (address_clone, port, listener)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_localhost_origin;
+
+    #[test]
+    fn accepts_local_development_origins() {
+        assert!(is_localhost_origin("http://localhost"));
+        assert!(is_localhost_origin("http://localhost:5173"));
+        assert!(is_localhost_origin("https://localhost:5173"));
+        assert!(is_localhost_origin("http://127.0.0.1:8080"));
+        assert!(is_localhost_origin("http://[::1]:8080"));
+    }
+
+    #[test]
+    fn rejects_hosts_that_only_look_local() {
+        assert!(!is_localhost_origin("https://localhost.attacker.com"));
+        assert!(!is_localhost_origin("https://not-localhost:5173"));
+        assert!(!is_localhost_origin("http://evil.com/#localhost"));
+        assert!(!is_localhost_origin("localhost"));
+    }
 }

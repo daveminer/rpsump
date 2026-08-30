@@ -8,7 +8,7 @@ use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
 use mockall::automock;
 use models::{
-    garden_event::{GardenEvent, GardenEventSource, GardenEventStatus},
+    garden_event::{GardenEvent, GardenEventFilter, GardenEventStatus},
     garden_schedule::{
         CreateGardenScheduleParams, GardenSchedule, UpdateGardenScheduleParams,
     },
@@ -30,7 +30,10 @@ pub type Repo = &'static dyn Repository;
 #[automock]
 #[async_trait]
 pub trait Repository: Send + Sync + 'static {
-    async fn begin_garden_event(&self, event_id: i32) -> Result<(), Error>;
+    /// Moves a queued event to in-progress. Returns `false` when the event is
+    /// no longer queued (cancelled or already started), in which case it must
+    /// not be run.
+    async fn begin_garden_event(&self, event_id: i32) -> Result<bool, Error>;
     async fn consume_refresh_token(&self, token_value: String) -> Result<i32, RefreshTokenError>;
     async fn create(path: Option<String>) -> Result<Self, Error>
     where
@@ -40,10 +43,12 @@ pub trait Repository: Send + Sync + 'static {
         &self,
         params: CreateGardenScheduleParams,
     ) -> Result<GardenSchedule, Error>;
+    /// Queues a one-off run. Returns `None` when another event is already
+    /// queued or in progress, so repeated taps of "Start" cannot stack up.
     async fn create_manual_garden_event(
         &self,
         duration_secs: i32,
-    ) -> Result<GardenEvent, Error>;
+    ) -> Result<Option<GardenEvent>, Error>;
     async fn create_password_reset(&self, user: User) -> Result<Token, Error>;
     async fn create_refresh_token(&self, token: &Token) -> Result<(), Error>;
     async fn create_sump_event(&self, info: String, kind: String) -> Result<(), Error>;
@@ -69,9 +74,7 @@ pub trait Repository: Send + Sync + 'static {
     async fn garden_event_by_id(&self, event_id: i32) -> Result<Option<GardenEvent>, Error>;
     async fn garden_events(
         &self,
-        limit: i64,
-        offset: i64,
-        source: Option<GardenEventSource>,
+        filter: GardenEventFilter,
     ) -> Result<Vec<GardenEvent>, Error>;
     async fn garden_schedule_by_id(
         &self,
@@ -85,7 +88,9 @@ pub trait Repository: Send + Sync + 'static {
         now: NaiveDateTime,
         precip: &PrecipSnapshot,
     ) -> Result<usize, Error>;
-    async fn request_garden_stop(&self) -> Result<Option<i32>, Error>;
+    /// Cancels the in-progress event and anything already queued behind it.
+    /// Returns the ids that were cancelled, newest first.
+    async fn request_garden_stop(&self) -> Result<Vec<i32>, Error>;
     async fn revoke_refresh_tokens_for_user(&self, user_id: i32) -> Result<(), Error>;
     async fn reset_password(
         &self,

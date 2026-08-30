@@ -36,6 +36,7 @@ diesel::table! {
         start_time -> Nullable<Timestamp>,
         end_time -> Nullable<Timestamp>,
         created_at -> Timestamp,
+        schedule_name -> Nullable<Text>,
     }
 }
 

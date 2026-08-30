@@ -60,6 +60,10 @@ pub struct PoolPumpConfig {
 #[derive(Clone, Debug, Deserialize)]
 pub struct ServerConfig {
     pub allow_localhost_cors: bool,
+    /// Exact origins the browser app is served from, e.g.
+    /// `https://nimbus.example.com`. Comma-separated in
+    /// `SERVER_ALLOWED_ORIGINS`.
+    pub allowed_origins: Vec<String>,
     pub host: String,
     pub port: u16,
     pub public_host: String,
@@ -136,6 +140,9 @@ impl Settings {
                 allow_localhost_cors: load_system_var("SERVER_ALLOW_LOCALHOST_CORS")
                     .parse()
                     .expect("SERVER_ALLOW_LOCALHOST_CORS must be a boolean."),
+                allowed_origins: parse_allowed_origins(
+                    &env::var("SERVER_ALLOWED_ORIGINS").unwrap_or_default(),
+                ),
                 host: server_host,
                 port: server_port,
                 public_host: load_system_var("PUBLIC_HOST"),
@@ -266,6 +273,17 @@ impl Default for Settings {
     }
 }
 
+/// Splits the comma-separated origin list, dropping blanks and any trailing
+/// slash so `https://app.example.com/` matches the `Origin` header, which
+/// never carries one.
+fn parse_allowed_origins(raw: &str) -> Vec<String> {
+    raw.split(',')
+        .map(|origin| origin.trim().trim_end_matches('/'))
+        .filter(|origin| !origin.is_empty())
+        .map(|origin| origin.to_string())
+        .collect()
+}
+
 fn load_system_var(env: &str) -> String {
     env::var(env).unwrap_or_else(|_| panic!("{} environment variable not found.", env))
 }
@@ -277,4 +295,23 @@ fn set_application_environment() {
     }
 
     dotenv().ok();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_allowed_origins;
+
+    #[test]
+    fn splits_and_normalizes_origins() {
+        assert_eq!(
+            parse_allowed_origins("https://a.example.com/, http://b.example.com"),
+            vec!["https://a.example.com", "http://b.example.com"]
+        );
+    }
+
+    #[test]
+    fn an_unset_list_allows_nothing() {
+        assert!(parse_allowed_origins("").is_empty());
+        assert!(parse_allowed_origins("  ,  ").is_empty());
+    }
 }
