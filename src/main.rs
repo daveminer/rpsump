@@ -35,6 +35,26 @@ async fn main() -> std::io::Result<()> {
     // TODO: move to util
     let _ = diesel::sql_query("PRAGMA journal_mode=WAL;").execute(&mut conn);
     let _ = diesel::sql_query("PRAGMA busy_timeout=5000;").execute(&mut conn);
+
+    // Applied after the PRAGMAs so migrations run against a WAL database, and
+    // before the server binds so a schema mismatch stops the process here
+    // rather than surfacing later as 500s on whichever route touches the new
+    // table first.
+    match repository::run_pending_migrations(&mut conn) {
+        Ok(applied) if applied.is_empty() => {
+            tracing::info!(target = "rpsump", "Database schema up to date.");
+        }
+        Ok(applied) => {
+            tracing::info!(
+                target = "rpsump",
+                migrations = applied.join(", "),
+                "Applied {} pending migration(s).",
+                applied.len()
+            );
+        }
+        Err(e) => panic!("Could not run pending migrations: {e}"),
+    }
+
     drop(conn);
 
     let gpio = build_gpio();
