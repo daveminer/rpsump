@@ -32,3 +32,6 @@ deploy/config/nginx/site-confs/*
 # Other runtime / secrets / junk
 swag_config/
 trash/
+
+# GitHub personal access tokens
+gh_pat*
