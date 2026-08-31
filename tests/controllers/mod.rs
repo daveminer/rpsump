@@ -17,6 +17,7 @@ pub mod info;
 pub mod pool_pump;
 pub mod sump_event;
 
+#[allow(unused)]
 pub fn link_from_email_text<'a>(text: &str) -> Vec<String> {
     let finder = LinkFinder::new();
     let links: Vec<_> = finder.links(text).collect();
@@ -51,6 +52,7 @@ pub fn param_from_email_text<'a>(text: &str, param: &str) -> Vec<String> {
     return found_params;
 }
 
+#[allow(unused)]
 async fn email_link_from_mock_server(app: &TestApp) -> String {
     let verification_email = app
         .email_server
@@ -66,6 +68,9 @@ async fn email_link_from_mock_server(app: &TestApp) -> String {
     link[0].clone()
 }
 
+// Signup no longer sends a verification email (invited accounts are verified
+// on redemption), but the verify_email endpoint and its mail path remain.
+#[allow(unused)]
 async fn mock_email_verification_send(app: &TestApp) -> MockGuard {
     Mock::given(path("/"))
         .and(method("POST"))

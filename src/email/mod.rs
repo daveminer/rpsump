@@ -40,6 +40,17 @@ impl User {
     }
 }
 
+#[tracing::instrument(name = "Send invite", skip(mailer, token))]
+pub async fn send_invite(
+    invitee_email: &str,
+    inviter_email: &str,
+    token: &str,
+    app_url: &str,
+    mailer: &MailerConfig,
+) -> Result<(), anyhow::Error> {
+    sendinblue::send_invite(invitee_email, inviter_email, token, app_url, mailer).await
+}
+
 #[tracing::instrument(name = "Send error notification", skip(mailer))]
 pub async fn send_error_notification(
     mailer: &MailerConfig,

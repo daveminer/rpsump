@@ -3,6 +3,7 @@ use rand::{distributions::Alphanumeric, Rng};
 
 pub const EMAIL_CONFIRM_TOKEN_VALIDITY_DURATION: i64 = 3600 * 24;
 pub const PASSWORD_RESET_TOKEN_VALIDITY_DURATION: i64 = 3600; // 1 hour in seconds
+pub const INVITE_TOKEN_VALIDITY_DURATION: i64 = 3600 * 24 * 7; // 7 days in seconds
 pub const TOKEN_LENGTH: usize = 32;
 
 #[derive(Clone, Debug)]
@@ -19,6 +20,11 @@ impl Token {
 
     pub fn new_password_reset(user_id: i32) -> Self {
         Self::new_token(user_id, PASSWORD_RESET_TOKEN_VALIDITY_DURATION)
+    }
+
+    /// `user_id` is the *inviter*; an invite has no invitee account yet.
+    pub fn new_invite(invited_by_user_id: i32) -> Self {
+        Self::new_token(invited_by_user_id, INVITE_TOKEN_VALIDITY_DURATION)
     }
 
     pub fn new_refresh_token(user_id: i32, duration_days: u8) -> Self {

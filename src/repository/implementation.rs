@@ -13,6 +13,7 @@ use crate::repository::models::{
         days_to_csv, times_to_csv, CreateGardenScheduleParams, GardenSchedule,
         NewGardenSchedule, UpdateGardenScheduleParams,
     },
+    invite::Invite,
     sump_event::SumpEvent,
     user::User,
     user::UserFilter,
@@ -20,7 +21,7 @@ use crate::repository::models::{
 };
 use crate::repository::Repository;
 use crate::schema::{
-    garden_event, garden_schedule, refresh_token, sump_event, user, user_event,
+    garden_event, garden_schedule, invite, refresh_token, sump_event, user, user_event,
 };
 use crate::schema::{
     garden_event::dsl as garden_event_dsl, garden_schedule::dsl as garden_schedule_dsl,
@@ -30,6 +31,7 @@ use crate::util::spawn_blocking_with_tracing;
 use diesel::internal::table_macro::BoxedSelectStatement;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::result::{DatabaseErrorKind, Error as DieselError};
+use diesel::OptionalExtension;
 use diesel::sql_types::{Bool, Nullable};
 use diesel::sqlite::SqliteConnection;
 use diesel::BoxableExpression;
@@ -303,6 +305,110 @@ impl Repository for Implementation {
         .await??;
 
         Ok(event)
+    }
+
+    async fn create_invite(
+        &self,
+        new_email: String,
+        invited_by_user_id: i32,
+    ) -> Result<Invite, Error> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| anyhow!("Database error: {:?}", e))?;
+
+        let token = Token::new_invite(invited_by_user_id);
+        let token_value = token.value.clone();
+
+        let new_invite: Invite = spawn_blocking_with_tracing(move || {
+            conn.transaction::<_, Error, _>(|conn| {
+                let _row_inserted = diesel::insert_into(invite::table)
+                    .values((
+                        invite::email.eq(new_email),
+                        invite::token.eq(token_value.clone()),
+                        invite::invited_by_user_id.eq(invited_by_user_id),
+                        invite::expires_at.eq(token.expires_at),
+                    ))
+                    .execute(conn)
+                    .map_err(|e| anyhow!("Error when creating invite: {}", e))?;
+
+                let created = invite::table
+                    .filter(invite::token.eq(token_value))
+                    .first::<Invite>(conn)
+                    .map_err(|e| anyhow!("Error when fetching invite: {}", e))?;
+
+                Ok(created)
+            })
+        })
+        .await??;
+
+        Ok(new_invite)
+    }
+
+    async fn invite_by_token(&self, token_value: String) -> Result<Option<Invite>, Error> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| anyhow!("Database error: {:?}", e))?;
+
+        let found: Option<Invite> = spawn_blocking_with_tracing(move || {
+            invite::table
+                .filter(invite::token.eq(token_value))
+                .first::<Invite>(&mut conn)
+                .optional()
+                .map_err(|e| anyhow!("Error when fetching invite: {}", e))
+        })
+        .await??;
+
+        Ok(found)
+    }
+
+    /// Marks the invite accepted and verifies the new user's email in one
+    /// transaction. Redeeming an invite is itself proof of address control:
+    /// the token was mailed to that address, so a second verification round
+    /// trip would add friction without adding assurance.
+    async fn redeem_invite(&self, invite_id: i32, accepted_by_user_id: i32) -> Result<(), Error> {
+        let mut conn = self
+            .pool
+            .get()
+            .map_err(|e| anyhow!("Database error: {:?}", e))?;
+
+        spawn_blocking_with_tracing(move || {
+            conn.transaction::<_, Error, _>(|conn| {
+                let now = Utc::now().naive_utc();
+
+                // Guard against one token being redeemed twice concurrently:
+                // only claim the row while it is still unaccepted.
+                let rows_claimed = diesel::update(invite::table)
+                    .filter(invite::id.eq(invite_id))
+                    .filter(invite::accepted_at.is_null())
+                    .set((
+                        invite::accepted_at.eq(Some(now)),
+                        invite::accepted_by_user_id.eq(Some(accepted_by_user_id)),
+                    ))
+                    .execute(conn)
+                    .map_err(|e| anyhow!("Error when accepting invite: {}", e))?;
+
+                if rows_claimed == 0 {
+                    return Err(anyhow!("Invite has already been accepted."));
+                }
+
+                let _ = diesel::update(user::table)
+                    .filter(user::id.eq(accepted_by_user_id))
+                    .set((
+                        user::email_verification_token.eq(None::<String>),
+                        user::email_verification_token_expires_at.eq(None::<String>),
+                        user::email_verified_at.eq(now),
+                    ))
+                    .execute(conn)
+                    .map_err(|e| anyhow!("Error when verifying invited user: {}", e))?;
+
+                Ok(())
+            })
+        })
+        .await??;
+
+        Ok(())
     }
 
     async fn create_password_reset(&self, current_user: User) -> Result<Token, Error> {

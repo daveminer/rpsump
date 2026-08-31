@@ -37,6 +37,20 @@ pub async fn send_email_verification(
     send(&mailer.auth_token, email, &mailer.server_url).await
 }
 
+/// `app_url` is the browser app's base URL (PUBLIC_APP_URL), not this API's
+/// host: the recipient needs a page that can collect a password, which the API
+/// does not serve.
+pub async fn send_invite(
+    invitee_email: &str,
+    inviter_email: &str,
+    token: &str,
+    app_url: &str,
+    mailer: &MailerConfig,
+) -> Result<(), Error> {
+    let email = new_invite_email(invitee_email, inviter_email, token, app_url);
+    send(&mailer.auth_token, email, &mailer.server_url).await
+}
+
 pub async fn send_error_email(mailer: &MailerConfig, error_msg: &str) -> Result<(), Error> {
     let email = new_error_email(&mailer.error_contact, error_msg);
     send(&mailer.auth_token, email, &mailer.server_url).await
@@ -118,6 +132,38 @@ fn new_email_verification_email(
         },
         subject: "RPSump Email Verification".to_string(),
         html_content: format!("<!DOCTYPE html><html><body><h1>Verify your email</h1><p>Follow this link to verify your email:http://{}</p></body></html>", link),
+    }
+}
+
+fn new_invite_email(
+    invitee_email: &str,
+    inviter_email: &str,
+    token: &str,
+    app_url: &str,
+) -> Email {
+    let link = format!("{}/signup?invite={}", app_url.trim_end_matches('/'), token);
+
+    Email {
+        to: vec![Contact {
+            email: invitee_email.to_string(),
+            name: None,
+        }],
+        sender: Contact {
+            name: Some("RPSump".to_string()),
+            email: "robo@halyard.systems".to_string(),
+        },
+        subject: "You have been invited to RPSump".to_string(),
+        html_content: format!(
+            "<!DOCTYPE html><html><body>\
+             <h1>You have been invited to RPSump</h1>\
+             <p>{} invited you to create an account.</p>\
+             <p><a href=\"{}\">Accept the invitation</a></p>\
+             <p>Or paste this link into your browser: {}</p>\
+             <p>This invitation expires in 7 days and can only be used once, \
+             with the address it was sent to.</p>\
+             </body></html>",
+            inviter_email, link, link
+        ),
     }
 }
 

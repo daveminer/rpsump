@@ -323,6 +323,33 @@ impl TestApp {
             .unwrap()
     }
 
+    pub async fn post_invite<Body>(&self, token: String, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+    {
+        let (header_name, header_value) = create_auth_header(&token);
+
+        self.api_client
+            .post(&format!("{}/auth/invite", &self.address))
+            .header(header_name, header_value)
+            .json(body)
+            .send()
+            .await
+            .unwrap()
+    }
+
+    pub async fn post_invite_unauthenticated<Body>(&self, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+    {
+        self.api_client
+            .post(&format!("{}/auth/invite", &self.address))
+            .json(body)
+            .send()
+            .await
+            .unwrap()
+    }
+
     pub async fn post_signup<Body>(&self, body: &Body) -> reqwest::Response
     where
         Body: serde::Serialize,

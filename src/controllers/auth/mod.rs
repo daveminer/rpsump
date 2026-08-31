@@ -2,6 +2,7 @@ use actix_web::web::ServiceConfig;
 
 pub mod email_verification;
 pub mod helpers;
+pub mod invite;
 pub mod login;
 pub mod logout;
 pub mod refresh;
@@ -10,6 +11,7 @@ pub mod signup;
 
 pub fn auth_routes(cfg: &mut ServiceConfig) {
     cfg.service(email_verification::verify_email);
+    cfg.service(invite::invite);
     cfg.service(login::login);
     cfg.service(logout::logout);
     cfg.service(refresh::refresh);

@@ -12,6 +12,7 @@ use models::{
     garden_schedule::{
         CreateGardenScheduleParams, GardenSchedule, UpdateGardenScheduleParams,
     },
+    invite::Invite,
     sump_event::SumpEvent,
     user::User,
     user_event::{EventType, UserEvent},
@@ -39,6 +40,8 @@ pub trait Repository: Send + Sync + 'static {
     where
         Self: Sized;
     async fn create_email_verification(&self, user: &User) -> Result<Token, Error>;
+    async fn create_invite(&self, email: String, invited_by_user_id: i32)
+        -> Result<Invite, Error>;
     async fn create_garden_schedule(
         &self,
         params: CreateGardenScheduleParams,
@@ -81,6 +84,7 @@ pub trait Repository: Send + Sync + 'static {
         sched_id: i32,
     ) -> Result<Option<GardenSchedule>, Error>;
     async fn garden_schedules(&self) -> Result<Vec<GardenSchedule>, Error>;
+    async fn invite_by_token(&self, token: String) -> Result<Option<Invite>, Error>;
     async fn next_queued_garden_event(&self) -> Result<Option<GardenEvent>, Error>;
     async fn pool(&self) -> Result<Pool<ConnectionManager<SqliteConnection>>, Error>;
     async fn queue_due_garden_events(
@@ -90,6 +94,7 @@ pub trait Repository: Send + Sync + 'static {
     ) -> Result<usize, Error>;
     /// Cancels the in-progress event and anything already queued behind it.
     /// Returns the ids that were cancelled, newest first.
+    async fn redeem_invite(&self, invite_id: i32, accepted_by_user_id: i32) -> Result<(), Error>;
     async fn request_garden_stop(&self) -> Result<Vec<i32>, Error>;
     async fn revoke_refresh_tokens_for_user(&self, user_id: i32) -> Result<(), Error>;
     async fn reset_password(

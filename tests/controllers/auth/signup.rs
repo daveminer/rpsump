@@ -12,22 +12,24 @@ use rpsump::{
     test_fixtures::gpio::build_mock_gpio,
 };
 
-use super::signup_params;
+use super::{signup_params, signup_params_with_invite};
 use crate::common::test_app::spawn_app;
-use crate::controllers::{auth::TEST_EMAIL, mock_email_verification_send, user_params};
+use crate::controllers::user_params;
+use crate::controllers::auth::{NEW_EMAIL, TEST_EMAIL};
 
 #[tokio::test]
 async fn signup_failed_email_taken() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    let mut params = signup_params();
 
     let user_filter = UserFilter {
         email: Some(TEST_EMAIL.into()),
         ..Default::default()
     };
-    let user = &app.repo.users(user_filter).await.unwrap()[0];
-    params["email"] = serde_json::json!(user.email);
+    let user = &app.repo.users(user_filter).await.unwrap()[0].clone();
+    // The invite must be valid and match the address, so that the request gets
+    // past the invite checks and fails on the duplicate account instead.
+    let params = signup_params_with_invite(&app, &user.email).await;
 
     // Act
     let response = app.post_signup(&params).await;
@@ -83,9 +85,8 @@ async fn signup_failed_missing_confirm_password() {
 async fn signup_success() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    let params = signup_params();
-    let email = params.get("email").unwrap().as_str().unwrap();
-    let _mock = mock_email_verification_send(&app).await;
+    let params = signup_params_with_invite(&app, NEW_EMAIL).await;
+    let email = params.get("email").unwrap().as_str().unwrap().to_string();
 
     // Act
     let response = app.post_signup(&params).await;
@@ -96,11 +97,26 @@ async fn signup_success() {
     assert!(status.is_success());
     assert_eq!(body.message, "User created.");
 
-    let events = recent_signup_events(email.to_string(), app.repo)
+    let events = recent_signup_events(email.clone(), app.repo)
         .await
         .unwrap();
 
     assert_eq!(events.len(), 1);
+
+    // Redeeming an invite proves control of the address, so the account is
+    // verified without a second round trip.
+    let created = app
+        .repo
+        .users(UserFilter {
+            email: Some(email),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .pop()
+        .unwrap();
+    assert!(created.email_verified_at.is_some());
+    assert!(created.email_verification_token.is_none());
 }
 
 async fn recent_signup_events(email: String, repo: Repo) -> Result<Vec<UserEvent>, Error> {
