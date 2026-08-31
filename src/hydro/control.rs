@@ -29,7 +29,7 @@ impl Control {
         })
     }
 
-    pub async fn lock(&self) -> PinLock {
+    pub async fn lock(&self) -> PinLock<'_> {
         self.pin.lock().await
     }
 }
