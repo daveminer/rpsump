@@ -1,6 +1,5 @@
-use std::sync::Arc;
-
 use actix_web::{post, web, web::Data, HttpRequest, HttpResponse, Result};
+use chrono::Utc;
 use serde::Deserialize;
 use validator::Validate;
 
@@ -21,21 +20,52 @@ pub struct SignupParams {
         message = "Password and confirm password must match."
     ))]
     confirm_password: Password,
+    /// Token from an invite email. Signup is invite-only.
+    invite_token: String,
 }
 
+/// Signup requires a valid invite. This replaces the previous LAN-only nginx
+/// allowlist, which could not distinguish clients once they began reaching the
+/// app through the router's NAT loopback and arriving as the public address.
 #[post("/signup")]
-#[tracing::instrument(skip(params, repo, settings))]
+#[tracing::instrument(skip(params, repo, _settings))]
 pub async fn signup(
     req: HttpRequest,
     params: web::Json<SignupParams>,
     repo: Data<Repo>,
-    settings: Data<Settings>,
+    _settings: Data<Settings>,
 ) -> Result<HttpResponse> {
     // Validate params
     match &params.validate() {
         Ok(_) => (),
         Err(e) => return Ok(ApiResponse::bad_request(e.to_string())),
     };
+
+    let signup_email = params.email.trim().to_lowercase();
+
+    let invite = match repo.invite_by_token(params.invite_token.clone()).await {
+        Ok(Some(invite)) => invite,
+        Ok(None) => {
+            return Ok(ApiResponse::bad_request(
+                "That invitation is not valid.".to_string(),
+            ))
+        }
+        Err(e) => return Ok(error_response(e, "Error while looking up invitation")),
+    };
+
+    if !invite.is_redeemable(Utc::now().naive_utc()) {
+        return Ok(ApiResponse::bad_request(
+            "That invitation has expired or has already been used.".to_string(),
+        ));
+    }
+
+    // Bind the invite to its address so a forwarded link cannot be redeemed by
+    // someone other than the intended recipient.
+    if invite.email.trim().to_lowercase() != signup_email {
+        return Ok(ApiResponse::bad_request(
+            "That invitation was issued for a different email address.".to_string(),
+        ));
+    }
 
     let ip_addr: String = match ip_address(&req) {
         Ok(ip) => ip,
@@ -53,32 +83,16 @@ pub async fn signup(
     };
 
     // Create user
-    let mut new_user = match repo.create_user(params.email.clone(), hash, ip_addr).await {
+    let new_user = match repo.create_user(signup_email, hash, ip_addr).await {
         Ok(user) => user,
         Err(e) => return Ok(ApiResponse::bad_request(e.to_string())),
     };
-    let mailer_settings = Arc::clone(&settings).mailer.clone();
-    // Generate an email verification token
-    let token = match repo.create_email_verification(&new_user).await {
-        Ok(token) => token,
-        Err(e) => {
-            return Ok(error_response(
-                e,
-                "Error while generating email verification token",
-            ));
-        }
-    };
 
-    // Add the token to the stale record before sending the email
-    new_user.email_verification_token = Some(token.value);
-    new_user.email_verification_token_expires_at = Some(token.expires_at);
-
-    // Send email verification
-    match new_user
-        .send_email_verification(mailer_settings, settings.server.public_host.as_str())
-        .await
-    {
+    // Marks the invite used and verifies the address in one transaction. No
+    // verification email is sent: the invite was delivered to this address, so
+    // control of it is already established.
+    match repo.redeem_invite(invite.id, new_user.id).await {
         Ok(_) => Ok(ApiResponse::ok("User created.".to_string())),
-        Err(e) => Ok(error_response(e, "Email verification failed")),
+        Err(e) => Ok(error_response(e, "Could not redeem invitation")),
     }
 }

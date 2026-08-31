@@ -2,37 +2,55 @@ use chrono::{Duration, NaiveDateTime};
 use diesel::r2d2::{ConnectionManager, PooledConnection};
 use diesel::{ExpressionMethods, RunQueryDsl, SqliteConnection};
 
-use rpsump::repository::models::user::UserFilter;
+use rpsump::repository::models::user::{User, UserFilter};
 use rpsump::test_fixtures::gpio::build_mock_gpio;
 use rpsump::{auth::token::Token, schema::user, util::ApiResponse};
 
-use crate::common::test_app::spawn_app;
-use crate::controllers::{
-    auth::signup_params, email_link_from_mock_server, mock_email_verification_send,
-};
+use super::{NEW_EMAIL, TEST_PASSWORD};
+use crate::common::test_app::{spawn_app, TestApp};
+
+/// Signup no longer produces verification tokens: redeeming an invite proves
+/// address control, so invited accounts are verified outright. These tests
+/// exercise the `verify_email` endpoint itself, so they create the user and
+/// mint the token directly rather than going through signup.
+async fn user_awaiting_verification(app: &TestApp) -> User {
+    let created = app
+        .repo
+        .create_user(
+            NEW_EMAIL.to_string(),
+            TEST_PASSWORD.to_string(),
+            "127.0.0.1".to_string(),
+        )
+        .await
+        .unwrap();
+
+    let _token = app.repo.create_email_verification(&created).await.unwrap();
+
+    // Re-read so the token columns written by create_email_verification are
+    // present on the returned record.
+    app.repo
+        .users(UserFilter {
+            email: Some(NEW_EMAIL.into()),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .pop()
+        .unwrap()
+}
 
 #[tokio::test]
 async fn email_verification_token_expired() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    let params = signup_params();
-    let _email_mock = mock_email_verification_send(&app).await;
-
-    // Act
-    let response = app.post_signup(&params).await;
-    assert!(response.status().is_success());
-
-    let user_filter = UserFilter {
-        email: Some(params["email"].as_str().unwrap().to_string()),
-        ..Default::default()
-    };
-    let user = app.repo.users(user_filter).await.unwrap().pop().unwrap();
+    let user = user_awaiting_verification(&app).await;
 
     let token_expiry = user.email_verification_token_expires_at.unwrap();
     let yesterday = token_expiry - Duration::days(1);
     let db = app.repo.pool().await.unwrap().get().unwrap();
     let _ = set_email_verification_expiry(user.email, yesterday, db).await;
 
+    // Act
     let email_verif_response = app
         .get_email_verification(user.email_verification_token.unwrap())
         .await;
@@ -48,15 +66,10 @@ async fn email_verification_token_expired() {
 async fn email_verification_failed_token_mismatch() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    let params = signup_params();
+    let _user = user_awaiting_verification(&app).await;
     let token = Token::new_email_verification(0);
-    let _mock = mock_email_verification_send(&app).await;
 
     // Act
-    let response = app.post_signup(&params).await;
-    let status = response.status();
-    assert!(status.is_success());
-
     let email_verif_response = app.get_email_verification(token.value.to_string()).await;
     let email_verif_status = email_verif_response.status();
     let body: ApiResponse = email_verif_response.json().await.unwrap();
@@ -70,14 +83,9 @@ async fn email_verification_failed_token_mismatch() {
 async fn email_verification_failed_no_token() {
     // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    let params = signup_params();
-    let _mock = mock_email_verification_send(&app).await;
+    let _user = user_awaiting_verification(&app).await;
 
     // Act
-    let response = app.post_signup(&params).await;
-    let status = response.status();
-    assert!(status.is_success());
-
     let email_verif_response = app.get_email_verification("".to_string()).await;
     let email_verif_status = email_verif_response.status();
     let body: ApiResponse = email_verif_response.json().await.unwrap();
@@ -89,25 +97,32 @@ async fn email_verification_failed_no_token() {
 
 #[tokio::test]
 async fn email_verification_succeeded() {
+    // Arrange
     let app = spawn_app(&build_mock_gpio()).await;
-    let params = signup_params();
+    let user = user_awaiting_verification(&app).await;
 
-    let _mock = mock_email_verification_send(&app).await;
-
-    let response = app.post_signup(&params).await;
+    // Act
+    let response = app
+        .get_email_verification(user.email_verification_token.unwrap())
+        .await;
     let status = response.status();
-    assert!(status.is_success());
-
-    let link = email_link_from_mock_server(&app).await;
-
-    // Add the port of the test app to the URL
-    let link = link.replace("localhost", &format!("localhost:{}", app.port));
-
-    let response = reqwest::get(link).await.unwrap();
-    assert!(response.status().is_success());
     let body: ApiResponse = response.json().await.unwrap();
 
+    // Assert
+    assert!(status.is_success());
     assert!(body.message == "Email verified.");
+
+    let verified = app
+        .repo
+        .users(UserFilter {
+            email: Some(NEW_EMAIL.into()),
+            ..Default::default()
+        })
+        .await
+        .unwrap()
+        .pop()
+        .unwrap();
+    assert!(verified.email_verified_at.is_some());
 }
 
 async fn set_email_verification_expiry(
@@ -119,5 +134,5 @@ async fn set_email_verification_expiry(
         .filter(user::email.eq(email))
         .set(user::email_verification_token_expires_at.eq(time.to_string()))
         .execute(&mut conn)
-        .map_err(|e| anyhow::Error::new(e))
+        .map_err(anyhow::Error::new)
 }

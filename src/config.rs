@@ -67,6 +67,10 @@ pub struct ServerConfig {
     pub host: String,
     pub port: u16,
     pub public_host: String,
+    /// Canonical base URL of the browser app, e.g. `https://nimbus.example.com`.
+    /// Used to build links mailed to users (invites), which must land on the
+    /// front end rather than this API. Set via `PUBLIC_APP_URL`.
+    pub public_app_url: String,
     pub access_token_duration_minutes: u16,
     pub refresh_token_duration_days: u8,
 }
@@ -146,6 +150,9 @@ impl Settings {
                 host: server_host,
                 port: server_port,
                 public_host: load_system_var("PUBLIC_HOST"),
+                public_app_url: load_system_var("PUBLIC_APP_URL")
+                    .trim_end_matches('/')
+                    .to_string(),
                 access_token_duration_minutes: env::var("SERVER_ACCESS_TOKEN_DURATION_MINUTES")
                     .unwrap_or_else(|_| "15".to_string())
                     .parse()

@@ -1,6 +1,19 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
+    invite (id) {
+        id -> Integer,
+        email -> Text,
+        token -> Text,
+        invited_by_user_id -> Integer,
+        expires_at -> Timestamp,
+        accepted_at -> Nullable<Timestamp>,
+        accepted_by_user_id -> Nullable<Integer>,
+        created_at -> Timestamp,
+    }
+}
+
+diesel::table! {
     refresh_token (id) {
         id -> Integer,
         user_id -> Integer,
@@ -75,12 +88,14 @@ diesel::table! {
 }
 
 diesel::joinable!(garden_event -> garden_schedule (schedule_id));
+diesel::joinable!(invite -> user (invited_by_user_id));
 diesel::joinable!(refresh_token -> user (user_id));
 diesel::joinable!(user_event -> user (user_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     garden_event,
     garden_schedule,
+    invite,
     refresh_token,
     sump_event,
     user,

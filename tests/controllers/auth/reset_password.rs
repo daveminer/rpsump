@@ -7,7 +7,7 @@ use wiremock::{Mock, ResponseTemplate};
 use rpsump::auth::token::Token;
 use rpsump::repository::models::user::{User, UserFilter, UserUpdateFilter};
 
-use super::signup_params;
+use super::signup_params_with_invite;
 use crate::common::test_app::{spawn_app, TestApp};
 use crate::controllers::{auth::password_reset_params, param_from_email_text};
 
@@ -126,14 +126,15 @@ async fn reset_password_success() {
 async fn signup_and_request_password_reset() -> (TestApp, serde_json::Map<String, serde_json::Value>)
 {
     let app = spawn_app(&build_mock_gpio()).await;
-    let params = signup_params();
+    let params = signup_params_with_invite(&app, crate::controllers::auth::NEW_EMAIL).await;
 
-    // Mock the email verification and reset password email sends.
+    // Only the reset email is sent now: invited accounts are verified on
+    // signup, so no verification mail goes out.
     let _mock_guard = Mock::given(path("/"))
         .and(method("POST"))
         .respond_with(ResponseTemplate::new(200))
         .named("Email sends.")
-        .expect(2)
+        .expect(1)
         .mount_as_scoped(&app.email_server)
         .await;
 
