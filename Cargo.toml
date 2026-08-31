@@ -32,7 +32,7 @@ actix-session = { version = "0.9.0", features = ["cookie-session"] }
 actix-web = "4.3.1"
 
 # Hardware
-rppal = "0.18.0"
+rppal = "0.22.1"
 
 # Database
 diesel = { version = "2.1.4", features = [

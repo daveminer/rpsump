@@ -68,23 +68,43 @@ impl InputPin for rppal::gpio::InputPin {
             tx.clone(),
         )));
 
-        let callback = move |level: rppal::gpio::Level| {
-            handle.block_on(handle_interrupt(Arc::clone(&debouncer), level));
+        let callback = move |event: rppal::gpio::Event| {
+            handle.block_on(handle_interrupt(Arc::clone(&debouncer), event.trigger.into()));
         };
 
-        Ok(self.set_async_interrupt(trigger.into(), callback)?)
+        // `None` for rppal's own debounce: this pin is already debounced by the
+        // shared `Debouncer` above, which reports through the signal channel.
+        // Enabling both would debounce twice and change the timing that the
+        // float-switch handling depends on.
+        Ok(self.set_async_interrupt(trigger.into(), None, callback)?)
     }
 }
 
-async fn handle_interrupt(debouncer: Arc<Mutex<Debouncer>>, level: rppal::gpio::Level) {
+async fn handle_interrupt(debouncer: Arc<Mutex<Debouncer>>, level: crate::hydro::Level) {
     let mut debouncer = debouncer.lock().await;
     let running = debouncer.running.lock().await;
     if *running {
         drop(running);
-        debouncer.reset_deadline(level.into()).await;
+        debouncer.reset_deadline(level).await;
     } else {
         drop(running);
         debouncer.start().await;
+    }
+}
+
+/// rppal 0.19 changed the async interrupt callback to receive an `Event`
+/// rather than a `Level`. `Event::trigger` is documented as carrying only
+/// `RisingEdge` or `FallingEdge`, which name the level the pin transitioned
+/// *to*. The remaining variants cannot appear on a delivered event.
+impl From<rppal::gpio::Trigger> for crate::hydro::Level {
+    fn from(trigger: rppal::gpio::Trigger) -> Self {
+        match trigger {
+            rppal::gpio::Trigger::RisingEdge => crate::hydro::Level::High,
+            rppal::gpio::Trigger::FallingEdge => crate::hydro::Level::Low,
+            rppal::gpio::Trigger::Both | rppal::gpio::Trigger::Disabled => {
+                crate::hydro::Level::Both
+            }
+        }
     }
 }
 
