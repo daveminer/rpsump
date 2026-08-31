@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
 use anyhow::Error;
-use opentelemetry::{global, KeyValue};
-use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::{propagation::TraceContextPropagator, trace, Resource};
+use opentelemetry::{global, trace::TracerProvider as _};
+use opentelemetry_otlp::{SpanExporter, WithExportConfig, WithTonicConfig};
+use opentelemetry_sdk::{propagation::TraceContextPropagator, trace::SdkTracerProvider, Resource};
 use tokio::time::Duration;
 use tonic::metadata::{MetadataKey, MetadataMap};
 use tracing_subscriber::{prelude::*, EnvFilter, Registry};
@@ -12,24 +12,24 @@ use crate::config::Settings;
 
 /// Configure a global `tracing` subscriber. `actix-web-opentelemetry` will use this
 /// for spanning on requests.
-pub fn init_tracer(settings: &Settings) -> Result<(), Error> {
+pub fn init_tracer(settings: &Settings) -> Result<SdkTracerProvider, Error> {
     global::set_text_map_propagator(TraceContextPropagator::new());
 
-    let exporter = opentelemetry_otlp::new_exporter()
-        .tonic()
+    let exporter = SpanExporter::builder()
+        .with_tonic()
         .with_metadata(headers(settings))
         .with_endpoint(&settings.telemetry.receiver_url)
-        .with_timeout(Duration::from_secs(10));
+        .with_timeout(Duration::from_secs(10))
+        .build()?;
 
     // Export traces in batches
-    let tracer = opentelemetry_otlp::new_pipeline()
-        .tracing()
-        .with_exporter(exporter)
-        .with_trace_config(
-            trace::config()
-                .with_resource(Resource::new(vec![KeyValue::new("service.name", "rpsump")])),
-        )
-        .install_batch(opentelemetry_sdk::runtime::Tokio)?;
+    let provider = SdkTracerProvider::builder()
+        .with_batch_exporter(exporter)
+        .with_resource(Resource::builder().with_service_name("rpsump").build())
+        .build();
+
+    let tracer = provider.tracer("rpsump");
+    global::set_tracer_provider(provider.clone());
 
     // TODO: remove add_directive
     let env_filter = EnvFilter::new("info").add_directive("my_crate::internal=off".parse()?);
@@ -41,7 +41,7 @@ pub fn init_tracer(settings: &Settings) -> Result<(), Error> {
         .with(tracing_opentelemetry::layer().with_tracer(tracer))
         .init();
 
-    Ok(())
+    Ok(provider)
 }
 
 // Configure the headers for the telemetry exporter, including external receiver

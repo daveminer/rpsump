@@ -1,5 +1,7 @@
 use std::process::exit;
 
+use opentelemetry_sdk::trace::SdkTracerProvider;
+
 use diesel::RunQueryDsl;
 use rpsump::{
     application::Application, config::Settings, hydro::gpio::Gpio, middleware::telemetry,
@@ -9,13 +11,14 @@ use rpsump::{
 /// Start the application after loading settings, database, telemetry, and the RPi board.
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    init_exit_handler();
-
     // Application config
     let settings = Settings::new();
 
     // Observability
-    telemetry::init_tracer(&settings).expect("Could not initialize telemetry.");
+    let tracer_provider =
+        telemetry::init_tracer(&settings).expect("Could not initialize telemetry.");
+
+    init_exit_handler(tracer_provider);
 
     // TODO: DB URI
     // Database
@@ -49,10 +52,10 @@ fn build_gpio() -> impl Gpio {
 }
 
 // actix-web will handle signals to exit, but doesn't offer a hook to customize it.
-fn init_exit_handler() {
+fn init_exit_handler(tracer_provider: SdkTracerProvider) {
     ctrlc::set_handler(move || {
         // Ensure all spans have been reported.
-        opentelemetry::global::shutdown_tracer_provider();
+        let _ = tracer_provider.shutdown();
 
         exit(0);
     })
