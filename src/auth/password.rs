@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Error};
 use bcrypt::{hash, DEFAULT_COST};
-use secrecy::{ExposeSecret, Secret, SecretString};
+use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 
@@ -10,17 +10,17 @@ pub struct Password(SecretString);
 #[derive(Debug, serde::Deserialize)]
 pub struct AuthParams {
     pub email: String,
-    pub password: Secret<String>,
+    pub password: SecretString,
 }
 
 impl Password {
     pub fn hash(&self) -> Result<String, Error> {
-        hash(self.expose_secret().clone(), DEFAULT_COST)
+        hash(self.expose_secret(), DEFAULT_COST)
             .map_err(|_| anyhow!("Could not hash password."))
     }
 
     pub fn new(secret: String) -> Self {
-        Self(SecretString::new(secret))
+        Self(SecretString::new(secret.into_boxed_str()))
     }
 }
 
@@ -38,8 +38,8 @@ impl PartialEq for Password {
     }
 }
 
-impl ExposeSecret<String> for Password {
-    fn expose_secret(&self) -> &String {
+impl ExposeSecret<str> for Password {
+    fn expose_secret(&self) -> &str {
         self.0.expose_secret()
     }
 }
