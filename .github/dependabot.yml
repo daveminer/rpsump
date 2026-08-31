@@ -1,0 +1,51 @@
+version: 2
+
+updates:
+  # Rust dependencies. Security advisories are opened automatically by
+  # Dependabot security updates; this schedule covers routine upkeep so the
+  # backlog does not accumulate again.
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: America/New_York
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(dev-deps)"
+    groups:
+      # These crates share types across their public APIs and will not resolve
+      # unless they move together, so a lone bump is always a wasted PR.
+      opentelemetry:
+        patterns:
+          - "opentelemetry"
+          - "opentelemetry-*"
+          - "opentelemetry_*"
+          - "tracing-opentelemetry"
+          - "actix-web-opentelemetry"
+          - "tonic"
+      actix:
+        patterns:
+          - "actix"
+          - "actix-*"
+      diesel:
+        patterns:
+          - "diesel"
+          - "diesel-*"
+          - "diesel_*"
+      # Everything else: keep routine churn to a single reviewable PR.
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  # Keep workflow actions current; the pins here drifted far enough to break
+  # the build once already.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "ci"
