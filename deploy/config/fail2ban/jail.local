@@ -59,7 +59,11 @@ filter   = nginx-deny
 logpath  = /config/log/nginx/error.log
 
 [nginx-unauthorized]
-enabled  = true
+# Disabled: bans on ANY HTTP 401, the normal response to an unauthenticated request.
+# LAN clients reach the app via the router NAT loopback, so they all share one source
+# address (the public IP) — a few routine 401s banned every user at once, inside and out.
+# Brute-force protection is retained by [nginx-rpsump-auth] (POST /auth/* returning 400).
+enabled  = false
 port     = http,https
 filter   = nginx-unauthorized
 logpath  = /config/log/nginx/access.log
