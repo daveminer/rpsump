@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use chrono::NaiveDateTime;
 use diesel::r2d2::{ConnectionManager, Pool};
 use diesel::sqlite::SqliteConnection;
+use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
 use mockall::automock;
 use models::{
     garden_event::{GardenEvent, GardenEventFilter, GardenEventStatus},
@@ -117,6 +118,23 @@ pub trait Repository: Send + Sync + 'static {
     async fn update_user(&self, filter: UserUpdateFilter) -> Result<(), Error>;
     async fn users(&self, filter: UserFilter) -> Result<Vec<User>, Error>;
     async fn verify_email(&self, token: String) -> Result<(), VerifyEmailError>;
+}
+
+/// Migrations are compiled into the binary so a deployed artifact always
+/// carries the schema it expects. Applying them at startup removes the
+/// separate `diesel migration run` step, which is easy to omit during a
+/// deploy and fails silently: the table is simply absent and every query
+/// against it returns a 500.
+pub const MIGRATIONS: EmbeddedMigrations = embed_migrations!("migrations");
+
+/// Applies any migrations the database has not yet seen. Returns the versions
+/// that were applied, so a deploy can be seen in the logs rather than inferred.
+pub fn run_pending_migrations(conn: &mut SqliteConnection) -> Result<Vec<String>, Error> {
+    let applied = conn
+        .run_pending_migrations(MIGRATIONS)
+        .map_err(|e| anyhow::anyhow!("Could not run pending migrations: {e}"))?;
+
+    Ok(applied.iter().map(|v| v.to_string()).collect())
 }
 
 pub async fn implementation(database_uri: Option<String>) -> Result<Repo, Error> {
