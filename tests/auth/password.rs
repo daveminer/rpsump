@@ -15,7 +15,7 @@ fn test_password_hash() {
 #[test]
 fn test_password_new() {
     let password = Password::new("password123".to_string());
-    assert_eq!(password.expose_secret().as_str(), "password123");
+    assert_eq!(password.expose_secret(), "password123");
 }
 
 #[test]

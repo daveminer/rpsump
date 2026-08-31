@@ -1,7 +1,7 @@
 use actix_web::{post, web, web::Data, HttpRequest, HttpResponse, Result};
 use anyhow::{anyhow, Error};
 use bcrypt::verify;
-use secrecy::{ExposeSecret, Secret};
+use secrecy::{ExposeSecret, SecretString};
 use serde::{Deserialize, Serialize};
 
 use crate::auth::{claim::create_token, password::AuthParams, token::Token};
@@ -102,7 +102,7 @@ pub async fn login(
 }
 
 #[tracing::instrument(skip(user, password))]
-async fn verify_password(user: Option<User>, password: Secret<String>) -> Result<(), Error> {
+async fn verify_password(user: Option<User>, password: SecretString) -> Result<(), Error> {
     let provided_pw: String = match user {
         Some(user) => user.password_hash,
         None => "decoy".to_string(),
