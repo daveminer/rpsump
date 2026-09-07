@@ -9,7 +9,7 @@ edition = "2021"
 # Development tools
 anyhow = "1.0"
 async-trait = "0.1.77"
-bcrypt = "0.15.0"
+bcrypt = "0.19.3"
 chrono = { version = "0.4.24", features = ["serde"] }
 ctrlc = "3.2.5"
 dotenv = "0.15.0"
